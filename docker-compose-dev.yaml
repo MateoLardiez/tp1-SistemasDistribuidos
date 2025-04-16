@@ -1,0 +1,36 @@
+
+    name: tp1
+    services:
+        gateway:
+            container_name: gateway
+            image: gateway:latest
+            entrypoint: python3 /main.py
+            environment:
+                - PYTHONUNBUFFERED=1
+                - CLIENTS=3
+            volumes:
+                - ./gateway/config.ini:/config.ini:ro
+            networks:
+                - testing_net
+    
+        client1:
+            container_name: client1
+            image: client:latest
+            entrypoint: /client
+            environment:
+                - CLI_ID=1
+            volumes:
+                - ./client/config.yaml:/config.yaml:ro
+                - ./.data/movies_sample.csv:/movies.csv:ro
+            networks:
+                - testing_net
+            depends_on:
+                - gateway
+        
+    networks:
+        testing_net:
+            ipam:
+                driver: default
+                config:
+                    - subnet: 172.25.125.0/24
+    

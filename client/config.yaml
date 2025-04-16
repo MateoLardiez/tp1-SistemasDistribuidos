@@ -1,0 +1,9 @@
+server:
+  address: "gateway:12345"
+loop:
+  amount: 5
+  period: "50ms"
+log:
+  level: "INFO"
+batch:
+  maxAmount: 1000
