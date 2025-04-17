@@ -11,11 +11,10 @@ import (
 	"time"
 
 	"movies-analysis/client/common/communication"
-
-	"github.com/op/go-logging"
+	"movies-analysis/client/config"
 )
 
-var log = logging.MustGetLogger("log")
+var log = config.Log
 
 const (
 	MAX_BATCH_SIZE       = 8 * 1024
@@ -31,12 +30,13 @@ const (
 
 // ClientConfig Configuration used by the client
 type ClientConfig struct {
-	ID            string
-	ServerAddress string
-	LoopAmount    int
-	LoopPeriod    time.Duration
-	MaxAmount     int
-	Phase         int
+	ID             string
+	ServerAddress  string
+	LoopAmount     int
+	LoopPeriod     time.Duration
+	MaxAmount      int
+	Phase          int
+	FilesToProcess []string // Lista de archivos a procesar
 }
 
 // Struct for the bet
@@ -86,61 +86,135 @@ func NewClient(config ClientConfig) *Client {
 	return client
 }
 
-// CreateClientSocket Initializes client socket. In case of
-// failure, error is printed in stdout/stderr and exit 1
-// is returned
-// func (c *Client) createClientSocket() error {
-// 	if c.socket.IsConnected() {
-// 		log.Infof("action: connect | result: success | client_id: %v", c.config.ID)
-// 		return nil
-// 	} else {
-// 		err := c.socket.Connect(c.config.ServerAddress)
-// 		if err != nil {
-// 			// conn, err := net.Dial("tcp", c.config.ServerAddress)
-// 			log.Criticalf(
-// 				"action: connect | result: fail | client_id: %v | error: %v",
-// 				c.config.ID,
-// 				err,
-// 			)
-// 			return err
-// 		}
-// 	}
-// 	// 	log.Criticalf(
-// 	// 		"action: connect | result: fail | client_id: %v | error: %v",
-// 	// 		c.config.ID,
-// 	// 		err,
-// 	// 	)
-// 	// }
-// 	// c.conn = conn
-// 	return nil
-// }
+func (c *Client) StartClientLoop() {
+	defer c.closeClient()
 
-// func (c *Client) send(data []byte, size int) int {
-// 	totalSend := 0
-// 	for totalSend < size {
-// 		n, err := c.conn.Write(data[totalSend:])
-// 		if err != nil {
-// 			log.Criticalf("action: send_message | result: fail | error: %v", err)
-// 			return 0
-// 		}
-// 		totalSend += n
-// 	}
-// 	return totalSend
-// }
+	// Procesar cada archivo de la lista
+	for _, filename := range c.config.FilesToProcess {
+		if err := c.processFile(filename); err != nil {
+			log.Errorf("action: process_file | file: %s | result: fail | error: %v", filename, err)
+			continue
+		}
+	}
 
-// func (c *Client) recv(size int) []byte {
-// 	data := make([]byte, size)
-// 	totalRecv := 0
-// 	for totalRecv < size {
-// 		n, err := c.conn.Read(data[totalRecv:])
-// 		if err != nil {
-// 			log.Criticalf("action: receive_message | result: fail | error: %v", err)
-// 			return nil
-// 		}
-// 		totalRecv += n
-// 	}
-// 	return data
-// }
+	// Enviar mensaje de finalización
+	c.config.Phase = CODE_END
+	c.handleCloseConnection()
+}
+
+func (c *Client) processFile(filename string) error {
+	log.Infof("action: process_file | file: %s | result: start", filename)
+
+	// Abrir el archivo
+	file, err := os.Open(filename)
+	if err != nil {
+		return fmt.Errorf("failed to open file: %v", err)
+	}
+	defer file.Close()
+
+	fileReader := bufio.NewReader(file)
+
+	// Procesar el archivo hasta que se complete o haya una señal de salida
+	for {
+		select {
+		case <-c.quit:
+			return fmt.Errorf("client received quit signal")
+		default:
+			finishedProcessing := c.handlePhase(fileReader)
+			if finishedProcessing {
+				log.Infof("action: process_file | file: %s | result: complete", filename)
+				return nil
+			}
+			// Esperar antes de continuar con el siguiente batch
+			time.Sleep(c.config.LoopPeriod)
+		}
+	}
+}
+
+func (c *Client) handlePhase(reader *bufio.Reader) bool {
+	switch c.config.Phase {
+	case CODE_BATCH:
+		return c.handleBatch(reader)
+	case CODE_END:
+		c.handleCloseConnection()
+		return true
+	default:
+		log.Criticalf("action: handle_phase | result: fail | client_id: %v | error: invalid phase",
+			c.config.ID,
+		)
+	}
+	return false
+}
+
+func (c *Client) handleBatch(reader *bufio.Reader) bool {
+	batch, eof := c.createBatch(reader)
+	if eof {
+		// c.config.Phase = CODE_END
+		return true
+	}
+
+	err := c.socket.SendAll([]byte{CODE_BATCH}, SIZE_CODE)
+	if err != nil {
+		log.Errorf("action: send_message_code_batch | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
+		return true
+	}
+
+	errBatch := c.sendBatch(batch)
+	if errBatch != nil {
+		log.Errorf("action: send_message_batch | result: fail | client_id: %v",
+			c.config.ID,
+		)
+		return true
+	}
+
+	response, errResponse := c.recvResponse()
+	if errResponse != nil {
+		log.Errorf("action: receive_status_batch | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			errResponse,
+		)
+		return true
+	}
+
+	c.parseResponse(response)
+	return false
+}
+
+func (c *Client) createBatch(reader *bufio.Reader) ([]byte, bool) {
+	var batchData []byte
+	betCount := 0
+	eof := false
+
+	for betCount < c.config.MaxAmount {
+		bet, err := c.readLine(reader)
+		if err != nil {
+			log.Criticalf("action: read_bet | result: fail | error: %v", err)
+			return nil, true
+		}
+		if bet == nil {
+			eof = true
+			break
+		}
+
+		serializeBet := bet
+
+		if len(batchData) > 0 && len(batchData)+len(serializeBet)+1 > MAX_BATCH_SIZE {
+			break
+		}
+
+		if len(batchData) > 0 {
+			batchData = append(batchData, '|')
+		}
+
+		batchData = append(batchData, serializeBet...)
+		betCount++
+	}
+
+	return batchData, eof
+}
 
 func (c *Client) sendBatch(data []byte) error {
 	totalBytes := len(data)
@@ -199,214 +273,8 @@ func (c *Client) readLine(reader *bufio.Reader) ([]byte, error) {
 		log.Criticalf("action: read_line | result: fail | error: %v", err)
 		return nil, err
 	}
-
-	bet := []byte(line)
-
-	// line_len := strings.Split(strings.TrimSpace(line), ",")
-	// if len(line_len) != 5 {
-	// 	log.Criticalf("action: read_line | result: fail | error: invalid line format")
-	// 	return nil, fmt.Errorf("invalid line format")
-	// }
-
-	// id, _ := strconv.Atoi(c.config.ID)
-	// documento, _ := strconv.Atoi(line_len[2])
-	// numero, _ := strconv.Atoi(line_len[4])
-
-	// bet := &Bet{
-	// 	Id:         id,
-	// 	Nombre:     line_len[0],
-	// 	Apellido:   line_len[1],
-	// 	Documento:  documento,
-	// 	Nacimiento: line_len[3],
-	// 	Numero:     numero,
-	// }
-	return bet, nil
+	return []byte(line), nil
 }
-
-func (c *Client) createBatch(reader *bufio.Reader) ([]byte, bool) {
-	var batchData []byte
-	betCount := 0
-	eof := false
-
-	for betCount < c.config.MaxAmount {
-		bet, err := c.readLine(reader)
-		if err != nil {
-			log.Criticalf("action: read_bet | result: fail | error: %v", err)
-			return nil, true
-		}
-		if bet == nil {
-			eof = true
-			break
-		}
-
-		serializeBet := bet //.serialize()
-
-		if len(batchData) > 0 && len(batchData)+len(serializeBet)+1 > MAX_BATCH_SIZE {
-			break
-		}
-
-		if len(batchData) > 0 {
-			batchData = append(batchData, '|')
-		}
-
-		batchData = append(batchData, serializeBet...)
-		betCount++
-	}
-
-	// if len(batchData) > 0 {
-	// 	// batchData = append(batchData, '\n')
-	// }
-	return batchData, eof
-}
-
-// StartClientLoop Send messages to the client until some time threshold is met
-func (c *Client) StartClientLoop() {
-
-	// There is an autoincremental msgID to identify every message sent
-	// Messages if the message amount threshold has not been surpassed
-	// if err := c.createClientSocket(); err != nil {
-	// 	log.Criticalf("action: create_socket | result: fail | error: %v", err)
-	// 	return
-	// }
-	defer c.closeClient()
-
-	// Open file and send messages to the server
-	filename := "movies.csv" //fmt.Sprintf("movies.csv", c.config.ID)
-	file, err := os.Open(filename)
-	if err != nil {
-		log.Criticalf("action: open_file | result: fail | error: %v", err)
-		return
-	}
-	defer file.Close()
-
-	fileReader := bufio.NewReader(file)
-
-	for {
-		// 	// Create the connection the server in every loop iteration. Send an
-		select {
-		case <-c.quit:
-			c.closeClient()
-			return
-		default:
-			finishedLotery := c.handlePhase(fileReader)
-			if finishedLotery {
-				log.Infof("action: finished_lotery | result: success")
-				return
-			}
-			// Wait a time between sending one message and the next one
-			time.Sleep(c.config.LoopPeriod)
-		}
-	}
-}
-
-// func (c *Client) sendCodeAgency() bool {
-// 	id, err := strconv.Atoi(c.config.ID)
-// 	if err != nil {
-// 		log.Criticalf("action: convert_id | result: fail | error: %v", err)
-// 		return true
-// 	}
-// 	data := []byte(fmt.Sprintf("%01d", id))
-// 	n := c.send(data, 1)
-// 	if n == 0 {
-// 		log.Criticalf("action: send_message_code_agency | result: fail")
-// 		return true
-// 	}
-// 	return false
-// }
-
-func (c *Client) handlePhase(reader *bufio.Reader) bool {
-	switch c.config.Phase {
-	case CODE_BATCH:
-		c.handleBatch(reader)
-	// case CODE_RESULT:
-	// 	c.handleResult()
-	// case CODE_WAIT_FOR_RESULT:
-	// 	c.handleWaitForResult()
-	case CODE_END:
-		c.handleCloseConnection()
-		return true
-	default:
-		log.Criticalf("action: handle_phase | result: fail | client_id: %v | error: invalid phase",
-			c.config.ID,
-		)
-	}
-	return false
-}
-
-func (c *Client) handleBatch(reader *bufio.Reader) {
-	batch, eof := c.createBatch(reader)
-	if eof {
-		c.config.Phase = CODE_END
-		return
-	}
-
-	err := c.socket.SendAll([]byte{CODE_BATCH}, SIZE_CODE)
-	if err != nil {
-		log.Errorf("action: send_message_code_batch | result: fail | client_id: %v | error: %v",
-			c.config.ID,
-			err,
-		)
-		return
-	}
-
-	errBatch := c.sendBatch(batch)
-	if errBatch != nil {
-		log.Errorf("action: send_message_batch | result: fail | client_id: %v",
-			c.config.ID,
-		)
-		return
-	}
-
-	response, errResponse := c.recvResponse()
-	if errResponse != nil {
-		log.Errorf("action: receive_status_batch | result: fail | client_id: %v | error: %v",
-			c.config.ID,
-			errResponse,
-		)
-		return
-	}
-
-	c.parseResponse(response)
-}
-
-// func (c *Client) handleWaitForResult() {
-// 	code := c.recv(SIZE_CODE)
-// 	if code == nil {
-// 		log.Criticalf("action: read_code | result: fail ")
-// 		return
-// 	}
-// 	if code[0] == CODE_WAIT_FOR_RESULT {
-// 		c.config.Phase = CODE_RESULT
-// 		return
-// 	}
-// 	listWinner := c.recvWinners()
-// 	if listWinner == nil {
-// 		log.Criticalf("action: read_winners | result: fail")
-// 		return
-// 	}
-// 	if len(listWinner) == 0 {
-// 		log.Infof("action: consulta_ganadores | result: success | cant_ganadores: 0")
-// 		c.config.Phase = CODE_END
-// 		return
-// 	}
-// 	listWinnerStr := strings.Split(string(listWinner), ";")
-// 	log.Infof("action: consulta_ganadores | result: success | cant_ganadores: %d", len(listWinnerStr))
-// 	c.config.Phase = CODE_END
-// }
-
-// func (c *Client) handleResult() {
-// 	n := c.send([]byte{CODE_RESULT}, SIZE_CODE)
-// 	if n != 1 {
-// 		log.Criticalf("action: send_message_result | result: fail")
-// 		return
-// 	}
-// 	error := c.sendCodeAgency()
-// 	if error {
-// 		log.Criticalf("action: send_code_agency | result: fail")
-// 		return
-// 	}
-// 	c.config.Phase = CODE_WAIT_FOR_RESULT
-// }
 
 func (c *Client) handleCloseConnection() {
 	err := c.socket.SendAll([]byte{CODE_END}, SIZE_CODE)
@@ -437,41 +305,10 @@ func (c *Client) parseResponse(response []byte) {
 	case "FAIL":
 		log.Errorf("action: apuesta_recibida | result: fail | cantidad: %d", lenght)
 		return
-	// case "SUCCESS":
-	// 	log.Infof("action: apuesta_recibida | result: success | cantidad: %d", lenght)
 	default:
-		// log.Criticalf("action: parse_response | result: fail | client_id: %v | error: invalid response code",
-		// 	c.config.ID,
-		// )
 		return
 	}
 }
-
-// func (c *Client) recvWinners() []byte {
-// 	sizeData := c.recv(SIZE_HEADER)
-// 	if sizeData == nil {
-// 		log.Criticalf("action: read_winners_header | result: fail")
-// 		return nil
-// 	}
-
-// 	size, err := strconv.Atoi(string(sizeData))
-// 	if err != nil {
-// 		log.Criticalf("action: parse_winners_header | result: fail | error: %v", err)
-// 		return nil
-// 	}
-
-// 	if size == 0 {
-// 		return []byte{}
-// 	}
-
-// 	data := c.recv(size)
-// 	if data == nil {
-// 		log.Criticalf("action: read_winners | result: fail")
-// 		return nil
-// 	}
-
-// 	return data
-// }
 
 func (c *Client) closeClient() {
 	time.Sleep(5 * time.Second)

@@ -7,3 +7,7 @@ log:
   level: "INFO"
 batch:
   maxAmount: 100
+files:
+  - "movies.csv"
+  - "ratings.csv"
+  - "credits.csv"
