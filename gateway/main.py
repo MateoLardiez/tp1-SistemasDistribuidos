@@ -1,5 +1,5 @@
 from configparser import ConfigParser
-from common.server import Server
+from common.gateway import Gateway
 # from config.logger import Logger, setup_logger
 import os
 import logging
@@ -64,7 +64,7 @@ def main():
                     f"listen_backlog: {listen_backlog} | logging_level: {logging_level}")
 
         # Initialize server and start server loop
-        server = Server(port, listen_backlog, clients)
+        server = Gateway(port, listen_backlog, clients)
         server.run()
     except Exception as e:
         logging.exception("Uncaught exception")

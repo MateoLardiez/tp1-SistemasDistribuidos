@@ -12,7 +12,7 @@ CODE_WAIT = b'W'
 CODE_WINNER = b'S'
 SIZE_BATCH = 8 * 1024
 
-class Server:
+class Gateway:
     def __init__(self, port, listen_backlog, clients):
         # Initialize server socket
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
