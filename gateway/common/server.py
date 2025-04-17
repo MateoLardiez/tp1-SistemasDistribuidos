@@ -4,7 +4,7 @@ import signal
 from common import utils
 import multiprocessing
 
-CODE_AGENCY = b'A'
+CODE_ALL_QUERYS = b'A'
 CODE_BATCH = b'B'
 CODE_RESULT = b'R'
 CODE_END = b'E'
@@ -26,7 +26,6 @@ class Server:
         self.winners = self.manager.dict()
         self.finished_agencies = self.manager.list()
         self.bets_lock = multiprocessing.Lock()
-        self.barrier = multiprocessing.Barrier(clients, action=self.__handle_sorteo)
 
     def run(self):
         """
@@ -65,7 +64,6 @@ class Server:
         client socket will also be closed
         """
         try:
-            # TODO: Modify the receive to avoid short-reads
             addr = client_sock.getpeername()
             while True:
                 code = self.__recv_all(client_sock, 1)
@@ -80,70 +78,26 @@ class Server:
     def handle_client_connection(self, client_sock, code):
         if code == CODE_BATCH:
             self.__handle_batch(client_sock)
-        elif code == CODE_RESULT:
-            self.__handle_result(client_sock)
+        # elif code == CODE_RESULT:
+        #     self.__handle_result(client_sock)
 
-    def recv_id_agency(self, client_sock) -> int:
-        idAgency = self.__recv_all(client_sock, 1)
-        idAgency = int(idAgency)
-        return idAgency
 
     def __handle_batch(self, client_sock):
         (batch, failed_bets) = self.recv_batch(client_sock)
         if failed_bets > 0:
             logging.error(f"action: apuesta_recibida | result: fail | error: {failed_bets}")
-            response = f'FAIL;{len(batch)}'.encode('utf-8')
+            # response = f'FAIL;{len(batch)}'.encode('utf-8')
         else:
             logging.info(f"action: apuesta_recibida | result: success | cantidad: {len(batch)}")
-            response = f'SUCCESS;{len(batch)}'.encode('utf-8')
         
-        with self.bets_lock:
-            utils.store_bets(batch)
+        response = f'SUCCESS;{len(batch)}'.encode('utf-8')
+        
+        # with self.bets_lock:
+        #     utils.store_bets(batch)
         
         response_len = f"{len(response):04d}".encode('utf-8')
         self.__send_all(client_sock, response_len)
         self.__send_all(client_sock, response)
-
-    def __handle_result(self, client_sock):
-        idAgency = self.recv_id_agency(client_sock)
-        if not idAgency:
-            logging.error(f"action: receive_result | result: fail | error: unknown agency")
-            return
-        
-        with self.bets_lock:
-            if idAgency not in self.finished_agencies:
-                self.finished_agencies.append(idAgency)
-
-        try:
-            self.barrier.wait()
-            winnersList = self.winners.get(idAgency, [])
-            self.__send_winners(client_sock, winnersList, idAgency)
-        
-        except multiprocessing.BrokenBarrierError:
-            self.__send_all(client_sock, CODE_WAIT)
-
-    def __handle_sorteo(self):
-        logging.info("action: sorteo | result: success")
-        allBets = utils.load_bets()
-        winners = {}
-        for bet in allBets:
-            if utils.has_won(bet):
-                if bet.agency not in winners:
-                    winners[bet.agency] = []
-                winners[bet.agency].append(bet.document)
-
-        for agency, documents in winners.items():
-            self.winners[agency] = documents  
-    
-    def __send_winners(self, client_sock, winnersList, idAgency):
-        winnersData = ";".join(map(str, winnersList)).encode("utf-8")
-        self.__send_all(client_sock, CODE_WINNER)
-
-        responseLen = f"{len(winnersData):04d}".encode('utf-8')
-        self.__send_all(client_sock, responseLen)
-        self.__send_all(client_sock, winnersData)
-
-        logging.info(f"action: send_winners | result: success | agency: {idAgency}")
 
     def recv_batch(self, client_sock) -> tuple[list, int]:
         header = self.__recv_all(client_sock, 4)
@@ -155,7 +109,7 @@ class Server:
         messageSize = int(header)
         receivedBytes = 0
         failedBets = 0
-        bets = []
+        # bets = []
 
         while receivedBytes < messageSize:
             chunk = client_sock.recv(min(SIZE_BATCH, messageSize - receivedBytes))
@@ -170,13 +124,13 @@ class Server:
 
         for batch in batchList:
             batchBets = batch.split('|')
-            for b in batchBets:
-                bet = b.split(';')
-                if len(bet) == 6:
-                    bets.append(utils.Bet(*bet))
-                else:
-                    failedBets += 1
-        return bets, failedBets
+            # for b in batchBets:
+            #     bet = b.split(';')
+            #     if len(bet) == 6:
+            #         bets.append(utils.Bet(*bet))
+            #     else:
+            #         failedBets += 1
+        return batchBets, failedBets
     
     def __recv_all(self, sock, size):
         data = b''

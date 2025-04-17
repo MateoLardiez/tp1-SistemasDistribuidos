@@ -133,6 +133,7 @@ func (c *Client) sendBatch(data []byte) bool {
 		return true
 	}
 	totalSend := c.send(data, totalBytes)
+	log.Infof("action: send_batch | result: success | client_id: %v | total_send: %d", c.config.ID, totalSend)
 	if totalSend != totalBytes {
 		log.Errorf("action: send_message_data | result: fail | client_id: %v | error: invalid data",
 			c.config.ID,
@@ -164,7 +165,7 @@ func (c *Client) recvResponse() []byte {
 	return respData
 }
 
-func readBet(c *Client, reader *bufio.Reader) ([]byte, error) {
+func readLine(c *Client, reader *bufio.Reader) ([]byte, error) {
 	line, err := reader.ReadString('\n')
 	if err != nil {
 		if err.Error() == "EOF" {
@@ -203,7 +204,7 @@ func (c *Client) createBatch(reader *bufio.Reader) ([]byte, bool) {
 	eof := false
 
 	for betCount < c.config.MaxAmount {
-		bet, err := readBet(c, reader)
+		bet, err := readLine(c, reader)
 		if err != nil {
 			log.Criticalf("action: read_bet | result: fail | error: %v", err)
 			return nil, true
@@ -310,7 +311,7 @@ func (c *Client) handlePhase(reader *bufio.Reader) bool {
 func (c *Client) handleBatch(reader *bufio.Reader) {
 	batch, eof := c.createBatch(reader)
 	if eof {
-		c.config.Phase = CODE_RESULT
+		c.config.Phase = CODE_END
 		return
 	}
 
