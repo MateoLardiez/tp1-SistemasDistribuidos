@@ -89,13 +89,21 @@ func NewClient(config ClientConfig) *Client {
 func (c *Client) StartClientLoop() {
 	defer c.closeClient()
 
-	// Procesar cada archivo de la lista
-	for _, filename := range c.config.FilesToProcess {
-		if err := c.processFile(filename); err != nil {
-			log.Errorf("action: process_file | file: %s | result: fail | error: %v", filename, err)
-			continue
-		}
+	err := c.socket.SendAll([]byte{0}, SIZE_CODE)
+	if err != nil {
+		log.Errorf("action: send_message_code_batch | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
+		// return true
 	}
+	// Procesar cada archivo de la lista
+	// for _, filename := range c.config.FilesToProcess {
+	// if err := c.processFile("movies.csv"); err != nil {
+	// 	log.Errorf("action: process_file | file: %s | result: fail | error: %v", "movies.csv", err)
+	// 	// continue
+	// }
+	// }
 
 	// Enviar mensaje de finalización
 	c.config.Phase = CODE_END

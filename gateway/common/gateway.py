@@ -3,6 +3,7 @@ import logging
 import signal
 from common import utils
 import multiprocessing
+import pika
 
 CODE_ALL_QUERYS = b'A'
 CODE_BATCH = b'B'
@@ -12,6 +13,8 @@ CODE_WAIT = b'W'
 CODE_WINNER = b'S'
 SIZE_BATCH = 8 * 1024
 
+ALL_QUERY=0
+QUERY_1 = 1
 class Gateway:
     def __init__(self, port, listen_backlog, clients):
         # Initialize server socket
@@ -26,6 +29,10 @@ class Gateway:
         self.winners = self.manager.dict()
         self.finished_agencies = self.manager.list()
         self.bets_lock = multiprocessing.Lock()
+
+        # Initialize RabbitMQ connection
+        self.rabbitmq_connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
+        self.rabbitmq_channel = self.rabbitmq_connection.channel()
 
     def run(self):
         """
@@ -76,19 +83,30 @@ class Gateway:
             client_sock.close()
 
     def handle_client_connection(self, client_sock, code):
-        if code == CODE_BATCH:
+        msg_type = int.from_bytes(code, byteorder='big')
+        if msg_type == ALL_QUERY:
+            logging.info(f"action: receive_message | result: success | code: {msg_type}")
+            self.rabbitmq_channel.exchange_declare(exchange='movies', exchange_type='direct')
+            for i in range(1 , 7):
+                message = f'Mensaje {i}: Hello World!'
+                self.rabbitmq_channel.basic_publish(
+                    exchange='movies', routing_key="filter_by_country", body=message)
+                logging.info(f"action: send_RabbitMq_message | result: success | message: {message}")
+            # self.rabbitmq_connection.close()
+        elif code == CODE_BATCH:
             self.__handle_batch(client_sock)
-        # elif code == CODE_RESULT:
-        #     self.__handle_result(client_sock)
 
 
     def __handle_batch(self, client_sock):
         (batch, failed_bets) = self.recv_batch(client_sock)
-        if failed_bets > 0:
-            logging.error(f"action: apuesta_recibida | result: fail | error: {failed_bets}")
-            # response = f'FAIL;{len(batch)}'.encode('utf-8')
-        else:
-            logging.info(f"action: apuesta_recibida | result: success | cantidad: {len(batch)}")
+        # hata aca tengo la lista de lineas recibidas
+        logging.info(f"action: handle_batch | result: success | batch_length: {len(batch)}")
+        logging.info(f"action: handle_batch | result: success | batch: {batch}")
+        # if failed_bets > 0:
+        #     logging.error(f"action: apuesta_recibida | result: fail | error: {failed_bets}")
+        #     # response = f'FAIL;{len(batch)}'.encode('utf-8')
+        # else:
+        #     logging.info(f"action: apuesta_recibida | result: success | cantidad: {len(batch)}")
         
         response = f'SUCCESS;{len(batch)}'.encode('utf-8')
         
