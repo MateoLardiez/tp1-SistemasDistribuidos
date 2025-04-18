@@ -4,7 +4,7 @@ import signal
 from common import utils
 import multiprocessing
 
-CODE_ALL_QUERYS = b'A'
+CODE_ALL_QUERYS = 0
 CODE_BATCH = b'B'
 CODE_RESULT = b'R'
 CODE_END = b'E'
@@ -76,6 +76,9 @@ class Gateway:
             client_sock.close()
 
     def handle_client_connection(self, client_sock, code):
+        msg_type = int.from_bytes(code, byteorder='big')
+        if msg_type == CODE_ALL_QUERYS:
+            logging.info(f"action: receive_message | result: success | code: {msg_type}")
         if code == CODE_BATCH:
             self.__handle_batch(client_sock)
         # elif code == CODE_RESULT:
