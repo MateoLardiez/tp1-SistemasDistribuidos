@@ -2,6 +2,7 @@ package main
 
 import (
 	"movies-analysis/client/common"
+	"movies-analysis/client/common/communication"
 	"movies-analysis/client/config"
 )
 
@@ -19,13 +20,13 @@ func main() {
 	config.PrintConfig(v)
 
 	clientConfig := common.ClientConfig{
-		ServerAddress:  v.GetString("server.address"),
-		ID:             v.GetString("id"),
-		LoopAmount:     v.GetInt("loop.amount"),
-		LoopPeriod:     v.GetDuration("loop.period"),
-		MaxAmount:      v.GetInt("batch.maxAmount"),
-		Phase:          common.CODE_BATCH,
-		FilesToProcess: v.GetStringSlice("files"), // Obtener la lista de archivos de la configuración
+		ServerAddress: v.GetString("server.address"),
+		ID:            v.GetString("id"),
+		LoopAmount:    v.GetInt("loop.amount"),
+		LoopPeriod:    v.GetDuration("loop.period"),
+		MaxAmount:     v.GetInt("batch.maxAmount"),
+		Phase:         communication.CODE_QUERY,
+		Query:         v.GetInt("query"),
 	}
 
 	client := common.NewClient(clientConfig)
