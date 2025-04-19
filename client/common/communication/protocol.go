@@ -42,23 +42,44 @@ func (p *Protocol) Close() error {
 	return nil
 }
 
-func (p *Protocol) Serialize(data string) ([]byte, error) {
-	// Convert the string data to bytes
-	dataBytes := []byte(data)
-
-	// Create buffer with size header (4 bytes) + data
-	buf := make([]byte, len(dataBytes))
-
-	// Write the length of the data in big-endian format in the first 4 bytes
-	binary.BigEndian.PutUint32(buf, uint32(len(dataBytes)))
-
-	// Copy the data after the header
-	// copy(buf[SIZE_HEADER:], dataBytes)
-
+func (p *Protocol) SerializeInt(value int) ([]byte, error) {
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf, uint32(value))
 	return buf, nil
 }
 
-func (p *Protocol) SendCodeQuery(code int) error {
+func (p *Protocol) SendCode(code int) error {
 	// Send the code to the server
 	return p.socket.SendAll([]byte{byte(code)}, SIZE_CODE)
+}
+
+func (p *Protocol) SendByte(code []byte) error {
+	// Send the code to the server
+	return p.socket.SendAll(code, SIZE_CODE)
+}
+
+func (p *Protocol) SendBatch(code int, data []byte) error {
+	// Send the code to the server
+	err := p.SendCode(code)
+	if err != nil {
+		return err
+	}
+
+	// Send the size of the data
+	sizeData, errSerialize := p.SerializeInt(len(data))
+	if errSerialize != nil {
+		return errSerialize
+	}
+
+	errHeader := p.socket.SendAll(sizeData, SIZE_HEADER)
+	if errHeader != nil {
+		return errHeader
+	}
+
+	// Send the data to the server
+	errData := p.socket.SendAll(data, len(data))
+	if errData != nil {
+		return errData
+	}
+	return nil
 }

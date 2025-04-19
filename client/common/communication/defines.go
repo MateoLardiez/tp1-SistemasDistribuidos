@@ -10,10 +10,6 @@ const (
 	CODE_END             = 'E'
 	CODE_WINNER          = 'S'
 	CODE_QUERY           = 'Q'
-	// File types
-	BATCH_MOVIES  = 'M'
-	BATCH_RATINGS = 'R'
-	BATCH_CREDITS = 'C'
 	// Size of the header and code in bytes
 	SIZE_HEADER = 4
 	SIZE_CODE   = 1
@@ -24,4 +20,11 @@ const (
 	QUERY_3    = 3
 	QUERY_4    = 4
 	QUERY_5    = 5
+	// File batch types
+	BATCH_MOVIES  = 6
+	BATCH_RATINGS = 7
+	BATCH_CREDITS = 8
+	BATCH_END     = 9
+	// Communication types
+	END_CODE = 10
 )

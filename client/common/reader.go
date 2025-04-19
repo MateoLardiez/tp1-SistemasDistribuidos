@@ -79,7 +79,6 @@ func (fr *FileReader) ReadLine() (string, error) {
 		}
 		result += field
 	}
-	result += "\n"
 
 	return result, nil
 }
@@ -95,69 +94,4 @@ func (fr *FileReader) ReadBytes(n int) ([]byte, error) {
 
 func (fr *FileReader) Close() error {
 	return fr.reader.Close()
-}
-
-func (fr *FileReader) CreateBatch(cantLines int) ([]byte, error) {
-	var batch []byte
-	lineCount := 0
-	const MAX_BATCH_SIZE = 8 * 1024 // 8KB
-
-	// Leer líneas hasta alcanzar el límite de líneas o tamaño
-	for lineCount < cantLines && len(batch) < MAX_BATCH_SIZE {
-		record, err := fr.ReadCSVLine()
-
-		// Manejar explícitamente el EOF
-		if err == io.EOF {
-			// Si ya hemos leído algo, devolvemos lo que tenemos
-			if len(batch) > 0 {
-				// Añadir el carácter de nueva línea al final del batch si cabe
-				if len(batch)+1 <= MAX_BATCH_SIZE {
-					batch = append(batch, '\n')
-				}
-				return batch, nil
-			}
-			// Si no hemos leído nada y es EOF, indicamos que ya no hay más datos
-			return nil, io.EOF
-		} else if err != nil {
-			return nil, err
-		}
-
-		// Crear una cadena separada por comas a partir del registro CSV
-		lineStr := ""
-		for i, field := range record {
-			if i > 0 {
-				lineStr += ","
-			}
-			lineStr += field
-		}
-		lineStr += "\n"
-
-		// Convertir la línea a bytes
-		lineBytes := []byte(lineStr)
-
-		// Para todas las líneas excepto la primera, añadimos el separador '|'
-		if lineCount > 0 && len(batch) > 0 {
-			// Verificar si añadir el separador superaría el tamaño máximo
-			if len(batch)+1+len(lineBytes) > MAX_BATCH_SIZE {
-				break
-			}
-			batch = append(batch, '|')
-		}
-
-		// Verificar si añadir esta línea superaría el tamaño máximo
-		if len(batch)+len(lineBytes) > MAX_BATCH_SIZE {
-			break
-		}
-
-		// Añadir la línea al batch
-		batch = append(batch, lineBytes...)
-		lineCount++
-	}
-
-	// Añadir el carácter de nueva línea al final del batch si cabe
-	if len(batch)+1 <= MAX_BATCH_SIZE {
-		batch = append(batch, '\n')
-	}
-
-	return batch, nil
 }

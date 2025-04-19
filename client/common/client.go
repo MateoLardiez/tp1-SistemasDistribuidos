@@ -1,7 +1,6 @@
 package common
 
 import (
-	"fmt"
 	"io"
 	"os"
 	"os/signal"
@@ -30,9 +29,11 @@ type ClientConfig struct {
 
 // Client Entity that encapsulates how1
 type Client struct {
-	config   ClientConfig
-	protocol *communication.Protocol
-	quit     chan os.Signal
+	config          ClientConfig
+	protocol        *communication.Protocol
+	quit            chan os.Signal
+	bufferedLine    string // Buffer to store a line that didn't fit in the previous batch
+	hasBufferedLine bool   // Flag to indicate if we have a buffered line
 }
 
 // NewClient Initializes a new client receiving the configuration
@@ -45,9 +46,10 @@ func NewClient(config ClientConfig) *Client {
 	}
 
 	client := &Client{
-		config:   config,
-		protocol: protocol,
-		quit:     make(chan os.Signal, 1),
+		config:          config,
+		protocol:        protocol,
+		quit:            make(chan os.Signal, 1),
+		hasBufferedLine: false,
 	}
 	signal.Notify(client.quit, syscall.SIGINT, syscall.SIGTERM)
 	return client
@@ -59,12 +61,9 @@ func (c *Client) StartClientLoop() {
 	for {
 		select {
 		case <-c.quit:
-			// log.Infof("action: client_loop | result: quit")
-			// c.handleCloseConnection()
 			c.closeClient()
 			return
 		default:
-			// c.handleClientLoop()
 			finishedProcessing := c.handlePhase()
 			if finishedProcessing {
 				log.Infof("action: client_loop | result: complete")
@@ -72,18 +71,6 @@ func (c *Client) StartClientLoop() {
 			}
 		}
 	}
-
-	// c.config.Phase = CODE_END
-	// c.handleCloseConnection()
-	// Procesar cada archivo de la lista
-	// for _, filename := range c.config.FilesToProcess {
-	// 	if err := c.processFile(filename); err != nil {
-	// 		log.Errorf("action: process_file | file: %s | result: fail | error: %v", filename, err)
-	// 		continue
-	// 	}
-	// }
-
-	// Enviar mensaje de finalización
 }
 
 func (c *Client) handlePhase() bool {
@@ -123,7 +110,7 @@ func (c *Client) handleQuery() {
 }
 
 func (c *Client) handleAllQueries() {
-	err := c.protocol.SendCodeQuery(communication.ALL_QUERYS)
+	err := c.protocol.SendCode(communication.ALL_QUERYS)
 	if err != nil {
 		log.Errorf("action: send_message_code_query | result: fail | client_id: %v | error: %v",
 			c.config.ID,
@@ -131,16 +118,23 @@ func (c *Client) handleAllQueries() {
 		)
 		return
 	}
-	c.SendMoviesFile()
-	// c.SendRatingsFile()
-	// c.SendCreditsFile()
-
-	// c.processFile()
+	c.SendFile("movies.csv", communication.BATCH_MOVIES)
+	c.SendFile("ratings.csv", communication.BATCH_RATINGS)
+	c.SendFile("credits.csv", communication.BATCH_CREDITS)
+	// Finish sending files
+	errEnd := c.protocol.SendCode(communication.BATCH_END)
+	if errEnd != nil {
+		log.Errorf("action: send_message_code_end | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			errEnd,
+		)
+		return
+	}
 	c.config.Phase = communication.CODE_END
 }
 
-func (c *Client) SendMoviesFile() {
-	reader, err := NewFileReader("movies.csv")
+func (c *Client) SendFile(filename string, code int) {
+	reader, err := NewFileReader(filename)
 	if err != nil {
 		log.Errorf("action: open_file | result: fail | error: %v", err)
 		return
@@ -148,7 +142,7 @@ func (c *Client) SendMoviesFile() {
 	defer reader.Close()
 
 	for {
-		finishedSending := c.handleBatch(reader)
+		finishedSending := c.handleBatch(reader, code)
 		if finishedSending {
 			log.Infof("action: send_movies_file | result: complete")
 			break
@@ -161,41 +155,41 @@ func (c *Client) createBatch(reader *FileReader) ([]byte, bool) {
 	lineCount := 0
 	eof := false
 
-	for lineCount < c.config.MaxAmount && len(batch) < communication.MAX_BATCH_SIZE {
+	// First, add any buffered line from previous batch if it exists
+	if c.hasBufferedLine {
+		serializedLine := []byte(c.bufferedLine)
+		batch = append(batch, serializedLine...)
+		c.hasBufferedLine = false
+		c.bufferedLine = ""
+		lineCount++
+	}
+
+	for lineCount < c.config.MaxAmount {
 		line, err := reader.ReadLine()
-		// Manejar explícitamente el EOF
 		if err == io.EOF {
 			eof = true
-			// Si ya tenemos contenido para enviar, lo hacemos
-			if len(batch) > 0 {
-				break
-			}
-			// Si no hay contenido y es EOF, indicamos que hemos terminado
-			return nil, eof
+			break
 		} else if err != nil {
 			return nil, true
 		}
-
-		// Convertir la línea a bytes
 		serializedLine := []byte(line)
 
-		// Para la primera línea no añadimos separador
-		if lineCount > 0 || len(batch) > 0 {
-			// Verificar si añadir el separador superaría el tamaño máximo
-			if len(batch)+1+len(serializedLine) > communication.MAX_BATCH_SIZE {
-				break
-			}
+		if len(batch) > 0 && len(serializedLine)+len(batch)+1 > communication.MAX_BATCH_SIZE {
+			c.bufferedLine = line
+			c.hasBufferedLine = true
+			break
+		}
+
+		if len(batch) > 0 {
 			batch = append(batch, '|')
 		}
 
-		// Añadir la línea al batch
 		batch = append(batch, serializedLine...)
 		lineCount++
 	}
 
 	log.Infof("action: create_batch | result: success | client_id: %v | total_lines: %d", c.config.ID, lineCount)
 
-	// Añadir el carácter de nueva línea al final si cabe
 	if len(batch)+1 <= communication.MAX_BATCH_SIZE {
 		batch = append(batch, '\n')
 	}
@@ -203,30 +197,28 @@ func (c *Client) createBatch(reader *FileReader) ([]byte, bool) {
 	return batch, eof
 }
 
-func (c *Client) handleBatch(reader *FileReader) bool {
+func (c *Client) handleBatch(reader *FileReader, code int) bool {
+	eof := false
 	batch, eof := c.createBatch(reader)
 	if eof {
-		// c.config.Phase = CODE_END
-		log.Infof("action: handle_batch_finish | result: complete | client_id: %v", c.config.ID)
-		return true
+		if len(batch) == 0 {
+			log.Infof("action: handle_batch | result: complete | client_id: %v", c.config.ID)
+			return eof
+		}
 	}
 
-	err := c.protocol.SendAll([]byte{communication.CODE_BATCH}, communication.SIZE_CODE)
+	err := c.protocol.SendBatch(code, batch)
 	if err != nil {
-		log.Errorf("action: send_message_code_batch | result: fail | client_id: %v | error: %v",
+		log.Errorf("action: send_message_batch | result: fail | client_id: %v | error: %v",
 			c.config.ID,
 			err,
 		)
 		return true
 	}
-
-	errBatch := c.sendBatch(batch)
-	if errBatch != nil {
-		log.Errorf("action: send_message_batch | result: fail | client_id: %v",
-			c.config.ID,
-		)
-		return true
-	}
+	log.Infof("action: send_batch | result: start | client_id: %v | batch_size: %d",
+		c.config.ID,
+		len(batch),
+	)
 
 	response, errResponse := c.recvResponse()
 	if errResponse != nil {
@@ -238,33 +230,7 @@ func (c *Client) handleBatch(reader *FileReader) bool {
 	}
 
 	c.parseResponse(response)
-	return false
-}
-
-func (c *Client) sendBatch(data []byte) error {
-	totalBytes := len(data)
-
-	header := fmt.Sprintf("%04d", totalBytes)
-
-	errHeader := c.protocol.SendAll([]byte(header), communication.SIZE_HEADER)
-	if errHeader != nil {
-		log.Errorf("action: send_message_header | result: fail | client_id: %v | error: Invalid Header: %v",
-			c.config.ID,
-			errHeader,
-		)
-		return errHeader
-	}
-
-	errData := c.protocol.SendAll(data, totalBytes)
-	if errData != nil {
-		log.Errorf("action: send_message_data | result: fail | client_id: %v | error: Invalid data: %v",
-			c.config.ID,
-			errData,
-		)
-		return errData
-	}
-	log.Infof("action: send_batch | result: success | client_id: %v | total_send: %d", c.config.ID, totalBytes)
-	return nil
+	return eof
 }
 
 func (c *Client) recvResponse() ([]byte, error) {
@@ -290,7 +256,7 @@ func (c *Client) recvResponse() ([]byte, error) {
 }
 
 func (c *Client) handleCloseConnection() {
-	err := c.protocol.SendAll([]byte{communication.CODE_END}, communication.SIZE_CODE)
+	err := c.protocol.SendCode(communication.END_CODE)
 	if err != nil {
 		log.Criticalf("action: send_message_end | result: fail")
 	}

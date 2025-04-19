@@ -2,6 +2,7 @@ package main
 
 import (
 	"movies-analysis/client/common"
+	"movies-analysis/client/common/communication"
 	"movies-analysis/client/config"
 )
 
@@ -24,7 +25,7 @@ func main() {
 		LoopAmount:    v.GetInt("loop.amount"),
 		LoopPeriod:    v.GetDuration("loop.period"),
 		MaxAmount:     v.GetInt("batch.maxAmount"),
-		Phase:         common.CODE_QUERY,
+		Phase:         communication.CODE_QUERY,
 		Query:         v.GetInt("query"),
 	}
 
