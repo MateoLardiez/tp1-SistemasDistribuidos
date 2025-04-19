@@ -40,6 +40,16 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+
+  filter_by_year:
+    container_name: filter_by_year
+    image: filter_by_year:latest
+    entrypoint: python3 /main.py
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
         
   client1:
     container_name: client1
