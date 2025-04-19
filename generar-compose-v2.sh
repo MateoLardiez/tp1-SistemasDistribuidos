@@ -1,6 +1,14 @@
-name: tp1
-services:
-  rabbitmq:
+#!/bin/bash
+
+readonly COMPOSE_FILE="docker-compose-dev.yaml"
+
+add_compose_header() {
+    echo "name: tp1
+services:" > "$COMPOSE_FILE"
+}
+
+add_rabbit_mq() {
+    echo "  rabbitmq:
     container_name: rabbitmq
     build:
       context: ./rabbitmq
@@ -8,15 +16,18 @@ services:
     networks:
       - testing_net
     ports:
-      - "5672:5672"
+      - \"5672:5672\"
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      test: [\"CMD\", \"rabbitmq-diagnostics\", \"check_port_connectivity\"]
       interval: 5s
       timeout: 5s
       retries: 5
       start_period: 5s
+" >> "$COMPOSE_FILE"
+}
 
-  gateway:
+add_gateway() {
+    echo "  gateway:
     container_name: gateway
     image: gateway:latest
     entrypoint: python3 /main.py
@@ -30,8 +41,12 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+" >> "$COMPOSE_FILE"
+}
 
-  filter_by_country:
+
+add_filter_by_country() {
+    echo "  filter_by_country:
     container_name: filter_by_country
     image: filter_by_country:latest
     entrypoint: python3 /main.py
@@ -40,8 +55,12 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+" >> "$COMPOSE_FILE"
 
-  filter_by_year:
+}
+
+add_filter_by_year() {
+    echo "  filter_by_year:
     container_name: filter_by_year
     image: filter_by_year:latest
     entrypoint: python3 /main.py
@@ -50,8 +69,11 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+" >> "$COMPOSE_FILE"
+}
 
-  client1:
+add_client() {
+    echo "  client1:
     container_name: client1
     image: client:latest
     entrypoint: /client
@@ -66,10 +88,26 @@ services:
       - testing_net
     depends_on:
       - gateway
+" >> "$COMPOSE_FILE"
 
-networks:
+}
+
+add_networks() {
+    echo "networks:
   testing_net:
     ipam:
       driver: default
       config:
-        - subnet: 172.25.125.0/24
+        - subnet: 172.25.125.0/24" >> "$COMPOSE_FILE"
+
+}
+
+# ---------------------------------------- #
+
+add_compose_header
+add_rabbit_mq
+add_gateway
+add_filter_by_country
+add_filter_by_year
+add_client
+add_networks
