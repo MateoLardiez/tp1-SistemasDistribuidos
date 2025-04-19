@@ -119,8 +119,8 @@ func (c *Client) handleAllQueries() {
 		return
 	}
 	c.SendFile("movies.csv", communication.BATCH_MOVIES)
-	c.SendFile("ratings.csv", communication.BATCH_RATINGS)
-	c.SendFile("credits.csv", communication.BATCH_CREDITS)
+	// c.SendFile("ratings.csv", communication.BATCH_RATINGS)
+	// c.SendFile("credits.csv", communication.BATCH_CREDITS)
 	// Finish sending files
 	errEnd := c.protocol.SendCode(communication.BATCH_END)
 	if errEnd != nil {

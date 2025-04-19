@@ -1,21 +1,113 @@
 #!/bin/bash
 
-#Verificar si los argumentos son correctos
-if [ "$#" -ne 2 ]; then
-    # echo "Error: Numero de argumentos incorrecto"
-    echo "Uso: $0 <file_name> <amount_clients>"
-    exit 1
-fi
+readonly COMPOSE_FILE="docker-compose-dev.yaml"
 
-FILENAME=$1
-AMOUNT_CLIENTS=$2
+add_compose_header() {
+    echo "name: tp1
+services:" > "$COMPOSE_FILE"
+}
 
-if [ $AMOUNT_CLIENTS -lt 1 ]; then
-    echo "Advertencia: La cantidad de clientes debe ser mayor o igual a 1. Se usará 1 como valor por defecto."
-    AMOUNT_CLIENTS=1
-fi
+add_rabbit_mq() {
+    echo "  rabbitmq:
+    container_name: rabbitmq
+    build:
+      context: ./rabbitmq
+      dockerfile: Dockerfile
+    networks:
+      - testing_net
+    ports:
+      - \"5672:5672\"
+    healthcheck:
+      test: [\"CMD\", \"rabbitmq-diagnostics\", \"check_port_connectivity\"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+" >> "$COMPOSE_FILE"
+}
 
-# Crear el archivo docker-compose.yaml
-echo "Generando archivo docker compose: $FILENAME con $AMOUNT_CLIENTS clientes..."
-python3 generator-compose.py $FILENAME $AMOUNT_CLIENTS
-echo "Archivo docker-compose.yaml generado con exito"
+add_gateway() {
+    echo "  gateway:
+    container_name: gateway
+    image: gateway:latest
+    entrypoint: python3 /main.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - CLIENTS=3
+    volumes:
+      - ./gateway/config.ini:/config.ini:ro
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+" >> "$COMPOSE_FILE"
+}
+
+
+add_filter_by_country() {
+    echo "  filter_by_country:
+    container_name: filter_by_country
+    image: filter_by_country:latest
+    entrypoint: python3 /main.py
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+" >> "$COMPOSE_FILE"
+
+}
+
+add_filter_by_year() {
+    echo "  filter_by_year:
+    container_name: filter_by_year
+    image: filter_by_year:latest
+    entrypoint: python3 /main.py
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+" >> "$COMPOSE_FILE"
+}
+
+add_client() {
+    echo "  client1:
+    container_name: client1
+    image: client:latest
+    entrypoint: /client
+    environment:
+      - CLI_ID=1
+    volumes:
+      - ./client/config.yaml:/config.yaml:ro
+      - ./.data/movies_sample.csv:/movies.csv:ro
+      - ./.data/ratings_sample.csv:/ratings.csv:ro
+      - ./.data/credits_sample.csv:/credits.csv:ro
+    networks:
+      - testing_net
+    depends_on:
+      - gateway
+" >> "$COMPOSE_FILE"
+
+}
+
+add_networks() {
+    echo "networks:
+  testing_net:
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.25.125.0/24" >> "$COMPOSE_FILE"
+
+}
+
+# ---------------------------------------- #
+
+add_compose_header
+add_rabbit_mq
+add_gateway
+add_filter_by_country
+add_filter_by_year
+add_client
+add_networks

@@ -13,6 +13,8 @@ CODE_WAIT = b'W'
 CODE_WINNER = b'S'
 SIZE_BATCH = 8 * 1024
 
+ALL_QUERY=0
+QUERY_1 = 1
 # File batch types
 BATCH_MOVIES = 6
 BATCH_RATINGS = 7
@@ -52,6 +54,9 @@ class Gateway:
 
         signal.signal(signal.SIGTERM, self.__signal_handler)
         signal.signal(signal.SIGINT, self.__signal_handler)
+        # process_queue = multiprocessing.Process(target=self.__handler_results_queue)
+        # process_queue.daemon = True
+        # process_queue.start()
 
         while self.serverIsAlive:
             try:
@@ -83,7 +88,7 @@ class Gateway:
                     break
                 self.handle_client_connection(client_sock, msg_type)
         except OSError as e:
-            logging.error("action: receive_message | result: fail | error: {e}")
+            logging.error(f"action: receive_message | result: fail | error: {e}")
         finally:
             client_sock.close()
 
@@ -113,6 +118,20 @@ class Gateway:
     #     # else:
     #     #     logging.info(f"action: apuesta_recibida | result: success | cantidad: {len(batch)}")
 
+    # def __handler_results_queue(self):
+    #     result_channel = self.rabbitmq_connection.channel()
+    #     result_channel.exchange_declare(exchange='results', exchange_type='direct')
+    #     result = result_channel.queue_declare(queue='results', exclusive=True)
+    #     queue_name = result.method.queue
+    #     result_channel.queue_bind(exchange='results', queue=queue_name, routing_key='gateway_filter_country')
+    #     result_channel.basic_consume(queue=queue_name, on_message_callback=self.callback, auto_ack=True)
+    #     result_channel.start_consuming()
+
+    def callback(self, ch, method, properties, body):
+        data = body.decode('utf-8')
+        logging.info(f"action: receive_filter_by_country | result: success | Data filtrada: {data}")
+
+        
     def handle_client_connection(self, client_sock, msg_type):
         if msg_type == CODE_ALL_QUERYS:
             logging.info(f"action: receive_message | result: success | code: {msg_type}")
@@ -132,6 +151,7 @@ class Gateway:
             if msg_type == BATCH_MOVIES:
                 batch = self.__handle_batch(client_sock)
                 self.save_batch_in_file(batch, 'movies.csv')
+                self.start_query_1(batch)
             elif msg_type == BATCH_RATINGS:
                 batch = self.__handle_batch(client_sock)
                 self.save_batch_in_file(batch, 'ratings.csv')
@@ -198,6 +218,36 @@ class Gateway:
                 logging.error(f"action: receive_message | result: fail | error: {e}")
                 return None
         return data
+
+
+    def start_query_1(self, batch):
+        self.rabbitmq_channel.exchange_declare(exchange='movies', exchange_type='direct')
+        for line in batch:
+            # enviar la linea al filtro
+            self.rabbitmq_channel.basic_publish(exchange='movies', routing_key="filter_by_country", body=line)
+            # logging.info(f"action: send_RabbitMq_message | result: success | message: {line}")
+
+        
+        # self.rabbitmq_connection.close()
+        # Buscar del archivo movies_data las columnas: ["id", "title", "production_countries", "release_date", "genres"]
+        return 0
+
+    def start_query_2(self):
+        # Buscar del archivo movies_data las columnas:
+        return 0
+
+    def start_query_3(self):
+        # Buscar del archivo movies_data las columnas:
+        return 0
+
+    def start_query_4(self):
+        # Buscar del archivo movies_data las columnas:
+        return 0
+
+    def start_query_5(self):
+        # Buscar del archivo movies_data las columnas:
+        return 0
+
 
     def __send_all(self, sock, data):
         totalSent = 0

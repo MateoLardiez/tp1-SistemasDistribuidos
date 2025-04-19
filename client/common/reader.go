@@ -75,7 +75,7 @@ func (fr *FileReader) ReadLine() (string, error) {
 	result := ""
 	for i, field := range record {
 		if i > 0 {
-			result += ","
+			result += "\\"
 		}
 		result += field
 	}
