@@ -64,7 +64,6 @@ func (p *Protocol) SendSizeMessage(code int) error {
 
 func (p *Protocol) ReceiveSizeMessage() (int, error) {
 	// Receive the size of the data
-	sizeData := make([]byte, SIZE_HEADER)
 	sizeData, errHeader := p.socket.ReceiveAll(SIZE_HEADER)
 	if errHeader != nil {
 		return 0, errHeader
@@ -105,6 +104,5 @@ func (p *Protocol) ReceiveMessage() (*MessageProtocol, error) {
 
 	message := DecodeMessageProtocol(data)
 	// Receive the data from the server
-
 	return message, nil
 }
