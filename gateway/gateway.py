@@ -202,7 +202,7 @@ class Gateway:
         while message.type_message != eof_value:
             batchData = message.payload.replace('|', '\n')
             self.start_query_1(batchData)
-            self.send_ack(client_sock, message.id_client)
+            # self.send_ack(client_sock, message.id_client, ClientCommunication.TYPE_ACK)
             message = self.receive_message(client_sock)        
         return
 

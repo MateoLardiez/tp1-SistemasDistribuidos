@@ -244,14 +244,14 @@ func (c *Client) handleBatch(reader *FileReader, code int) bool {
 	}
 
 	// Wait for the ACK message
-	errResponse := c.recvResponse()
-	if errResponse != nil {
-		log.Errorf("action: receive_status_batch | result: fail | client_id: %v | error: %v",
-			c.config.ID,
-			errResponse,
-		)
-		return true
-	}
+	// errResponse := c.recvResponse()
+	// if errResponse != nil {
+	// 	log.Errorf("action: receive_status_batch | result: fail | client_id: %v | error: %v",
+	// 		c.config.ID,
+	// 		errResponse,
+	// 	)
+	// 	return true
+	// }
 
 	return eof
 }
