@@ -1,9 +1,10 @@
 import socket
 import logging
 import signal
-from common import utils
+# from common import utils
 import multiprocessing
 import pika
+from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
 
 CODE_ALL_QUERYS = 0
 CODE_BATCH = 6
@@ -38,7 +39,10 @@ class Gateway:
 
         # Initialize RabbitMQ connection
         self.rabbitmq_connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
-        self.rabbitmq_channel = self.rabbitmq_connection.channel()
+        # Canal para consumir mensajes (resultados)
+        self.consumer_channel = self.rabbitmq_connection.channel() 
+        # Canal para publicar mensajes (consultas)
+        self.publisher_channel = self.rabbitmq_connection.channel()
 
     def run(self):
         """
@@ -54,9 +58,11 @@ class Gateway:
 
         signal.signal(signal.SIGTERM, self.__signal_handler)
         signal.signal(signal.SIGINT, self.__signal_handler)
-        # process_queue = multiprocessing.Process(target=self.__handler_results_queue)
-        # process_queue.daemon = True
-        # process_queue.start()
+
+        # Handler queue
+        process_queue = multiprocessing.Process(target=self.__handler_results_queue)
+        process_queue.daemon = True
+        process_queue.start()
 
         while self.serverIsAlive:
             try:
@@ -92,46 +98,18 @@ class Gateway:
         finally:
             client_sock.close()
 
-    # def handle_client_connection(self, client_sock, code):
-    #     msg_type = int.from_bytes(code, byteorder='big')
-    #     if msg_type == ALL_QUERY:
-    #         logging.info(f"action: receive_message | result: success | code: {msg_type}")
-    #         self.rabbitmq_channel.exchange_declare(exchange='movies', exchange_type='direct')
-    #         for i in range(1 , 7):
-    #             message = f'Mensaje {i}: Hello World!'
-    #             self.rabbitmq_channel.basic_publish(
-    #                 exchange='movies', routing_key="filter_by_country", body=message)
-    #             logging.info(f"action: send_RabbitMq_message | result: success | message: {message}")
-    #         # self.rabbitmq_connection.close()
-    #     elif code == CODE_BATCH:
-    #         self.__handle_batch(client_sock)
-
-
-    # def __handle_batch(self, client_sock):
-    #     (batch, failed_bets) = self.recv_batch(client_sock)
-    #     # hata aca tengo la lista de lineas recibidas
-    #     logging.info(f"action: handle_batch | result: success | batch_length: {len(batch)}")
-    #     logging.info(f"action: handle_batch | result: success | batch: {batch}")
-    #     # if failed_bets > 0:
-    #     #     logging.error(f"action: apuesta_recibida | result: fail | error: {failed_bets}")
-    #     #     # response = f'FAIL;{len(batch)}'.encode('utf-8')
-    #     # else:
-    #     #     logging.info(f"action: apuesta_recibida | result: success | cantidad: {len(batch)}")
-
-    # def __handler_results_queue(self):
-    #     result_channel = self.rabbitmq_connection.channel()
-    #     result_channel.exchange_declare(exchange='results', exchange_type='direct')
-    #     result = result_channel.queue_declare(queue='results', exclusive=True)
-    #     queue_name = result.method.queue
-    #     result_channel.queue_bind(exchange='results', queue=queue_name, routing_key='gateway_filter_country')
-    #     result_channel.basic_consume(queue=queue_name, on_message_callback=self.callback, auto_ack=True)
-    #     result_channel.start_consuming()
+    def __handler_results_queue(self):
+        self.consumer_channel.exchange_declare(exchange='results', exchange_type='direct')
+        result = self.consumer_channel.queue_declare(queue='results')
+        queue_name = result.method.queue
+        self.consumer_channel.queue_bind(exchange='results', queue=queue_name, routing_key='filter_by_country_result')
+        self.consumer_channel.basic_consume(queue=queue_name, on_message_callback=self.callback, auto_ack=True)
+        self.consumer_channel.start_consuming()
 
     def callback(self, ch, method, properties, body):
         data = body.decode('utf-8')
         logging.info(f"action: receive_filter_by_country | result: success | Data filtrada: {data}")
 
-        
     def handle_client_connection(self, client_sock, msg_type):
         if msg_type == CODE_ALL_QUERYS:
             logging.info(f"action: receive_message | result: success | code: {msg_type}")
@@ -151,7 +129,7 @@ class Gateway:
             if msg_type == BATCH_MOVIES:
                 batch = self.__handle_batch(client_sock)
                 self.save_batch_in_file(batch, 'movies.csv')
-                self.start_query_1(batch)
+                self.start_query_1(batch)                
             elif msg_type == BATCH_RATINGS:
                 batch = self.__handle_batch(client_sock)
                 self.save_batch_in_file(batch, 'ratings.csv')
@@ -170,7 +148,7 @@ class Gateway:
             for line in batch:
                 f.write(line + '\n')
 
-    def __handle_batch(self, client_sock) -> list:
+    def __handle_batch(self, client_sock) -> str:
         batch = self.recv_batch(client_sock)
         logging.info(f"action: apuesta_recibida | result: success | cantidad: {len(batch)}")        
         response = f'SUCCESS;{len(batch)}'.encode('utf-8')
@@ -179,7 +157,7 @@ class Gateway:
         self.__send_all(client_sock, response)
         return batch
 
-    def recv_batch(self, client_sock) -> list:
+    def recv_batch(self, client_sock) -> str:
         header = self.__recv_all(client_sock, 4)
         if not header:
             logging.error(f"action: receive_message | result: fail | error: short-read")
@@ -199,12 +177,13 @@ class Gateway:
             receivedBytes += len(chunk)
             
         batchData = buffer.decode('utf-8').strip()
-        batchList = batchData.split('\n')
+        batchList = batchData.split('\n')[0]
+        batchList = batchList.replace('|', '\n')
 
-        for batch in batchList:
-            batchFile = batch.split('|')
+        # for batch in batchList:
+        #     batchFile = batch.split('|')
 
-        return batchFile
+        return batchList
     
     def __recv_all(self, sock, size):
         data = b''
@@ -221,11 +200,15 @@ class Gateway:
 
 
     def start_query_1(self, batch):
-        self.rabbitmq_channel.exchange_declare(exchange='movies', exchange_type='direct')
-        for line in batch:
-            # enviar la linea al filtro
-            self.rabbitmq_channel.basic_publish(exchange='movies', routing_key="filter_by_country", body=line)
-            # logging.info(f"action: send_RabbitMq_message | result: success | message: {line}")
+        self.publisher_channel.exchange_declare(exchange='movies', exchange_type='direct')
+        msg = MiddlewareMessage(
+            query_number=1,
+            client_id=1,
+            type=MiddlewareMessageType.MOVIES_BATCH,
+            payload=batch)
+        # Enviar la línea al filtro
+        self.publisher_channel.basic_publish(exchange='movies', routing_key="filter_by_country", body=msg.encode_to_str())
+        # logging.info(f"action: send_RabbitMq_message | result: success | message: {line}")
 
         
         # self.rabbitmq_connection.close()

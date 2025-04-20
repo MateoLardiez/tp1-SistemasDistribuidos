@@ -1,5 +1,5 @@
 from configparser import ConfigParser
-from common.gateway import Gateway
+from gateway import Gateway
 # from config.logger import Logger, setup_logger
 import os
 import logging
