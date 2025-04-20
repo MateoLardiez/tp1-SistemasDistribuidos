@@ -5,6 +5,9 @@ import signal
 import multiprocessing
 import pika
 from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
+from common.message_protocol import MessageProtocol
+from common.defines import ClientCommunication
+from common.middleware_connection_handler import RabbitMQConnectionHandler
 
 CODE_ALL_QUERYS = 0
 CODE_BATCH = 6
@@ -31,18 +34,51 @@ class Gateway:
         self._server_socket.listen(listen_backlog)
         self.serverIsAlive = True
         self.max_agencies = clients
+        self.clients = {}
 
         self.manager = multiprocessing.Manager()
         self.winners = self.manager.dict()
         self.finished_agencies = self.manager.list()
         self.bets_lock = multiprocessing.Lock()
-
-        # Initialize RabbitMQ connection
+        
+        self.consumer_exchange_name = "results_exchange"
+        self.consumer_queue = "query_results_queue"
+        self.producer_exchange = "gateway_exchange"
+        self.producer_queue_of_movies = "movies_queue"
+        self.producer_queue_of_ratings = "ratings_queue"
+        self.producer_queue_of_credits = "credits_queue"
+        
+        # # Initialize RabbitMQ connection
         self.rabbitmq_connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
         # Canal para consumir mensajes (resultados)
         self.consumer_channel = self.rabbitmq_connection.channel() 
         # Canal para publicar mensajes (consultas)
         self.publisher_channel = self.rabbitmq_connection.channel()
+
+
+    def set_signals(self):
+        signal.signal(signal.SIGTERM, self.__signal_handler)
+        signal.signal(signal.SIGINT, self.__signal_handler)
+
+    def clients_connections(self):
+        processor_clients = []
+        while self.serverIsAlive:
+            try:
+                client_sock = self.__accept_new_connection()
+                if client_sock:
+                    client_process = multiprocessing.Process(target=self.__handle_client_connection, args=(client_sock,))
+                    processor_clients.append(client_process)
+                    client_process.daemon = True
+                    client_process.start()
+                    client_sock.close()
+            except OSError as e:
+                logging.error(f"action: accept_connections | result: fail | error: {e}")
+                break
+
+        for client in processor_clients:
+            client.join()
+
+        self.__close_server()
 
     def run(self):
         """
@@ -52,31 +88,12 @@ class Gateway:
         communication with a client. After client with communucation
         finishes, servers starts to accept new connections again
         """
-
-        # TODO: Modify this program to handle signal to graceful shutdown
-        # the server
-
-        signal.signal(signal.SIGTERM, self.__signal_handler)
-        signal.signal(signal.SIGINT, self.__signal_handler)
-
-        # Handler queue
+        self.set_signals()
         process_queue = multiprocessing.Process(target=self.__handler_results_queue)
         process_queue.daemon = True
         process_queue.start()
-
-        while self.serverIsAlive:
-            try:
-                client_sock = self.__accept_new_connection()
-                if client_sock:
-                    client_process = multiprocessing.Process(target=self.__handle_client_connection, args=(client_sock,))
-                    client_process.daemon = True
-                    client_process.start()
-                    client_sock.close()
-            except OSError as e:
-                logging.error(f"action: accept_connections | result: fail | error: {e}")
-                break
-
-        self.__close_server()
+        self.clients_connections()
+        process_queue.join()
 
     def __handle_client_connection(self, client_sock):
         """
@@ -88,11 +105,14 @@ class Gateway:
         try:
             addr = client_sock.getpeername()
             while True:
-                code = self.__recv_all(client_sock, 1)
-                msg_type = int.from_bytes(code, byteorder='big')
-                if msg_type == CODE_END:
+                dto_message =self.receive_message(client_sock)
+                self.clients[addr] = dto_message.id_client
+
+                # code = self.__recv_all(client_sock, 1)
+                # msg_type = int.from_bytes(code, byteorder='big')
+                if dto_message.type_message == ClientCommunication.TYPE_FINISH_COMMUNICATION:
                     break
-                self.handle_client_connection(client_sock, msg_type)
+                self.handle_client_connection(client_sock, dto_message)
         except OSError as e:
             logging.error(f"action: receive_message | result: fail | error: {e}")
         finally:
@@ -105,40 +125,94 @@ class Gateway:
         self.consumer_channel.queue_bind(exchange='results', queue=queue_name, routing_key='filter_by_country_result')
         self.consumer_channel.basic_consume(queue=queue_name, on_message_callback=self.callback, auto_ack=True)
         self.consumer_channel.start_consuming()
+        # self.connection = MiddlewareConnectionHandler(
+        #     producer_exchange_name=None,
+        #     producer_queues_to_bind=None,
+        #     consumer_exchange_name=self.consumer_exchange_name,
+        #     consumer_queues_to_recv_from=[self.consumer_queue]
+        # )
+        # self.connection.set_message_consumer_callback(self.consumer_queue, self.callback)
 
     def callback(self, ch, method, properties, body):
         data = body.decode('utf-8')
         logging.info(f"action: receive_filter_by_country | result: success | Data filtrada: {data}")
 
     def handle_client_connection(self, client_sock, msg_type):
-        if msg_type == CODE_ALL_QUERYS:
-            logging.info(f"action: receive_message | result: success | code: {msg_type}")
-            self.__handle_all_query(client_sock)
+        logging.info(f"action: receive_message | result: success | code: {msg_type.type_message}")
+        if msg_type.type_message == ClientCommunication.TYPE_QUERY:
+            self.__handle_query(client_sock, msg_type.payload)
+            #self.__handle_all_query(client_sock)
         # Agregar las demas querys aqui
+
+    def __handle_query(self, client_sock, query):
+        """
+        Handle query from client
+
+        Function blocks until a query is received. Then the
+        function is executed and the result is sent to the client
+        """
+        query_number = int(query)
+        if query_number == ALL_QUERY:
+            self.__handle_all_query(client_sock)
+        elif query_number == QUERY_1:
+            self.start_query_1()
+        elif query_number == 2:
+            self.start_query_2()
+        elif query_number == 3:
+            self.start_query_3()
+        elif query_number == 4:
+            self.start_query_4()
+        elif query_number == 5:
+            self.start_query_5()
+        
 
     def __handle_all_query(self, client_sock):
         # Create empty files at the beginning
-        open('movies.csv', 'w').close()
+        open("movies.csv", 'w').close()
         open('ratings.csv', 'w').close()
         open('credits.csv', 'w').close()
-        
         while True:
-            code = self.__recv_all(client_sock, 1)
-            msg_type = int.from_bytes(code, byteorder='big')
-            logging.info(f"action: receive_message | result: success | code: {msg_type}")
-            if msg_type == BATCH_MOVIES:
-                batch = self.__handle_batch(client_sock)
-                self.save_batch_in_file(batch, 'movies.csv')
-                self.start_query_1(batch)                
-            elif msg_type == BATCH_RATINGS:
-                batch = self.__handle_batch(client_sock)
-                self.save_batch_in_file(batch, 'ratings.csv')
-            elif msg_type == BATCH_CREDITS:
-                batch = self.__handle_batch(client_sock)
-                self.save_batch_in_file(batch, 'credits.csv')
-            elif msg_type == BATCH_END:
+            dto_message = self.receive_message(client_sock)
+
+            if dto_message.type_message == ClientCommunication.BATCH_MOVIES:
+                self.receive_file(client_sock, "movies.csv", dto_message, ClientCommunication.EOF_MOVIES) 
+            elif dto_message.type_message == ClientCommunication.BATCH_RATINGS:
+                self.receive_file(client_sock, "rating.csv", dto_message, ClientCommunication.EOF_RATINGS)
+            elif dto_message.type_message == ClientCommunication.BATCH_CREDITS:
+                self.receive_file(client_sock, "credits.csv", dto_message, ClientCommunication.EOF_CREDITS)
+            elif dto_message.type_message == ClientCommunication.FINISH_SEND_FILES:
+                logging.info(f"action: receive_message | result: success | code: {dto_message.type_message}")            
                 break
-        logging.info(f"action: finished_receiving_files | result: success")
+
+    def receive_file(self, client_sock, name_file, msg, eof_value):
+        """
+        Receive a file from the client
+
+        Function blocks until a file is received. Then the
+        function is saved in the specified path
+        """
+        message = msg
+        # Process the initial message that was passed in first
+        while message.type_message != eof_value:
+            batchData = message.payload.replace('|', '\n')
+            self.start_query_1(batchData)
+            message = self.receive_message(client_sock)        
+        return
+
+    def send_ack(self, client_sock, id_client):
+        """
+        Send ack to the client
+
+        Function blocks until the ack is sent. Then the
+        function returns True if the ack was sent successfully
+        or False if there was an error
+        """
+        ack = MessageProtocol(
+            id_client=id_client,
+            type_message=ClientCommunication.ACK,
+            payload=None
+        )
+        return self.send_message(client_sock, ack)
 
     def save_batch_in_file(self, batch, filename):
         """
@@ -148,42 +222,41 @@ class Gateway:
             for line in batch:
                 f.write(line + '\n')
 
-    def __handle_batch(self, client_sock) -> str:
-        batch = self.recv_batch(client_sock)
-        logging.info(f"action: apuesta_recibida | result: success | cantidad: {len(batch)}")        
-        response = f'SUCCESS;{len(batch)}'.encode('utf-8')
-        response_len = f"{len(response):04d}".encode('utf-8')
-        self.__send_all(client_sock, response_len)
-        self.__send_all(client_sock, response)
-        return batch
+    def receive_message(self, sock) -> MessageProtocol:
+        """
+        Receive a message from the socket and decode it
 
-    def recv_batch(self, client_sock) -> str:
-        header = self.__recv_all(client_sock, 4)
+        Function blocks until a message is received. Then the
+        message is decoded and returned
+        """
+        header = self.__recv_all(sock, 4)
         if not header:
             logging.error(f"action: receive_message | result: fail | error: short-read")
-            return None, 0
-        
-        buffer = bytearray()
+            return None
+
         messageSize = int.from_bytes(header, byteorder='big')
         logging.info(f"action: receive_message | result: success | size: {messageSize}")
-        receivedBytes = 0
+        
+        data = self.__recv_all(sock, messageSize)
+        return MessageProtocol.decodeMessageBytes(data)
 
-        while receivedBytes < messageSize:
-            chunk = client_sock.recv(min(SIZE_BATCH, messageSize - receivedBytes))
-            if not chunk:
-                logging.error(f"action: receive_message | result: fail | error: connection-lost")
-                return None, 0
-            buffer.extend(chunk)
-            receivedBytes += len(chunk)
-            
-        batchData = buffer.decode('utf-8').strip()
-        batchList = batchData.split('\n')[0]
-        batchList = batchList.replace('|', '\n')
+    def send_message(self, sock, message):
+        """
+        Send a message to the socket
 
-        # for batch in batchList:
-        #     batchFile = batch.split('|')
-
-        return batchList
+        Function blocks until the message is sent. Then the
+        function returns True if the message was sent successfully
+        or False if there was an error
+        """
+        # Encode message
+        encoded_message = message.encodeMessageBytes()
+        # Get size of message
+        size = len(encoded_message)
+        # Send size of message
+        self.__send_all(sock, size.to_bytes(4, byteorder='big'))
+        # Send message
+        return self.__send_all(sock, encoded_message)
+    
     
     def __recv_all(self, sock, size):
         data = b''
@@ -208,7 +281,7 @@ class Gateway:
             payload=batch)
         # Enviar la línea al filtro
         self.publisher_channel.basic_publish(exchange='movies', routing_key="filter_by_country", body=msg.encode_to_str())
-        # logging.info(f"action: send_RabbitMq_message | result: success | message: {line}")
+        logging.info(f"action: send_RabbitMq_message | result: success | message: {batch}")
 
         
         # self.rabbitmq_connection.close()

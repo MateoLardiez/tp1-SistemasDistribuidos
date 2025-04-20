@@ -48,25 +48,9 @@ func (p *Protocol) SerializeInt(value int) ([]byte, error) {
 	return buf, nil
 }
 
-func (p *Protocol) SendCode(code int) error {
-	// Send the code to the server
-	return p.socket.SendAll([]byte{byte(code)}, SIZE_CODE)
-}
-
-func (p *Protocol) SendByte(code []byte) error {
-	// Send the code to the server
-	return p.socket.SendAll(code, SIZE_CODE)
-}
-
-func (p *Protocol) SendBatch(code int, data []byte) error {
-	// Send the code to the server
-	err := p.SendCode(code)
-	if err != nil {
-		return err
-	}
-
+func (p *Protocol) SendSizeMessage(code int) error {
 	// Send the size of the data
-	sizeData, errSerialize := p.SerializeInt(len(data))
+	sizeData, errSerialize := p.SerializeInt(code)
 	if errSerialize != nil {
 		return errSerialize
 	}
@@ -75,11 +59,52 @@ func (p *Protocol) SendBatch(code int, data []byte) error {
 	if errHeader != nil {
 		return errHeader
 	}
-
-	// Send the data to the server
-	errData := p.socket.SendAll(data, len(data))
-	if errData != nil {
-		return errData
-	}
 	return nil
+}
+
+func (p *Protocol) ReceiveSizeMessage() (int, error) {
+	// Receive the size of the data
+	sizeData := make([]byte, SIZE_HEADER)
+	sizeData, errHeader := p.socket.ReceiveAll(SIZE_HEADER)
+	if errHeader != nil {
+		return 0, errHeader
+	}
+	size := binary.BigEndian.Uint32(sizeData)
+	return int(size), nil
+}
+
+func (p *Protocol) SendMessage(message *MessageProtocol) error {
+	// Send the code to the server
+	messageEncode := EncodeMessageProtocol(message)
+
+	err := p.SendSizeMessage(len(messageEncode))
+	if err != nil {
+		return err
+	}
+	// Send the size of the data
+	errSize := p.SendAll(messageEncode, len(messageEncode))
+	if errSize != nil {
+		return errSize
+	}
+
+	return nil
+}
+
+func (p *Protocol) ReceiveMessage() (*MessageProtocol, error) {
+	// Receive the code from the server
+	sizeData, errCode := p.ReceiveSizeMessage()
+	if errCode != nil {
+		return nil, errCode
+	}
+
+	// Receive the size of the data
+	data, errHeader := p.socket.ReceiveAll(int(sizeData))
+	if errHeader != nil {
+		return nil, errHeader
+	}
+
+	message := DecodeMessageProtocol(data)
+	// Receive the data from the server
+
+	return message, nil
 }

@@ -36,6 +36,9 @@ class FilterByCountry:
         # logging.info(f"action: receive_RabbitMqmessage | result: success | code: {method.routing_key}")
         # logging.info(f"action: receive_RabbitMqmessage | result: success | DATA RICA: {data}")
         lines = data.get_batch_iter_from_payload()
+
+        ## 
+
         if data.query_number == QueryNumber.QUERY_1:
             self.handler_filter_query_1(lines)
 
