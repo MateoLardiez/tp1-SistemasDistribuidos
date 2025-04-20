@@ -20,7 +20,10 @@ func NewMessageProtocol(idClient int, typeMessage int, payload []byte) *MessageP
 func DecodeMessageProtocol(data []byte) *MessageProtocol {
 	idClient := int(data[0])
 	typeMessage := int(data[1])
-	payload := data[2:]
+	payload := []byte{}
+	if len(data) > 2 {
+		payload = data[2:]
+	}
 
 	return NewMessageProtocol(idClient, typeMessage, payload)
 }

@@ -140,18 +140,22 @@ class Gateway:
     def handle_client_connection(self, client_sock, msg_type):
         logging.info(f"action: receive_message | result: success | code: {msg_type.type_message}")
         if msg_type.type_message == ClientCommunication.TYPE_QUERY:
-            self.__handle_query(client_sock, msg_type.payload)
+            self.__handle_query(client_sock, msg_type)
+        else:
+            logging.error(f"action: receive_message | result: fail | error: unknown message type")
+            # self.send_ack(client_sock, msg_type.id_client, ClientCommunication.TYPE_ERROR.value, "Unknown message type")
             #self.__handle_all_query(client_sock)
         # Agregar las demas querys aqui
 
-    def __handle_query(self, client_sock, query):
+    def __handle_query(self, client_sock, message):
         """
         Handle query from client
 
         Function blocks until a query is received. Then the
         function is executed and the result is sent to the client
         """
-        query_number = int(query)
+        # self.send_ack(client_sock, message.id_client, ClientCommunication.TYPE_ACK.value)
+        query_number = int(message.payload)
         if query_number == ALL_QUERY:
             self.__handle_all_query(client_sock)
         elif query_number == QUERY_1:
@@ -173,7 +177,9 @@ class Gateway:
         open('credits.csv', 'w').close()
         while True:
             dto_message = self.receive_message(client_sock)
-            
+            # if dto_message is None:
+            #     logging.error(f"action: receive_message | result: fail | error: short-read")
+            #     break
             # self.send_ack(
             #     client_sock,
             #     dto_message.id_client, 
@@ -187,7 +193,7 @@ class Gateway:
             elif dto_message.type_message == ClientCommunication.BATCH_CREDITS:
                 self.receive_file(client_sock, "credits.csv", dto_message, ClientCommunication.EOF_CREDITS)
             elif dto_message.type_message == ClientCommunication.FINISH_SEND_FILES:
-                logging.info(f"action: receive_message | result: success | code: {dto_message.type_message}")            
+                logging.info(f"action: receive_message | result: success | code: {dto_message.type_message}")           
                 break
 
     def receive_file(self, client_sock, name_file, msg, eof_value):
@@ -202,7 +208,7 @@ class Gateway:
         while message.type_message != eof_value:
             batchData = message.payload.replace('|', '\n')
             self.start_query_1(batchData)
-            # self.send_ack(client_sock, message.id_client, ClientCommunication.TYPE_ACK)
+            self.send_ack(client_sock, message.id_client, ClientCommunication.TYPE_ACK.value, "Batch received")
             message = self.receive_message(client_sock)        
         return
 
@@ -215,8 +221,8 @@ class Gateway:
         or False if there was an error
         """
         ack = MessageProtocol(
-            id_client=id_client,
-            type_message=ack_type,
+            idClient=id_client,
+            typeMessage=ack_type,
             payload=message
         )
         return self.send_message(client_sock, ack)
@@ -288,10 +294,7 @@ class Gateway:
             payload=batch)
         # Enviar la línea al filtro
         self.publisher_channel.basic_publish(exchange='movies', routing_key="filter_by_country", body=msg.encode_to_str())
-        logging.info(f"action: send_RabbitMq_message | result: success | message: {batch}")
-
-        
-        # self.rabbitmq_connection.close()
+        # logging.info(f"action: send_RabbitMq_message | result: success | message: {batch}")
         # Buscar del archivo movies_data las columnas: ["id", "title", "production_countries", "release_date", "genres"]
         return 0
 
