@@ -1,9 +1,9 @@
 package communication
 
 type MessageProtocol struct {
-	idClient    int
-	typeMessage int
-	payload     []byte
+	IdClient    int
+	TypeMessage int
+	Payload     []byte
 }
 
 func NewMessageProtocol(idClient int, typeMessage int, payload []byte) *MessageProtocol {
@@ -11,9 +11,9 @@ func NewMessageProtocol(idClient int, typeMessage int, payload []byte) *MessageP
 		payload = []byte{}
 	}
 	return &MessageProtocol{
-		idClient:    idClient,
-		typeMessage: typeMessage,
-		payload:     payload,
+		IdClient:    idClient,
+		TypeMessage: typeMessage,
+		Payload:     payload,
 	}
 }
 
@@ -26,11 +26,11 @@ func DecodeMessageProtocol(data []byte) *MessageProtocol {
 }
 
 func EncodeMessageProtocol(message *MessageProtocol) []byte {
-	data := make([]byte, 2+len(message.payload))
-	data[0] = byte(message.idClient)
-	data[1] = byte(message.typeMessage)
-	if len(message.payload) > 0 {
-		copy(data[2:], message.payload)
+	data := make([]byte, 2+len(message.Payload))
+	data[0] = byte(message.IdClient)
+	data[1] = byte(message.TypeMessage)
+	if len(message.Payload) > 0 {
+		copy(data[2:], message.Payload)
 	}
 	return data
 }

@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -216,10 +215,6 @@ func (c *Client) createBatch(reader *FileReader) ([]byte, bool) {
 
 	log.Infof("action: create_batch | result: success | client_id: %v | total_lines: %d", c.config.ID, lineCount)
 
-	// if len(batch)+1 <= communication.MAX_BATCH_SIZE {
-	// 	batch = append(batch, '\n')
-	// }
-
 	return batch, eof
 }
 
@@ -247,44 +242,34 @@ func (c *Client) handleBatch(reader *FileReader, code int) bool {
 		)
 		return true
 	}
-	log.Infof("action: send_batch | result: start | client_id: %v | batch_size: %d",
-		c.config.ID,
-		len(batch),
-	)
 
-	// response, errResponse := c.recvResponse()
-	// if errResponse != nil {
-	// 	// log.Errorf("action: receive_status_batch | result: fail | client_id: %v | error: %v",
-	// 	// 	c.config.ID,
-	// 	// 	errResponse,
-	// 	// )
-	// 	return true
-	// }
+	// Wait for the ACK message
+	errResponse := c.recvResponse()
+	if errResponse != nil {
+		log.Errorf("action: receive_status_batch | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			errResponse,
+		)
+		return true
+	}
 
-	// c.parseResponse(response)
 	return eof
 }
 
-func (c *Client) recvResponse() ([]byte, error) {
-	respHeader, errHeader := c.protocol.ReceiveAll(communication.SIZE_HEADER)
-	if errHeader != nil {
-		log.Criticalf("action: read_response_header | result: fail")
-		return nil, errHeader
-	}
-
-	respSize, err := strconv.Atoi(string(respHeader))
+func (c *Client) recvResponse() error {
+	response, err := c.protocol.ReceiveMessage()
 	if err != nil {
-		log.Criticalf("action: parse_response_header | result: fail | error: %v", err)
-		return nil, err
+		log.Errorf("action: receive_response_batch | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
+		return err
 	}
-
-	respData, errResp := c.protocol.ReceiveAll(respSize)
-	if errResp != nil {
-		log.Criticalf("action: read_response | result: fail | error: %v", err)
-		return nil, errResp
+	if response.TypeMessage == communication.TYPE_ACK {
+		log.Infof("action: receive_status_batch | result: success | client_id: %v", c.config.ID)
+		return nil
 	}
-
-	return respData, nil
+	return nil
 }
 
 func (c *Client) handleCloseConnection() {
@@ -298,32 +283,6 @@ func (c *Client) handleCloseConnection() {
 		log.Criticalf("action: send_message_end | result: fail")
 	}
 	log.Infof("action: close_connection | result: success")
-}
-
-func (c *Client) parseResponse(response []byte) {
-	responseParts := strings.Split(string(response), ";")
-	if len(responseParts) != 2 {
-		log.Criticalf("action: parse_response | result: fail | client_id: %v | error: invalid response format",
-			c.config.ID,
-		)
-		return
-	}
-
-	code := responseParts[0]
-
-	lenght, err := strconv.Atoi(responseParts[1])
-	if err != nil {
-		log.Criticalf("action: parse_response | result: fail | error: %v", err)
-		return
-	}
-
-	switch code {
-	case "FAIL":
-		log.Errorf("action: apuesta_recibida | result: fail | cantidad: %d", lenght)
-		return
-	default:
-		return
-	}
 }
 
 func (c *Client) closeClient() {

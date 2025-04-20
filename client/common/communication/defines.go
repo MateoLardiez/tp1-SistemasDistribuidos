@@ -51,4 +51,5 @@ const (
 	EOF_QUERY_5    = 18
 	//
 	FINISH_SEND_FILES = 19
+	TYPE_ERROR        = 20
 )

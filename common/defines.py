@@ -43,3 +43,5 @@ class ClientCommunication(Enum):
     EOF_QUERY_5    = 18
     # FINISH SEND FILES
     FINISH_SEND_FILES = 19
+    # ERROR
+    TYPE_ERROR = 20

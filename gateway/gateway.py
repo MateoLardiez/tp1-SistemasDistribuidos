@@ -173,6 +173,12 @@ class Gateway:
         open('credits.csv', 'w').close()
         while True:
             dto_message = self.receive_message(client_sock)
+            
+            # self.send_ack(
+            #     client_sock,
+            #     dto_message.id_client, 
+            #     ClientCommunication.ACK if (dto_message not None) else ClientCommunication.TY
+            # )
 
             if dto_message.type_message == ClientCommunication.BATCH_MOVIES:
                 self.receive_file(client_sock, "movies.csv", dto_message, ClientCommunication.EOF_MOVIES) 
@@ -196,10 +202,11 @@ class Gateway:
         while message.type_message != eof_value:
             batchData = message.payload.replace('|', '\n')
             self.start_query_1(batchData)
+            self.send_ack(client_sock, message.id_client)
             message = self.receive_message(client_sock)        
         return
 
-    def send_ack(self, client_sock, id_client):
+    def send_ack(self, client_sock, id_client, ack_type, message=None):
         """
         Send ack to the client
 
@@ -209,8 +216,8 @@ class Gateway:
         """
         ack = MessageProtocol(
             id_client=id_client,
-            type_message=ClientCommunication.ACK,
-            payload=None
+            type_message=ack_type,
+            payload=message
         )
         return self.send_message(client_sock, ack)
 
