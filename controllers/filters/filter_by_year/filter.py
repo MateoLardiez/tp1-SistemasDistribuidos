@@ -4,7 +4,7 @@ import csv
 import io
 
 
-from common.middleware_message_protocol import MiddlewareMessage
+from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
 from common.defines import QueryNumber
 
 YEAR = 3 # release_date position
@@ -23,7 +23,7 @@ class FilterByYear:
 
     def start(self):
         logging.info("action: start | result: success | code: filter_by_year")
-        self.channel.exchange_declare(exchange='results', exchange_type='direct')
+        self.channel.exchange_declare(exchange='year_filter', exchange_type='direct')
 
         self.channel.exchange_declare(exchange='country_filter', exchange_type='direct')
         result = self.channel.queue_declare(queue='')
@@ -83,13 +83,21 @@ class FilterByYear:
             if self.filter_by_year(line):
                 logging.info(f"action: filter | result: success | Pelicula que cumple: {line}")
                 filtered_lines.append(line)
-        
+
         if filtered_lines:
             # Join all filtered lines into a single CSV string
             result_csv = '\n'.join([','.join(line) for line in filtered_lines])
             
+            msg = MiddlewareMessage(
+                query_number=1,
+                client_id=1,
+                type=MiddlewareMessageType.MOVIES_BATCH,
+                payload=result_csv
+            )
+
+
             # Send all filtered results in a single message
-            self.channel.basic_publish(exchange='results', routing_key="filter_by_year_result", body=result_csv)
+            self.channel.basic_publish(exchange='year_filter', routing_key="filter_by_year_result", body=msg.encode_to_str())
             logging.info(f"action: send_filtered_batch | result: success | count: {len(filtered_lines)}")
             logging.info(f"FILTERED BATCH SENT: {len(filtered_lines)} movies matched filter criteria")
 

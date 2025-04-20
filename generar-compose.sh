@@ -72,6 +72,19 @@ add_filter_by_year() {
 " >> "$COMPOSE_FILE"
 }
 
+add_sinker_q1() {
+  echo "  query_1:
+    container_name: query_1
+    image: query_1:latest
+    entrypoint: python3 /main.py
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  " >> "$COMPOSE_FILE"
+}
+
 add_client() {
     echo "  client1:
     container_name: client1
@@ -109,5 +122,6 @@ add_rabbit_mq
 add_gateway
 add_filter_by_country
 add_filter_by_year
+add_sinker_q1
 add_client
 add_networks
