@@ -122,7 +122,7 @@ class Gateway:
         self.consumer_channel.exchange_declare(exchange='results', exchange_type='direct')
         result = self.consumer_channel.queue_declare(queue='results')
         queue_name = result.method.queue
-        self.consumer_channel.queue_bind(exchange='results', queue=queue_name, routing_key='filter_by_country_result')
+        self.consumer_channel.queue_bind(exchange='results', queue=queue_name, routing_key='filter_by_year_result')
         self.consumer_channel.basic_consume(queue=queue_name, on_message_callback=self.callback, auto_ack=True)
         self.consumer_channel.start_consuming()
         # self.connection = MiddlewareConnectionHandler(
@@ -135,7 +135,7 @@ class Gateway:
 
     def callback(self, ch, method, properties, body):
         data = body.decode('utf-8')
-        logging.info(f"action: receive_filter_by_country | result: success | Data filtrada: {data}")
+        logging.info(f"action: receive_filter_by_year | result: success | Data filtrada: {data}")
 
     def handle_client_connection(self, client_sock, msg_type):
         logging.info(f"action: receive_message | result: success | code: {msg_type.type_message}")
