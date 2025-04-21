@@ -1,23 +1,21 @@
-import pika
 import logging
 from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
+from common.middleware_connection_handler import RabbitMQConnectionHandler
 
 class Query1:
 
     def __init__(self):
-        self.connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
-        self.channel = self.connection.channel()
+        self.query_1_connection = RabbitMQConnectionHandler(
+            producer_exchange_name="reports_exchange",
+            producer_queues_to_bind={"reports_queue": ["reports_queue"]},
+            consumer_exchange_name="filter_by_year_exchange",
+            consumer_queues_to_recv_from=["filter_by_year_queue"]
+        )
+        self.query_1_connection.set_message_consumer_callback("filter_by_year_queue", self.callback)
 
     def start(self):
         logging.info("action: start | result: success | code: Sink_query_1 ")
-        self.channel.exchange_declare(exchange='results', exchange_type='direct') #Finalmente le envia la respuesta al Gateway
-        
-        self.channel.exchange_declare(exchange='year_filter', exchange_type='direct')
-        result = self.channel.queue_declare(queue='')
-        queue_name = result.method.queue
-        self.channel.queue_bind(exchange='year_filter', queue=queue_name, routing_key='filter_by_year_result')
-        self.channel.basic_consume(queue=queue_name, on_message_callback=self.callback, auto_ack=True)
-        self.channel.start_consuming()
+        self.query_1_connection.start_consuming()
 
     def callback(self, ch, method, properties, body):
         # id,title,genres,release_date,overview,production_countries,spoken_languages,budget,revenue
@@ -28,7 +26,6 @@ class Query1:
     def handler_query_3(self, lines):
         filtered_lines = []
         for line in lines:
-            # logging.info(f"LINEA ---------------> {line}   --------FIN DE LINEA")
             filtered_lines.append([line[1], line[2]])
         
         if filtered_lines:
@@ -43,6 +40,8 @@ class Query1:
             )
 
             # Send all filtered results in a single message
-            self.channel.basic_publish(exchange='results', routing_key="query_1_completed", body=msg.encode_to_str())
-            logging.info(f"action: response_q3 | result: success | count_lines_query: {len(filtered_lines)}")
-
+            self.query_1_connection.send_message(
+                routing_key="reports_queue",
+                msg_body=msg.encode_to_str()
+            )
+     

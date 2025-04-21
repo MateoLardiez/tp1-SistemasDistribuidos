@@ -1,9 +1,7 @@
 import socket
 import logging
 import signal
-# from common import utils
 import multiprocessing
-import pika
 from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
 from common.message_protocol import MessageProtocol
 from common.defines import ClientCommunication
@@ -41,21 +39,13 @@ class Gateway:
         self.finished_agencies = self.manager.list()
         self.bets_lock = multiprocessing.Lock()
         
-        self.consumer_exchange_name = "results_exchange"
-        self.consumer_queue = "query_results_queue"
-        self.producer_exchange = "gateway_exchange"
+        self.consumer_exchange_name = "reports_exchange"
+        self.consumer_queue = "reports_queue"
+        self.producer_exchange_name = "gateway_exchange"
         self.producer_queue_of_movies = "movies_queue"
         self.producer_queue_of_ratings = "ratings_queue"
         self.producer_queue_of_credits = "credits_queue"
-        
-        # # Initialize RabbitMQ connection
-        self.consumer_connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
-        self.publisher_connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
-        # Canal para consumir mensajes (resultados)
-        self.consumer_channel = self.consumer_connection.channel() 
-        # Canal para publicar mensajes (consultas)
-        self.publisher_channel = self.publisher_connection.channel()
-
+        self.publisher_connection = None
 
     def set_signals(self):
         signal.signal(signal.SIGTERM, self.__signal_handler)
@@ -90,11 +80,11 @@ class Gateway:
         finishes, servers starts to accept new connections again
         """
         self.set_signals()
-        process_queue = multiprocessing.Process(target=self.__handler_results_queue)
-        process_queue.daemon = True
-        process_queue.start()
+        report_service = multiprocessing.Process(target=self.__handler_reports)
+        report_service.daemon = True
+        report_service.start()
         self.clients_connections()
-        process_queue.join()
+        report_service.join()
 
     def __handle_client_connection(self, client_sock):
         """
@@ -109,8 +99,6 @@ class Gateway:
                 dto_message =self.receive_message(client_sock)
                 self.clients[addr] = dto_message.id_client
 
-                # code = self.__recv_all(client_sock, 1)
-                # msg_type = int.from_bytes(code, byteorder='big')
                 if dto_message.type_message == ClientCommunication.TYPE_FINISH_COMMUNICATION:
                     break
                 self.handle_client_connection(client_sock, dto_message)
@@ -119,20 +107,15 @@ class Gateway:
         finally:
             client_sock.close()
 
-    def __handler_results_queue(self):
-        self.consumer_channel.exchange_declare(exchange='results', exchange_type='direct')
-        result = self.consumer_channel.queue_declare(queue='results')
-        queue_name = result.method.queue
-        self.consumer_channel.queue_bind(exchange='results', queue=queue_name, routing_key='query_1_completed')
-        self.consumer_channel.basic_consume(queue=queue_name, on_message_callback=self.callback, auto_ack=True)
-        self.consumer_channel.start_consuming()
-        # self.connection = MiddlewareConnectionHandler(
-        #     producer_exchange_name=None,
-        #     producer_queues_to_bind=None,
-        #     consumer_exchange_name=self.consumer_exchange_name,
-        #     consumer_queues_to_recv_from=[self.consumer_queue]
-        # )
-        # self.connection.set_message_consumer_callback(self.consumer_queue, self.callback)
+    def __handler_reports(self):
+        self.rabbit_mq_report_connection = RabbitMQConnectionHandler(
+            producer_exchange_name=None,
+            producer_queues_to_bind=None,
+            consumer_exchange_name=self.consumer_exchange_name,
+            consumer_queues_to_recv_from=[self.consumer_queue]
+        )
+        self.rabbit_mq_report_connection.set_message_consumer_callback(self.consumer_queue, self.callback)
+        self.rabbit_mq_report_connection.start_consuming()
 
     def callback(self, ch, method, properties, body):
         data = MiddlewareMessage.decode_from_bytes(body)
@@ -141,10 +124,19 @@ class Gateway:
             logging.info(f"action: receive_response_query_1 | result: success | Data filtrada: {line}")
 
     def handle_client_connection(self, client_sock, msg_type):
+        self.publisher_connection = RabbitMQConnectionHandler(
+            producer_exchange_name=self.producer_exchange_name,
+            producer_queues_to_bind={
+                self.producer_queue_of_movies: [self.producer_queue_of_movies],
+                self.producer_queue_of_ratings: [self.producer_queue_of_ratings],
+                self.producer_queue_of_credits: [self.producer_queue_of_credits]
+            },
+            consumer_exchange_name=None,
+            consumer_queues_to_recv_from=None
+        )
         logging.info(f"action: receive_message | result: success | code: {msg_type.type_message}")
         if msg_type.type_message == ClientCommunication.TYPE_QUERY:
             self.__handle_query(client_sock, msg_type.payload)
-            #self.__handle_all_query(client_sock)
         # Agregar las demas querys aqui
 
     def __handle_query(self, client_sock, query):
@@ -176,12 +168,6 @@ class Gateway:
         open('credits.csv', 'w').close()
         while True:
             dto_message = self.receive_message(client_sock)
-            
-            # self.send_ack(
-            #     client_sock,
-            #     dto_message.id_client, 
-            #     ClientCommunication.ACK if (dto_message not None) else ClientCommunication.TY
-            # )
 
             if dto_message.type_message == ClientCommunication.BATCH_MOVIES:
                 self.receive_file(client_sock, "movies.csv", dto_message, ClientCommunication.EOF_MOVIES) 
@@ -205,7 +191,7 @@ class Gateway:
         while message.type_message != eof_value:
             batchData = message.payload.replace('|', '\n')
             self.start_query_1(batchData)
-            # self.send_ack(client_sock, message.id_client, ClientCommunication.TYPE_ACK)
+            self.send_ack(client_sock, message.id_client, ClientCommunication.TYPE_ACK.value,"Batch received")
             message = self.receive_message(client_sock)        
         return
 
@@ -218,8 +204,8 @@ class Gateway:
         or False if there was an error
         """
         ack = MessageProtocol(
-            id_client=id_client,
-            type_message=ack_type,
+            idClient=id_client,
+            typeMessage=ack_type,
             payload=message
         )
         return self.send_message(client_sock, ack)
@@ -283,19 +269,19 @@ class Gateway:
 
 
     def start_query_1(self, batch):
-        self.publisher_channel.exchange_declare(exchange='movies', exchange_type='direct')
+        # self.publisher_channel.exchange_declare(exchange='movies', exchange_type='direct')
         msg = MiddlewareMessage(
             query_number=1,
             client_id=1,
             type=MiddlewareMessageType.MOVIES_BATCH,
             payload=batch)
         # Enviar la línea al filtro
-        self.publisher_channel.basic_publish(exchange='movies', routing_key="filter_by_country", body=msg.encode_to_str())
-        # logging.info(f"action: send_RabbitMq_message | result: success | message: {batch}")
+        logging.info(f"action: send_RabbitMq_message | result: success | message: {batch}")
+        self.publisher_connection.send_message(
+            routing_key=self.producer_queue_of_movies,
+            msg_body=msg.encode_to_str()
+        )
 
-        
-        # self.rabbitmq_connection.close()
-        # Buscar del archivo movies_data las columnas: ["id", "title", "production_countries", "release_date", "genres"]
         return 0
 
     def start_query_2(self):

@@ -100,7 +100,8 @@ add_client() {
     networks:
       - testing_net
     depends_on:
-      - gateway
+      gateway:
+        condition: service_started
 " >> "$COMPOSE_FILE"
 
 }

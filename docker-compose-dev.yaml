@@ -75,7 +75,8 @@ services:
     networks:
       - testing_net
     depends_on:
-      - gateway
+      gateway:
+        condition: service_started
 
 networks:
   testing_net:
