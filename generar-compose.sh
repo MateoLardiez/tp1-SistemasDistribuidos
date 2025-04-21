@@ -59,6 +59,20 @@ add_filter_by_country() {
 
 }
 
+add_filter_by_country_invesment() {
+    echo "  filter_by_country_invesment:
+    container_name: filter_by_country_invesment
+    image: filter_by_country_invesment:latest
+    entrypoint: python3 /main.py
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+" >> "$COMPOSE_FILE"
+
+}
+
 add_filter_by_year() {
     echo "  filter_by_year:
     container_name: filter_by_year
@@ -122,6 +136,7 @@ add_compose_header
 add_rabbit_mq
 add_gateway
 add_filter_by_country
+add_filter_by_country_invesment
 add_filter_by_year
 add_sinker_q1
 add_client

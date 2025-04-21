@@ -19,6 +19,7 @@ docker-image:
 	docker build -f ./gateway/Dockerfile -t "gateway:latest" .
 	docker build -f ./client/Dockerfile -t "client:latest" .
 	docker build -f ./controllers/filters/filter_by_country/Dockerfile -t "filter_by_country:latest" .
+	docker build -f ./controllers/filters/filter_by_country_invesment/Dockerfile -t "filter_by_country_invesment:latest" .
 	docker build -f ./controllers/filters/filter_by_year/Dockerfile -t "filter_by_year:latest" .
 	docker build -f ./controllers/sinks/query_1/Dockerfile -t "query_1:latest" .
 	# Execute this command from time to time to clean up intermediate stages generated 
