@@ -166,20 +166,22 @@ class Gateway:
         open("movies.csv", 'w').close()
         open('ratings.csv', 'w').close()
         open('credits.csv', 'w').close()
+
+        query_number = ClientCommunication.ALL_QUERYS.value
         while True:
             dto_message = self.receive_message(client_sock)
 
             if dto_message.type_message == ClientCommunication.BATCH_MOVIES:
-                self.receive_file(client_sock, "movies.csv", dto_message, ClientCommunication.EOF_MOVIES) 
+                self.receive_file(client_sock, query_number, dto_message, ClientCommunication.EOF_MOVIES) 
             elif dto_message.type_message == ClientCommunication.BATCH_RATINGS:
-                self.receive_file(client_sock, "rating.csv", dto_message, ClientCommunication.EOF_RATINGS)
+                self.receive_file(client_sock, query_number, dto_message, ClientCommunication.EOF_RATINGS)
             elif dto_message.type_message == ClientCommunication.BATCH_CREDITS:
-                self.receive_file(client_sock, "credits.csv", dto_message, ClientCommunication.EOF_CREDITS)
+                self.receive_file(client_sock, query_number, dto_message, ClientCommunication.EOF_CREDITS)
             elif dto_message.type_message == ClientCommunication.FINISH_SEND_FILES:
                 logging.info(f"action: receive_message | result: success | code: {dto_message.type_message}")            
                 break
 
-    def receive_file(self, client_sock, name_file, msg, eof_value):
+    def receive_file(self, client_sock, query_number, msg, eof_value):
         """
         Receive a file from the client
 
@@ -187,12 +189,29 @@ class Gateway:
         function is saved in the specified path
         """
         message = msg
+        lines_received = 0
         # Process the initial message that was passed in first
         while message.type_message != eof_value:
+
             batchData = message.payload.replace('|', '\n')
-            self.start_query_1(batchData)
+            # self.start_query_1(batchData)
+            self.send_batch_to_preprocessor(
+                batch=batchData,
+                type_batch=message.type_message,
+                query_number=query_number,
+                client_id=message.id_client
+            )
             self.send_ack(client_sock, message.id_client, ClientCommunication.TYPE_ACK.value,"Batch received")
-            message = self.receive_message(client_sock)        
+            message = self.receive_message(client_sock)   
+            lines_received += 1     
+        
+        logging.info(f"LINES RECEIVED: {lines_received}")
+    
+        self.send_eof_to_preprocessor(message.type_message, query_number, message.id_client)
+
+        logging.info(f" ENVIO EOF A PREPROCESADOR --- {message.type_message}")
+
+
         return
 
     def send_ack(self, client_sock, id_client, ack_type, message=None):
@@ -231,7 +250,7 @@ class Gateway:
             return None
 
         messageSize = int.from_bytes(header, byteorder='big')
-        logging.info(f"action: receive_message | result: success | size: {messageSize}")
+        #logging.info(f"action: receive_message | result: success | size: {messageSize}")
         
         data = self.__recv_all(sock, messageSize)
         return MessageProtocol.decodeMessageBytes(data)
@@ -267,6 +286,53 @@ class Gateway:
                 return None
         return data
 
+    def send_batch_to_preprocessor(self, batch, type_batch, query_number, client_id):
+        batch_type = None
+        producer_queue = None
+        if type_batch == ClientCommunication.BATCH_MOVIES:
+            producer_queue = self.producer_queue_of_movies
+            batch_type = MiddlewareMessageType.MOVIES_BATCH
+        elif type_batch == ClientCommunication.BATCH_RATINGS:
+            producer_queue = self.producer_queue_of_ratings
+            batch_type = MiddlewareMessageType.RATINGS_BATCH
+        elif type_batch == ClientCommunication.BATCH_CREDITS:
+            producer_queue = self.producer_queue_of_credits
+            batch_type = MiddlewareMessageType.CREDITS_BATCH
+
+        msg = MiddlewareMessage(
+            query_number=query_number,
+            client_id=client_id,
+            type=batch_type,
+            payload=batch
+        )
+
+        self.publisher_connection.send_message(
+            routing_key=producer_queue,
+            msg_body=msg.encode_to_str()
+        )
+
+    def send_eof_to_preprocessor(self, type_batch, query_number, client_id):
+        typeEof = None
+        producer_queue = None
+        if type_batch == ClientCommunication.EOF_MOVIES:
+            typeEof = MiddlewareMessageType.EOF_MOVIES
+            producer_queue = self.producer_queue_of_movies
+        elif type_batch == ClientCommunication.EOF_RATINGS:
+            typeEof = MiddlewareMessageType.EOF_RATINGS
+            producer_queue = self.producer_queue_of_ratings
+        elif type_batch == ClientCommunication.EOF_CREDITS:
+            typeEof = MiddlewareMessageType.EOF_CREDITS
+            producer_queue = self.producer_queue_of_credits
+
+        self.publisher_connection.send_message(
+            routing_key=producer_queue,
+            msg_body=MiddlewareMessage(
+                query_number=query_number,
+                client_id=client_id,
+                type=typeEof,
+                payload=""
+            ).encode_to_str()
+        )
 
     def start_query_1(self, batch):
         # self.publisher_channel.exchange_declare(exchange='movies', exchange_type='direct')

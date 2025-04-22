@@ -21,16 +21,17 @@ class Query1:
         # id,title,genres,release_date,overview,production_countries,spoken_languages,budget,revenue
         data = MiddlewareMessage.decode_from_bytes(body)
         lines = data.get_batch_iter_from_payload()
-        self.handler_query_3(lines)
+        self.handler_query_5(lines)
 
-    def handler_query_3(self, lines):
+    def handler_query_5(self, lines):
         filtered_lines = []
         for line in lines:
+            logging.info(f"SINKER Q5: LINES: {line}")
             filtered_lines.append([line[1], line[2]])
         
         if filtered_lines:
             # Join all filtered lines into a single CSV string
-            result_csv = '\n'.join([','.join(line) for line in filtered_lines])
+            result_csv = MiddlewareMessage.write_csv_batch(filtered_lines)
             
             msg = MiddlewareMessage(
                 query_number=1,
@@ -41,7 +42,7 @@ class Query1:
 
             # Send all filtered results in a single message
             self.query_5_connection.send_message(
-                routing_key="reports_queue_5",
+                routing_key="reports_queue",
                 msg_body=msg.encode_to_str()
             )
      

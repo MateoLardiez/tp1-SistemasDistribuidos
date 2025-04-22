@@ -14,10 +14,10 @@ class FilterByCountryInvesment:
             producer_exchange_name="filter_by_country_invesment_exchange",
             producer_queues_to_bind={"filter_by_country_invesment_queue": ["filter_by_country_invesment_queue"]},
             consumer_exchange_name="movies_preprocessor_exchange",
-            consumer_queues_to_recv_from=["filter_by_country_invesment_queue"]
+            consumer_queues_to_recv_from=["cleaned_movies_queue_country_invesment"],
         )
         # Configurar el callback para la cola específica
-        self.filter_by_country_connection.set_message_consumer_callback("filter_by_country_invesment_queue", self.callback)
+        self.filter_by_country_connection.set_message_consumer_callback("cleaned_movies_queue_country_invesment", self.callback)
         self.countries = ["Spain"]
 
     def start(self):
@@ -33,7 +33,6 @@ class FilterByCountryInvesment:
         countries_of_movie = movie[PROD_COUNTRIES]#<- es un string
         countries_of_movie = countries_of_movie.strip("[]").replace("'", "").split(", ")
         if len(countries_of_movie) == 1:
-            logging.info(f"Cumple con el filtro: {movie}")
             return True
         return False
 
@@ -43,11 +42,10 @@ class FilterByCountryInvesment:
             if self.filter_by_country_invesment(line):
                 filtered_lines.append(line)
 
-        logging.info(f"RESULTTT INVESTMENT {filtered_lines}")
-
         # Join all filtered lines into a single CSV string
-        # if filtered_lines:
-        #     result_csv = '\n'.join([','.join(line) for line in filtered_lines])
+        if filtered_lines:
+            result_csv = MiddlewareMessage.write_csv_batch(filtered_lines)
+            # logging.info(f"INVESMENT MOVIES: {len(filtered_lines)}")
         #     msg = MiddlewareMessage(
         #             query_number=1,
         #             client_id=1,

@@ -126,8 +126,8 @@ func (c *Client) handleAllQueries() {
 		return
 	}
 	c.SendFile("movies.csv", communication.BATCH_MOVIES, communication.EOF_MOVIES)
-	// c.SendFile("ratings.csv", communication.BATCH_RATINGS)
-	// c.SendFile("credits.csv", communication.BATCH_CREDITS)
+	c.SendFile("ratings.csv", communication.BATCH_RATINGS, communication.EOF_RATINGS)
+	c.SendFile("credits.csv", communication.BATCH_CREDITS, communication.EOF_CREDITS)
 	messageFinish := communication.NewMessageProtocol(
 		c.config.ID,
 		communication.FINISH_SEND_FILES,
@@ -213,7 +213,7 @@ func (c *Client) createBatch(reader *FileReader) ([]byte, bool) {
 		lineCount++
 	}
 
-	log.Infof("action: create_batch | result: success | client_id: %v | total_lines: %d", c.config.ID, lineCount)
+	//log.Infof("action: create_batch | result: success | client_id: %v | total_lines: %d", c.config.ID, lineCount)
 
 	return batch, eof
 }
@@ -265,13 +265,13 @@ func (c *Client) recvResponse() error {
 		)
 		return err
 	}
-	if response.TypeMessage == communication.TYPE_ACK {
-		log.Infof("action: %v | result: success | client_id: %v",
-			string(response.Payload),
-			c.config.ID,
-		)
-		return nil
-	}
+	// if response.TypeMessage == communication.TYPE_ACK {
+	// 	log.Infof("action: %v | result: success | client_id: %v",
+	// 		string(response.Payload),
+	// 		c.config.ID,
+	// 	)
+	// 	return nil
+	// }
 	if response.TypeMessage == communication.TYPE_ERROR {
 		log.Errorf("action: receive_status_batch | result: fail | client_id: %v | error: %s",
 			c.config.ID,

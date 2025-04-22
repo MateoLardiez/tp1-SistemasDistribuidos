@@ -24,9 +24,9 @@ class AggregatorNlp:
             producer_exchange_name="aggregator_nlp_exchange",
             producer_queues_to_bind={ "aggregated_nlp_data_queue": ["aggregated_nlp_data_queue"]},
             consumer_exchange_name="movies_preprocessor_exchange",
-            consumer_queues_to_recv_from=["aggregator_nlp_queue"]
+            consumer_queues_to_recv_from=["cleaned_movies_queue_nlp"]
         )
-        self.aggregator_nlp_connection.set_message_consumer_callback("aggregator_nlp_queue", self.callback)
+        self.aggregator_nlp_connection.set_message_consumer_callback("cleaned_movies_queue_nlp", self.callback)
 
     def start(self):
         logging.info("action: start | result: success | code: aggregator_nlp")
@@ -70,7 +70,7 @@ class AggregatorNlp:
 
         if filtered_lines:
             # Join all filtered lines into a single CSV string
-            result_csv = '\n'.join([','.join(line) for line in filtered_lines])            
+            result_csv = MiddlewareMessage.write_csv_batch(filtered_lines)            
             msg = MiddlewareMessage(
                 query_number=1,
                 client_id=1,

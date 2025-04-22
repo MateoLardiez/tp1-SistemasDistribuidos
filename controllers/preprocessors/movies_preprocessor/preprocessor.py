@@ -25,9 +25,9 @@ class MoviesPreprocessor:
         self.movies_preprocessor_connection = RabbitMQConnectionHandler(
             producer_exchange_name="movies_preprocessor_exchange",
             producer_queues_to_bind={
-                "filter_by_country_queue": ["filter_by_country_queue"],
-                "filter_by_country_invesment_queue": ["filter_by_country_invesment_queue"],
-                "aggregator_nlp_queue": ["aggregator_nlp_queue"]
+                "cleaned_movies_queue_country": ["cleaned_movies_queue_country"],
+                "cleaned_movies_queue_country_invesment": ["cleaned_movies_queue_country_invesment"],
+                "cleaned_movies_queue_nlp": ["cleaned_movies_queue_nlp"],
             },
             consumer_exchange_name="gateway_exchange",
             consumer_queues_to_recv_from=["movies_queue"]
@@ -40,25 +40,44 @@ class MoviesPreprocessor:
         self.movies_preprocessor_connection.start_consuming()
     
     def callback(self, ch, method, properties, body):
-        data = MiddlewareMessage.decode_from_bytes(body)
-        lines = data.get_batch_iter_from_payload()
-        clean_lines = self.clean_csv(lines)
-        # logging.info(f" LINEAS LIMPIASSSS -> {clean_lines}")
-        msg = MiddlewareMessage(
-            query_number=data.query_number,
-            client_id=data.client_id,
-            type=MiddlewareMessageType.MOVIES_BATCH,
-            payload=clean_lines,
-        )
+        
+        try:
+            data = MiddlewareMessage.decode_from_bytes(body)
+            if data.type != MiddlewareMessageType.EOF_MOVIES:
+                lines = data.get_batch_iter_from_payload()
+                clean_lines = self.clean_csv(lines)
+                # logging.info(f" LINEAS LIMPIASSSS -> {clean_lines}")
+                msg = MiddlewareMessage(
+                    query_number=data.query_number,
+                    client_id=data.client_id,
+                    type=MiddlewareMessageType.MOVIES_BATCH,
+                    payload=clean_lines,
+                )
 
-        if data.query_number == QueryNumber.ALL_QUERYS:
-            self.movies_preprocessor_connection.send_message(routing_key="filter_by_country_queue", msg_body=msg.encode_to_str())
-            self.movies_preprocessor_connection.send_message(routing_key="filter_by_country_invesment_queue", msg_body=msg.encode_to_str())
-            #     self.movies_preprocessor_connection.send_message(routing_key="aggregator_nlp_queue", msg_body=msg.encode_to_str())
-        elif data.query_number == QueryNumber.QUERY_1:
-            self.movies_preprocessor_connection.send_message(routing_key="filter_by_country_queue", msg_body=msg.encode_to_str())
-        elif data.query_number == QueryNumber.QUERY_2:
-            self.movies_preprocessor_connection.send_message(routing_key="filter_by_country_invesment_queue", msg_body=msg.encode_to_str())
+                if data.query_number == QueryNumber.ALL_QUERYS:
+                    self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_country", msg_body=msg.encode_to_str())
+                    self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_country_invesment", msg_body=msg.encode_to_str())
+                    #     self.movies_preprocessor_connection.send_message(routing_key="aggregator_nlp_queue", msg_body=msg.encode_to_str())
+                elif data.query_number == QueryNumber.QUERY_1:
+                    self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_country", msg_body=msg.encode_to_str())
+                elif data.query_number == QueryNumber.QUERY_2:
+                    self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_country_invesment", msg_body=msg.encode_to_str())
+
+            else:
+                logging.info(f"END OF FILE MOVIES")
+                # self.movies_preprocessor_connection.send_message(
+                #     routing_key="cleaned_movies_queue_country",
+                #     msg_body=MiddlewareMessage(
+                #         query_number=data.query_number,
+                #         client_id=data.client_id,
+                #         type=MiddlewareMessageType.EOF_MOVIES,
+                #         payload=None
+                #     ).encode_to_str()
+                # )
+
+        except Exception as e:
+            logging.error(f"Error en el callback: {e}")
+
         # elif data.query_number == QueryNumber.QUERY_5:
         #     self.movies_preprocessor_connection.send_message(routing_key="aggregator_nlp_queue", msg_body=msg.encode_to_str())
 
