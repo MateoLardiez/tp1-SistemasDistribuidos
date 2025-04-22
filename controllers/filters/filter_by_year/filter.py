@@ -75,7 +75,7 @@ class FilterByYear:
         for line in lines:
             if self.filter_by_year(line, year_filter):
                 filtered_lines.append(line)
-
+                
         if filtered_lines:
             # Join all filtered lines into a single CSV string
             result_csv = MiddlewareMessage.write_csv_batch(filtered_lines)            

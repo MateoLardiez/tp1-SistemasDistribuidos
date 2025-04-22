@@ -49,7 +49,6 @@ class FilterByCountry:
         filtered_lines = []
         for line in lines:
             if self.filter_by_country(line, countries_filter):
-                logging.info(f"action: filter | result: success | Pelicula que cumple: {line}")
                 filtered_lines.append(line)
         
         # Join all filtered lines into a single CSV string

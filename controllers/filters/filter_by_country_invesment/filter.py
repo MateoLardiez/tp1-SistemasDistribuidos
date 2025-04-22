@@ -33,7 +33,6 @@ class FilterByCountryInvesment:
         countries_of_movie = movie[PROD_COUNTRIES]#<- es un string
         countries_of_movie = countries_of_movie.strip("[]").replace("'", "").split(", ")
         if len(countries_of_movie) == 1:
-            logging.info(f"Cumple con el filtro: {movie}")
             return True
         return False
 
@@ -42,8 +41,6 @@ class FilterByCountryInvesment:
         for line in lines:
             if self.filter_by_country_invesment(line):
                 filtered_lines.append(line)
-
-        logging.info(f"RESULTTT INVESTMENT {filtered_lines}")
 
         # Join all filtered lines into a single CSV string
         # if filtered_lines:

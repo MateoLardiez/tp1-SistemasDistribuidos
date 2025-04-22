@@ -41,6 +41,26 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  ratings_preprocessor:
+    container_name: ratings_preprocessor
+    image: ratings_preprocessor:latest
+    entrypoint: python3 /main.py
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  credits_preprocessor:
+    container_name: credits_preprocessor
+    image: credits_preprocessor:latest
+    entrypoint: python3 /main.py
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
   filter_by_country:
     container_name: filter_by_country
     image: filter_by_country:latest
