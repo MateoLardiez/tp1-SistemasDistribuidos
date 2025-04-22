@@ -25,9 +25,9 @@ class FilterByYear:
                 "filter_by_year_queue": ["filter_by_year_queue"],
             },
             consumer_exchange_name="filter_by_country_exchange",
-            consumer_queues_to_recv_from=["filter_by_country_queue"],
+            consumer_queues_to_recv_from=["country_queue"],
         )
-        self.filter_by_year_connection.set_message_consumer_callback("filter_by_country_queue", self.callback)
+        self.filter_by_year_connection.set_message_consumer_callback("country_queue", self.callback)
 
     def start(self):
         logging.info("action: start | result: success | code: filter_by_year")
@@ -35,14 +35,17 @@ class FilterByYear:
 
     def callback(self, ch, method, properties, body):
         data = MiddlewareMessage.decode_from_bytes(body)
-        lines = data.get_batch_iter_from_payload()
-        if data.query_number == QueryNumber.ALL_QUERYS:
-            self.handler_all_query(lines)
-        elif data.query_number == QueryNumber.QUERY_1:
-            self.handler_year_filter(lines, self.year_range_query_1)
+        if data.type != MiddlewareMessageType.EOF_MOVIES:
+            lines = data.get_batch_iter_from_payload()
+            if data.query_number == QueryNumber.ALL_QUERYS:
+                self.handler_all_query(lines, data.query_number, data.client_id)
+            elif data.query_number == QueryNumber.QUERY_1:
+                self.handler_year_filter(lines, self.year_range_query_1, data.query_number, data.client_id)
+        else:
+            logging.info("action: EOF | result: success | code: filter_by_year")
 
-    def handler_all_query(self, lines):
-        self.handler_year_filter(lines, self.year_range_query_1)
+    def handler_all_query(self, lines, query_number, client_id):
+        self.handler_year_filter(lines, self.year_range_query_1, query_number, client_id)
         # self.handler_year_filter(lines, self.year_range_query_3)
         # self.handler_year_filter(lines, self.year_range_query_4)
         
@@ -70,7 +73,7 @@ class FilterByYear:
             logging.error(f"Invalid release date format for movie: {movie}")
             return False
 
-    def handler_year_filter(self, lines, year_filter):
+    def handler_year_filter(self, lines, year_filter, query_number, client_id):
         filtered_lines = []
         for line in lines:
             if self.filter_by_year(line, year_filter):
@@ -80,8 +83,8 @@ class FilterByYear:
             # Join all filtered lines into a single CSV string
             result_csv = MiddlewareMessage.write_csv_batch(filtered_lines)            
             msg = MiddlewareMessage(
-                query_number=1,
-                client_id=1,
+                query_number=query_number,
+                client_id=client_id,
                 type=MiddlewareMessageType.MOVIES_BATCH,
                 payload=result_csv
             )

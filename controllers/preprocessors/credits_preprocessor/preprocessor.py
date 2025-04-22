@@ -25,19 +25,27 @@ class CreditsPreprocessor:
         self.credits_preprocessor_connection.set_message_consumer_callback("credits_queue", self.callback)
 
     def start(self):
-        logging.info("action: start | result: success | code: movies_preprocessor")
+        logging.info("action: start | result: success | code: credits_preprocessor")
         self.credits_preprocessor_connection.start_consuming()
     
     def callback(self, ch, method, properties, body):
-        data = MiddlewareMessage.decode_from_bytes(body)
-        lines = data.get_batch_iter_from_payload()
-        clean_lines = self.clean_csv(lines)
-        msg = MiddlewareMessage(
-            query_number=data.query_number,
-            client_id=data.client_id,
-            type=MiddlewareMessageType.MOVIES_BATCH,
-            payload=clean_lines,
-        )
+        try:
+            data = MiddlewareMessage.decode_from_bytes(body)
+            if data.type != MiddlewareMessageType.EOF_CREDITS:
+                lines = data.get_batch_iter_from_payload()
+                clean_lines = self.clean_csv(lines)
+                # logging.info(f"Cleaned lines: {clean_lines}")
+            else:
+                logging.info("EOF message received")
+                # ch.basic_ack(delivery_tag=method.delivery_tag)
+        except Exception as e:
+            logging.error(f"Error en el callback: {e}")
+        # msg = MiddlewareMessage(
+        #     query_number=data.query_number,
+        #     client_id=data.client_id,
+        #     type=MiddlewareMessageType.MOVIES_BATCH,
+        #     payload=clean_lines,
+        # )
 
         # if data.query_number == QueryNumber.ALL_QUERYS:
         #     self.ratings_preprocessor_connection.send_message(routing_key="filter_by_country_queue", msg_body=msg.encode_to_str())
@@ -68,9 +76,7 @@ class CreditsPreprocessor:
             # Agregar los valores en el orden definido en COLUMNS
             filtered_row = [row_dict.get(col, '') for col in COLUMNS]
 
-            logging.info(f" FILTRO -> {filtered_row}")
             result.append(filtered_row)
-
         return MiddlewareMessage.write_csv_batch(result)
 
     def dictionary_to_list(self, dictionary_str):

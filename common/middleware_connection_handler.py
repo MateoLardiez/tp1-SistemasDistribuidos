@@ -19,7 +19,6 @@ class RabbitMQConnectionHandler:
         self.channel.basic_qos(prefetch_count=1)
         self.channel.confirm_delivery()
 
-
     def __configure_consumer_queues(self, 
                               consumer_exchange_name: str, 
                               consumer_queues_to_recv_from: list[str],
@@ -47,7 +46,7 @@ class RabbitMQConnectionHandler:
     def set_message_consumer_callback(self, 
                                         queue_name: str, 
                                         main_callback: Callable):
-        self.channel.basic_consume(queue=queue_name, on_message_callback=main_callback)
+        self.channel.basic_consume(queue=queue_name, on_message_callback=main_callback, auto_ack=True)
 
     def start_consuming(self):
         self.channel.start_consuming()

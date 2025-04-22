@@ -25,20 +25,26 @@ class RatingsPreprocessor:
         self.ratings_preprocessor_connection.set_message_consumer_callback("ratings_queue", self.callback)
 
     def start(self):
-        logging.info("action: start | result: success | code: movies_preprocessor")
+        logging.info("action: start | result: success | code: ratings_preprocessor")
         self.ratings_preprocessor_connection.start_consuming()
     
     def callback(self, ch, method, properties, body):
-        data = MiddlewareMessage.decode_from_bytes(body)
-        lines = data.get_batch_iter_from_payload()
-        clean_lines = self.clean_csv(lines)
-        msg = MiddlewareMessage(
-            query_number=data.query_number,
-            client_id=data.client_id,
-            type=MiddlewareMessageType.MOVIES_BATCH,
-            payload=clean_lines,
-        )
-
+        try:
+            data = MiddlewareMessage.decode_from_bytes(body)
+            if data.type != MiddlewareMessageType.EOF_RATINGS:
+                lines = data.get_batch_iter_from_payload()
+                clean_lines = self.clean_csv(lines)
+                # msg = MiddlewareMessage(
+                #     query_number=data.query_number,
+                #     client_id=data.client_id,
+                #     type=MiddlewareMessageType.MOVIES_BATCH,
+                #     payload=clean_lines,
+                # )
+            else:
+                logging.info("action: EOF | result: success | code: ratings_preprocessor")
+        except Exception as e:
+            logging.error(f"action: error | result: failure | code: ratings_preprocessor | error: {e}")
+        
         # if data.query_number == QueryNumber.ALL_QUERYS:
         #     self.ratings_preprocessor_connection.send_message(routing_key="filter_by_country_queue", msg_body=msg.encode_to_str())
         #     self.ratings_preprocessor_connection.send_message(routing_key="filter_by_country_invesment_queue", msg_body=msg.encode_to_str())

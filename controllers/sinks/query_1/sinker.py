@@ -26,6 +26,7 @@ class Query1:
     def handler_query_1(self, lines):
         filtered_lines = []
         for line in lines:
+            #logging.info(f"LINEA FILTRADA PARA SINKEAR: {line}")
             filtered_lines.append([line[1], line[2]])
         
         if filtered_lines:

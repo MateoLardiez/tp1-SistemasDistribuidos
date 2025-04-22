@@ -125,8 +125,8 @@ func (c *Client) handleAllQueries() {
 		)
 		return
 	}
-	// c.SendFile("movies.csv", communication.BATCH_MOVIES, communication.EOF_MOVIES)
-	// c.SendFile("ratings.csv", communication.BATCH_RATINGS, communication.EOF_RATINGS)
+	c.SendFile("movies.csv", communication.BATCH_MOVIES, communication.EOF_MOVIES)
+	c.SendFile("ratings.csv", communication.BATCH_RATINGS, communication.EOF_RATINGS)
 	c.SendFile("credits.csv", communication.BATCH_CREDITS, communication.EOF_CREDITS)
 	messageFinish := communication.NewMessageProtocol(
 		c.config.ID,
@@ -213,7 +213,7 @@ func (c *Client) createBatch(reader *FileReader) ([]byte, bool) {
 		lineCount++
 	}
 
-	log.Infof("action: create_batch | result: success | client_id: %v | total_lines: %d", c.config.ID, lineCount)
+	//log.Infof("action: create_batch | result: success | client_id: %v | total_lines: %d", c.config.ID, lineCount)
 
 	return batch, eof
 }

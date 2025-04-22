@@ -209,6 +209,8 @@ class Gateway:
     
         self.send_eof_to_preprocessor(message.type_message, query_number, message.id_client)
 
+        logging.info(f" ENVIO EOF A PREPROCESADOR --- {message.type_message}")
+
 
         return
 
@@ -248,7 +250,7 @@ class Gateway:
             return None
 
         messageSize = int.from_bytes(header, byteorder='big')
-        logging.info(f"action: receive_message | result: success | size: {messageSize}")
+        #logging.info(f"action: receive_message | result: success | size: {messageSize}")
         
         data = self.__recv_all(sock, messageSize)
         return MessageProtocol.decodeMessageBytes(data)
