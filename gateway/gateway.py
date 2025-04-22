@@ -271,12 +271,12 @@ class Gateway:
     def start_query_1(self, batch):
         # self.publisher_channel.exchange_declare(exchange='movies', exchange_type='direct')
         msg = MiddlewareMessage(
-            query_number=1,
+            query_number=0,
             client_id=1,
             type=MiddlewareMessageType.MOVIES_BATCH,
             payload=batch)
         # Enviar la línea al filtro
-        logging.info(f"action: send_RabbitMq_message | result: success | message: {batch}")
+        # logging.info(f"action: send_RabbitMq_message | result: success | message: {batch}")
         self.publisher_connection.send_message(
             routing_key=self.producer_queue_of_movies,
             msg_body=msg.encode_to_str()

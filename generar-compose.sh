@@ -45,6 +45,20 @@ add_gateway() {
 }
 
 
+add_movies_preprocessor() {
+    echo "  movies_preprocessor:
+    container_name: movies_preprocessor
+    image: movies_preprocessor:latest
+    entrypoint: python3 /main.py
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+" >> "$COMPOSE_FILE"
+
+}
+
 add_filter_by_country() {
     echo "  filter_by_country:
     container_name: filter_by_country
@@ -135,6 +149,7 @@ add_networks() {
 add_compose_header
 add_rabbit_mq
 add_gateway
+add_movies_preprocessor
 add_filter_by_country
 add_filter_by_country_invesment
 add_filter_by_year

@@ -18,6 +18,7 @@ build: deps
 docker-image:
 	docker build -f ./gateway/Dockerfile -t "gateway:latest" .
 	docker build -f ./client/Dockerfile -t "client:latest" .
+	docker build -f ./controllers/preprocessors/movies_preprocessor/Dockerfile -t "movies_preprocessor:latest" .
 	docker build -f ./controllers/filters/filter_by_country/Dockerfile -t "filter_by_country:latest" .
 	docker build -f ./controllers/filters/filter_by_country_invesment/Dockerfile -t "filter_by_country_invesment:latest" .
 	docker build -f ./controllers/filters/filter_by_year/Dockerfile -t "filter_by_year:latest" .

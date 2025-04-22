@@ -1,6 +1,7 @@
 from enum import Enum
 
 class QueryNumber(Enum):
+    ALL_QUERYS = 0
     QUERY_1 = 1
     QUERY_2 = 2
     QUERY_3 = 3

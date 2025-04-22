@@ -31,6 +31,16 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  movies_preprocessor:
+    container_name: movies_preprocessor
+    image: movies_preprocessor:latest
+    entrypoint: python3 /main.py
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
   filter_by_country:
     container_name: filter_by_country
     image: filter_by_country:latest

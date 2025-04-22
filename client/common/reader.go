@@ -1,9 +1,11 @@
 package common
 
 import (
+	"bytes"
 	"encoding/csv"
 	"io"
 	"os"
+	"strings"
 )
 
 type FileReader struct {
@@ -20,6 +22,9 @@ func NewFileReader(filePath string) (*FileReader, error) {
 	}
 
 	csvReader := csv.NewReader(file)
+	// Configurar el CSVReader para manejar correctamente campos con saltos de línea
+	csvReader.LazyQuotes = true
+	csvReader.FieldsPerRecord = -1 // Permite cualquier número de campos
 
 	// Crear el lector con valores iniciales
 	fr := &FileReader{
@@ -60,8 +65,24 @@ func (fr *FileReader) ReadCSVLine() ([]string, error) {
 	return record, nil
 }
 
+// ToCSVLine convierte un slice de strings a una línea CSV bien formateada
+// respetando el RFC 4180 (especialmente para campos con saltos de línea y comillas)
+func ToCSVLine(record []string) string {
+	// Utilizamos el paquete csv de Go para formatear correctamente la línea
+	buf := &bytes.Buffer{}
+	writer := csv.NewWriter(buf)
+
+	// Escribimos el record usando el csv.Writer que maneja correctamente
+	// los casos especiales como campos con comillas o saltos de línea
+	writer.Write(record)
+	writer.Flush()
+
+	// Eliminamos el salto de línea final que añade el writer
+	return strings.TrimRight(buf.String(), "\r\n")
+}
+
 // ReadLine se mantiene para compatibilidad con el código existente
-// pero ahora convierte la línea CSV a un string con separadores
+// pero ahora usa ToCSVLine para formatear correctamente la línea CSV
 func (fr *FileReader) ReadLine() (string, error) {
 	record, err := fr.ReadCSVLine()
 	if err != nil {
@@ -71,16 +92,8 @@ func (fr *FileReader) ReadLine() (string, error) {
 		return "", err
 	}
 
-	// Crear una cadena separada por comas a partir del registro CSV
-	result := ""
-	for i, field := range record {
-		if i > 0 {
-			result += ","
-		}
-		result += field
-	}
-
-	return result, nil
+	// Usar la función ToCSVLine para formatear correctamente respetando RFC 4180
+	return ToCSVLine(record), nil
 }
 
 func (fr *FileReader) ReadBytes(n int) ([]byte, error) {

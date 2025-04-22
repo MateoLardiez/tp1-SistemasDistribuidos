@@ -40,4 +40,11 @@ class MiddlewareMessage:
             return csv.reader(io.StringIO(self.payload), delimiter=',', quotechar='"')
         else:
             return None
-    
+        
+    @classmethod
+    def write_csv_batch(self, batch):
+        output = io.StringIO()
+        csv_writer = csv.writer(output, quoting=csv.QUOTE_NONNUMERIC, quotechar='"')
+        csv_writer.writerows(batch)
+        return output.getvalue().strip()
+        
