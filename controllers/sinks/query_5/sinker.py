@@ -1,8 +1,12 @@
 import logging
 from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
 from common.middleware_connection_handler import RabbitMQConnectionHandler
+import csv
 
-class Query1:
+SENTIMENT_POS = 9
+RATE_POS = 10
+
+class Query5:
 
     def __init__(self):
         self.query_5_connection = RabbitMQConnectionHandler(
@@ -20,29 +24,61 @@ class Query1:
     def callback(self, ch, method, properties, body):
         # id,title,genres,release_date,overview,production_countries,spoken_languages,budget,revenue
         data = MiddlewareMessage.decode_from_bytes(body)
-        lines = data.get_batch_iter_from_payload()
-        self.handler_query_5(lines)
 
-    def handler_query_5(self, lines):
-        filtered_lines = []
-        for line in lines:
-            logging.info(f"SINKER Q5: LINES: {line}")
-            filtered_lines.append([line[1], line[2]])
+        if data.type != MiddlewareMessageType.EOF_MOVIES:
+            lines = data.get_batch_iter_from_payload()
+            self.save_data(data.client_id, lines)
+        else:
+            logging.info("action: EOF | result: success | code: sinker_query_2")
+            self.handler_query_5(data.client_id)
+
+    def handler_query_5(self, client_id):
+        # Ya tengo toda la data en mi csv
+        sentiment_groups = {"POSITIVE": [], "NEGATIVE": []}
         
-        if filtered_lines:
-            # Join all filtered lines into a single CSV string
-            result_csv = MiddlewareMessage.write_csv_batch(filtered_lines)
-            
-            msg = MiddlewareMessage(
-                query_number=1,
-                client_id=1,
-                type=MiddlewareMessageType.MOVIES_BATCH,
-                payload=result_csv
-            )
+        
+        for line in self.read_data(client_id):
+            sentiment = line[SENTIMENT_POS]
+            rate = line[RATE_POS]
+            sentiment_groups[sentiment].append(rate)
 
-            # Send all filtered results in a single message
-            self.query_5_connection.send_message(
-                routing_key="reports_queue",
-                msg_body=msg.encode_to_str()
-            )
-     
+
+        average_rate_by_sentiment = {
+            sentiment: (sum(rates) / len(rates)) if rates else 0
+            for sentiment, rates in sentiment_groups.items()
+        }
+
+        q5_answer = [
+            ["sentiment", "average_rate"],
+            ["POSITIVE", average_rate_by_sentiment["POSITIVE"]],
+            ["NEGATIVE", average_rate_by_sentiment["NEGATIVE"]]
+        ]
+        logging.log(f"QUERY 5: POSITIVE: {q5_answer[1][1]}, NEGATIVE: {q5_answer[2][1]}")
+        # Join all filtered lines into a single CSV string
+        result_csv = MiddlewareMessage.write_csv_batch(q5_answer) # NO ASI
+        
+        msg = MiddlewareMessage(
+            query_number=1,
+            client_id=1,
+            type=MiddlewareMessageType.MOVIES_BATCH,
+            payload=result_csv
+        )
+
+        # Send all filtered results in a single message
+        self.query_5_connection.send_message(
+            routing_key="reports_queue",
+            msg_body=msg.encode_to_str()
+        )
+    
+    def save_data(self, client_id, lines) -> None:
+        # logging.info(f"LINEA PARA GUARDAR: {lines}")
+        with open(f"query_5-client-{client_id}", 'a+') as file:
+            writer = csv.writer(file, quoting=csv.QUOTE_MINIMAL)
+            for line in lines:
+                writer.writerow(line)
+
+    def read_data(self, client_id):
+        with open (f"query_5-{client_id}", 'r') as file:
+            reader = csv.reader(file, quoting=csv.QUOTE_MINIMAL)
+            for row in reader:
+                yield row

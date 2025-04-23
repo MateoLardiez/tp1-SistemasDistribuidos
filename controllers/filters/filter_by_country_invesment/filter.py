@@ -4,6 +4,7 @@ from common.defines import QueryNumber
 from common.middleware_connection_handler import RabbitMQConnectionHandler
 
 PROD_COUNTRIES = 5
+BUDGET = 7
 
 class FilterByCountryInvesment:
     countries: list
@@ -26,12 +27,31 @@ class FilterByCountryInvesment:
     
     def callback(self, ch, method, properties, body):
         data = MiddlewareMessage.decode_from_bytes(body)
-        lines = data.get_batch_iter_from_payload()
-        self.handler_filter(lines)
+        if data.type != MiddlewareMessageType.EOF_MOVIES:
+            lines = data.get_batch_iter_from_payload()
+            self.handler_filter(lines)
+        else:
+            logging.info(f"END OF FILE INVESMENT")
+            msg = MiddlewareMessage(
+                    query_number=data.query_number,
+                    client_id=data.client_id,
+                    type=MiddlewareMessageType.EOF_MOVIES,
+                    payload=""
+                )
+            self.filter_by_country_connection.send_message(
+                routing_key="filter_by_country_invesment_queue",
+                msg_body=msg.encode_to_str()
+            )
 
     def filter_by_country_invesment(self, movie):
-        countries_of_movie = movie[PROD_COUNTRIES]#<- es un string
-        countries_of_movie = countries_of_movie.strip("[]").replace("'", "").split(", ")
+        raw_value = movie[PROD_COUNTRIES].strip()#<- es un string
+
+        if raw_value == "[]" or not raw_value:
+            return False
+
+        countries_of_movie = raw_value.strip("[]").replace("'", "").split(", ")
+        countries_of_movie = [c for c in countries_of_movie if c.strip()]
+
         if len(countries_of_movie) == 1:
             return True
         return False
@@ -40,20 +60,22 @@ class FilterByCountryInvesment:
         filtered_lines = []
         for line in lines:
             if self.filter_by_country_invesment(line):
-                filtered_lines.append(line)
+                result_data = [line[PROD_COUNTRIES], line[BUDGET]]
+                filtered_lines.append(result_data)
 
         # Join all filtered lines into a single CSV string
+        # id,title,genres,release_date,overview,production_countries,spoken_languages,budget,revenue
         if filtered_lines:
             result_csv = MiddlewareMessage.write_csv_batch(filtered_lines)
             # logging.info(f"INVESMENT MOVIES: {len(filtered_lines)}")
-        #     msg = MiddlewareMessage(
-        #             query_number=1,
-        #             client_id=1,
-        #             type=MiddlewareMessageType.MOVIES_BATCH,
-        #             payload=result_csv
-        #         )
+            msg = MiddlewareMessage(
+                    query_number=1,
+                    client_id=1,
+                    type=MiddlewareMessageType.MOVIES_BATCH,
+                    payload=result_csv
+                )
             
-            # self.filter_by_country_connection.send_message(
-            #     routing_key="filter_by_country_queue",
-            #     msg_body=msg.encode_to_str()
-            # )
+            self.filter_by_country_connection.send_message(
+                routing_key="filter_by_country_invesment_queue",
+                msg_body=msg.encode_to_str()
+            )

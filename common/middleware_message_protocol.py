@@ -36,10 +36,10 @@ class MiddlewareMessage:
         return cls(QueryNumber(int(query_number)), int(client_id), MiddlewareMessageType(int(msg_type)), payload)
     
     def get_batch_iter_from_payload(self):
-        if self.type == MiddlewareMessageType.MOVIES_BATCH or self.type == MiddlewareMessageType.RATINGS_BATCH or self.type == MiddlewareMessageType.CREDITS_BATCH:
+        # if self.type == MiddlewareMessageType.MOVIES_BATCH or self.type == MiddlewareMessageType.RATINGS_BATCH or self.type == MiddlewareMessageType.CREDITS_BATCH or self.type == MiddlewareMessageType.RESULT_Q1 or self.type == MiddlewareMessageType.RESULT_Q2 or self.type == MiddlewareMessageType.RESULT_Q3 or self.type == MiddlewareMessageType.RESULT_Q4 or self.type == MiddlewareMessageType.RESULT_Q5:
             return csv.reader(io.StringIO(self.payload), delimiter=',', quotechar='"')
-        else:
-            return None
+        # else:
+        #     return None
         
     @classmethod
     def write_csv_batch(self, batch):
