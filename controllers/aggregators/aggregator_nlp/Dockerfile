@@ -1,6 +1,6 @@
 FROM python:3.11-slim
-RUN pip install --upgrade pip && pip3 install pika
+RUN pip install --upgrade pip && pip3 install pika && pip install transformers torch && pip install hf_xet
 
-COPY controllers/aggregator/aggregator_nlp /
+COPY controllers/aggregators/aggregator_nlp /
 COPY common /common
 ENTRYPOINT ["/bin/sh"]

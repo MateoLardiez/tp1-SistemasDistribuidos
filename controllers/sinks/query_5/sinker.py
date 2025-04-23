@@ -30,9 +30,9 @@ class Query5:
             self.save_data(data.client_id, lines)
         else:
             logging.info("action: EOF | result: success | code: sinker_query_2")
-            self.handler_query_5(data.client_id)
+            self.handler_query_5(data.client_id, data.query_number)
 
-    def handler_query_5(self, client_id):
+    def handler_query_5(self, client_id, query_number):
         # Ya tengo toda la data en mi csv
         sentiment_groups = {"POSITIVE": [], "NEGATIVE": []}
         
@@ -58,9 +58,9 @@ class Query5:
         result_csv = MiddlewareMessage.write_csv_batch(q5_answer) # NO ASI
         
         msg = MiddlewareMessage(
-            query_number=1,
-            client_id=1,
-            type=MiddlewareMessageType.MOVIES_BATCH,
+            query_number=query_number,
+            client_id=client_id,
+            type=MiddlewareMessageType.RESULT_Q5,
             payload=result_csv
         )
 

@@ -57,11 +57,13 @@ class MoviesPreprocessor:
                 if data.query_number == QueryNumber.ALL_QUERYS:
                     self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_country", msg_body=msg.encode_to_str())
                     self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_country_invesment", msg_body=msg.encode_to_str())
-                    #     self.movies_preprocessor_connection.send_message(routing_key="aggregator_nlp_queue", msg_body=msg.encode_to_str())
-                elif data.query_number == QueryNumber.QUERY_1:
+                    self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_nlp", msg_body=msg.encode_to_str())
+                elif data.query_number == QueryNumber.QUERY_1 or data.query_number == QueryNumber.QUERY_3 or data.query_number == QueryNumber.QUERY_4:
                     self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_country", msg_body=msg.encode_to_str())
                 elif data.query_number == QueryNumber.QUERY_2:
                     self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_country_invesment", msg_body=msg.encode_to_str())
+                elif data.query_number == QueryNumber.QUERY_5:
+                    self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_nlp", msg_body=msg.encode_to_str())
 
             else:
                 logging.info(f"END OF FILE MOVIES")
@@ -73,33 +75,32 @@ class MoviesPreprocessor:
                         )
                 if data.query_number == QueryNumber.ALL_QUERYS:
                     self.handler_oef_all_querys(msg)
-                elif data.query_number == QueryNumber.QUERY_1:
-                    self.handler_oef_query_1(msg)
+                elif data.query_number == QueryNumber.QUERY_1 or data.query_number == QueryNumber.QUERY_3 or data.query_number == QueryNumber.QUERY_4:
+                    self.handler_oef_query_1_3_4(msg)
                 elif data.query_number == QueryNumber.QUERY_2:
                     self.handler_oef_query_2(msg)
+                elif data.query_number == QueryNumber.QUERY_5:
+                    self.handler_oef_query_5(msg)
         except Exception as e:
             logging.error(f"Error en el callback: {e}")
 
         # elif data.query_number == QueryNumber.QUERY_5:
-        #     self.movies_preprocessor_connection.send_message(routing_key="aggregator_nlp_queue", msg_body=msg.encode_to_str())
+        #     self.movies_preprocessor_connection.send_message(routing_key="aggregator_nlp_clearqueue", msg_body=msg.encode_to_str())
 
     def handler_oef_all_querys(self, msg):
         self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_country", msg_body=msg.encode_to_str())
         self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_country_invesment", msg_body=msg.encode_to_str())
-        # self.movies_preprocessor_connection.send_message(routing_key="aggregator_nlp_queue", msg_body=msg.encode_to_str())         
+        self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_nlp", msg_body=msg.encode_to_str())         
 
-    def handler_oef_query_1(self, msg):
+    def handler_oef_query_1_3_4(self, msg):
         self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_country", msg_body=msg.encode_to_str())
     
     def handler_oef_query_2(self, msg):
         self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_country_invesment", msg_body=msg.encode_to_str())
     
-    # def handler_oef_query_3(self, msg):
-    #     self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_country", msg_body=msg.encode_to_str())
+    def handler_oef_query_5(self, msg):
+        self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_nlp", msg_body=msg.encode_to_str())
     
-    # def handler_oef_query_4(self, msg):
-    #     self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_country_invesment", msg_body=msg.encode_to_str())
-
     def clean_csv(self, reader):
         col_indices = {col: i for i, col in enumerate(COLUMNS_MOVIES) if col in COLUMNS}
 

@@ -3,8 +3,6 @@ import logging
 import csv
 import io
 
-from transformers import pipeline
-
 from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
 from common.defines import QueryNumber
 from common.middleware_connection_handler import RabbitMQConnectionHandler
@@ -33,11 +31,21 @@ class AggregatorRB:
     def callback(self, ch, method, properties, body):
         data = MiddlewareMessage.decode_from_bytes(body)
         lines = data.get_batch_iter_from_payload()
-        if data.query_number == QueryNumber.QUERY_5:
-            self.handler_filter_query_5(lines)
+        if data.type != MiddlewareMessageType.EOF_MOVIES:
+            self.handler_aggregator_query_5(lines, data.client_id, data.query_number)
+        else:
+            msg = MiddlewareMessage(
+                query_number=data.query_number,
+                client_id=data.client_id,
+                type=MiddlewareMessageType.EOF_MOVIES,
+                payload=""
+            )
+            self.aggregator_r_b_connection.send_message(
+                routing_key="aggregated_r_b_data_queue",
+                msg_body=msg.encode_to_str()
+            )
         
     def aggregator_r_b(self, movie):
-        
         try:
             revenue = float(movie[REVENUE])
             budget = float(movie[BUDGET])
@@ -48,7 +56,7 @@ class AggregatorRB:
             logging.error(f"Invalid release date format for movie: {movie}")
             return False, 0
 
-    def handler_filter_query_5(self, lines):
+    def handler_aggregator_query_5(self, lines, client_id, query_number):
         filtered_lines = []
         for line in lines:
             could_aggregate, value = self.aggregator_r_b(line)
@@ -61,8 +69,8 @@ class AggregatorRB:
             # Join all filtered lines into a single CSV string
             result_csv = '\n'.join([','.join(line) for line in filtered_lines])            
             msg = MiddlewareMessage(
-                query_number=1,
-                client_id=1,
+                query_number=query_number,
+                client_id=client_id,
                 type=MiddlewareMessageType.MOVIES_BATCH,
                 payload=result_csv
             )

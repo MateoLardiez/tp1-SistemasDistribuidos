@@ -128,6 +128,33 @@ add_filter_by_year() {
 " >> "$COMPOSE_FILE"
 }
 
+add_aggregator_nlp() {
+    echo "  aggregator_nlp:
+    container_name: aggregator_nlp
+    image: aggregator_nlp:latest
+    entrypoint: python3 /main.py
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+" >> "$COMPOSE_FILE"
+}
+
+add_aggregator_r_b() {
+    echo "  aggregator_r_b:
+    container_name: aggregator_r_b
+    image: aggregator_r_b:latest
+    entrypoint: python3 /main.py
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+" >> "$COMPOSE_FILE"
+}
+
+
 add_sinker_q1() {
   echo "  query_1:
     container_name: query_1
@@ -145,6 +172,19 @@ add_sinker_q2() {
   echo "  query_2:
     container_name: query_2
     image: query_2:latest
+    entrypoint: python3 /main.py
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  " >> "$COMPOSE_FILE"
+}
+
+add_sinker_q5() {
+  echo "  query_5:
+    container_name: query_5
+    image: query_5:latest
     entrypoint: python3 /main.py
     networks:
       - testing_net
@@ -196,7 +236,10 @@ add_credits_preprocessor
 add_filter_by_country
 add_filter_by_country_invesment
 add_filter_by_year
+add_aggregator_nlp
+add_aggregator_r_b
 add_sinker_q1
 add_sinker_q2
+add_sinker_q5
 add_client
 add_networks

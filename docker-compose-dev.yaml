@@ -91,6 +91,26 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  aggregator_nlp:
+    container_name: aggregator_nlp
+    image: aggregator_nlp:latest
+    entrypoint: python3 /main.py
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  aggregator_r_b:
+    container_name: aggregator_r_b
+    image: aggregator_r_b:latest
+    entrypoint: python3 /main.py
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
   query_1:
     container_name: query_1
     image: query_1:latest
@@ -104,6 +124,16 @@ services:
   query_2:
     container_name: query_2
     image: query_2:latest
+    entrypoint: python3 /main.py
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  
+  query_5:
+    container_name: query_5
+    image: query_5:latest
     entrypoint: python3 /main.py
     networks:
       - testing_net
