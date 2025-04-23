@@ -31,7 +31,7 @@ class AggregatorNlp:
 
     def callback(self, ch, method, properties, body):
         data = MiddlewareMessage.decode_from_bytes(body)
-        logging.info(f"Entro al callback con data")
+        logging.info(f"Entro al callback con data, AGGREGATOR NLP")
 
         if data.type != MiddlewareMessageType.EOF_MOVIES:
             lines = data.get_batch_iter_from_payload()
@@ -57,8 +57,14 @@ class AggregatorNlp:
         if (not movie[OVERVIEW]):
             return False, 0
 
-        if (movie[BUDGET] == 0) or (movie[REVENUE] == 0):
+        try:
+            budget = float(movie[BUDGET])
+            revenue = float(movie[REVENUE])
+            if budget <= 0 or revenue <= 0:
+                return False, 0
+        except (ValueError, TypeError):
             return False, 0
+
 
         sentiment_analyzer = pipeline('sentiment-analysis', model='distilbert-base-uncased-finetuned-sst-2-english')
 
@@ -79,18 +85,15 @@ class AggregatorNlp:
 
 
     def handler_aggregator_query_5(self, lines, client_id, query_number):
-        logging.info("Entro al handler")
         filtered_lines = []
         for line in lines:
             could_aggregate, value = self.aggregator_nlp(line)
             if could_aggregate:
-                logging.info(f"SETNIMENT: {value}")
                 # Agregar el valor de sentimiento o POSITIVE o NEGATIVE a la linea
                 line.append(value)
                 filtered_lines.append(line)
 
         if filtered_lines:
-            logging.info(f"Filtered lines: {filtered_lines}")
             # Create a CSV string from the filtered lines
             # Join all filtered lines into a single CSV string
             result_csv = MiddlewareMessage.write_csv_batch(filtered_lines)            

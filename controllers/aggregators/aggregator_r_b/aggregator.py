@@ -29,6 +29,7 @@ class AggregatorRB:
         self.aggregator_r_b_connection.start_consuming()
 
     def callback(self, ch, method, properties, body):
+
         data = MiddlewareMessage.decode_from_bytes(body)
         lines = data.get_batch_iter_from_payload()
         if data.type != MiddlewareMessageType.EOF_MOVIES:
@@ -62,7 +63,7 @@ class AggregatorRB:
             could_aggregate, value = self.aggregator_r_b(line)
             if could_aggregate:
                 # Agregar el valor de sentimiento o POSITIVE o NEGATIVE a la linea
-                line.append(value)
+                line.append(str(value))
                 filtered_lines.append(line)
 
         if filtered_lines:

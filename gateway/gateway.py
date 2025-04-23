@@ -123,15 +123,15 @@ class Gateway:
         if data.type == MiddlewareMessageType.RESULT_Q1:
             logging.info(f"action: receive_response_query_1 | result: success | code: {data.type}")
             for line in lines:
-                logging.info(f"action: receive_response_query_1 | result: success | line: {line}")
+                logging.info(f"action: response_query_1 | line: {line}")
         elif data.type == MiddlewareMessageType.RESULT_Q2:            
             logging.info(f"action: receive_response_query_2 | result: success | code: {data.type}")
             for line in lines:
-                logging.info(f"{line}")
+                logging.info(f"action: response_query_2 | line: {line}")
         elif data.type == MiddlewareMessageType.RESULT_Q5:
             logging.info(f"action: receive_response_query_5 | result: success | code: {data.type}")
             for line in lines:
-                logging.info(f"{line}")
+                logging.info(f"action: response_query_5 | line: {line}")
 
     def handle_client_connection(self, client_sock, msg_type):
         self.publisher_connection = RabbitMQConnectionHandler(

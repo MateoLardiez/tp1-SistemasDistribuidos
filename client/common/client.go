@@ -125,9 +125,9 @@ func (c *Client) handleAllQueries() {
 		)
 		return
 	}
-	c.SendFile("movies.csv", communication.BATCH_MOVIES, communication.EOF_MOVIES)
-	c.SendFile("ratings.csv", communication.BATCH_RATINGS, communication.EOF_RATINGS)
-	c.SendFile("credits.csv", communication.BATCH_CREDITS, communication.EOF_CREDITS)
+	c.SendFile("movies.csv", communication.BATCH_MOVIES, communication.EOF_MOVIES, "movies")
+	c.SendFile("ratings.csv", communication.BATCH_RATINGS, communication.EOF_RATINGS, "ratings")
+	c.SendFile("credits.csv", communication.BATCH_CREDITS, communication.EOF_CREDITS, "credits")
 	messageFinish := communication.NewMessageProtocol(
 		c.config.ID,
 		communication.FINISH_SEND_FILES,
@@ -144,7 +144,7 @@ func (c *Client) handleAllQueries() {
 	c.config.Phase = communication.CODE_END
 }
 
-func (c *Client) SendFile(filename string, code int, codeEOF int) {
+func (c *Client) SendFile(filename string, code int, codeEOF int, fileType string) {
 	reader, err := NewFileReader(filename)
 	if err != nil {
 		log.Errorf("action: open_file | result: fail | error: %v", err)
@@ -155,7 +155,7 @@ func (c *Client) SendFile(filename string, code int, codeEOF int) {
 	for {
 		finishedSending := c.handleBatch(reader, code)
 		if finishedSending {
-			log.Infof("action: send_movies_file | result: complete")
+			log.Infof("action: send_file %s | result: complete", fileType)
 			break
 		}
 	}

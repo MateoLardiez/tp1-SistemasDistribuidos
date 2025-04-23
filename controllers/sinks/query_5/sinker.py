@@ -3,8 +3,8 @@ from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMess
 from common.middleware_connection_handler import RabbitMQConnectionHandler
 import csv
 
-SENTIMENT_POS = 9
-RATE_POS = 10
+# SENTIMENT_POS = 9
+# RATE_POS = 10
 
 class Query5:
 
@@ -29,17 +29,17 @@ class Query5:
             lines = data.get_batch_iter_from_payload()
             self.save_data(data.client_id, lines)
         else:
-            logging.info("action: EOF | result: success | code: sinker_query_2")
+            logging.info("action: EOF | result: success | code: sinker_query_5")
             self.handler_query_5(data.client_id, data.query_number)
 
     def handler_query_5(self, client_id, query_number):
         # Ya tengo toda la data en mi csv
         sentiment_groups = {"POSITIVE": [], "NEGATIVE": []}
-        
-        
+                
         for line in self.read_data(client_id):
-            sentiment = line[SENTIMENT_POS]
-            rate = line[RATE_POS]
+            size_line = len(line)
+            sentiment = line[size_line-2]
+            rate = float(line[size_line-1])
             sentiment_groups[sentiment].append(rate)
 
 
@@ -53,7 +53,8 @@ class Query5:
             ["POSITIVE", average_rate_by_sentiment["POSITIVE"]],
             ["NEGATIVE", average_rate_by_sentiment["NEGATIVE"]]
         ]
-        logging.log(f"QUERY 5: POSITIVE: {q5_answer[1][1]}, NEGATIVE: {q5_answer[2][1]}")
+
+        logging.info(f"QUERY 5: POSITIVE: {q5_answer[1][1]}, NEGATIVE: {q5_answer[2][1]}")
         # Join all filtered lines into a single CSV string
         result_csv = MiddlewareMessage.write_csv_batch(q5_answer) # NO ASI
         
@@ -78,7 +79,7 @@ class Query5:
                 writer.writerow(line)
 
     def read_data(self, client_id):
-        with open (f"query_5-{client_id}", 'r') as file:
+        with open (f"query_5-client-{client_id}", 'r') as file:
             reader = csv.reader(file, quoting=csv.QUOTE_MINIMAL)
             for row in reader:
                 yield row
