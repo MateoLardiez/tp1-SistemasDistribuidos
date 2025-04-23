@@ -101,16 +101,6 @@ services:
       rabbitmq:
         condition: service_healthy
   
-  query_2:
-    container_name: query_2
-    image: query_2:latest
-    entrypoint: python3 /main.py
-    networks:
-      - testing_net
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-  
   client1:
     container_name: client1
     image: client:latest

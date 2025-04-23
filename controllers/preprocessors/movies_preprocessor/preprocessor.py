@@ -65,40 +65,21 @@ class MoviesPreprocessor:
 
             else:
                 logging.info(f"END OF FILE MOVIES")
-                msg = MiddlewareMessage(
-                            query_number=data.query_number,
-                            client_id=data.client_id,
-                            type=MiddlewareMessageType.EOF_MOVIES,
-                            payload=""
-                        )
-                if data.query_number == QueryNumber.ALL_QUERYS:
-                    self.handler_oef_all_querys(msg)
-                elif data.query_number == QueryNumber.QUERY_1:
-                    self.handler_oef_query_1(msg)
-                elif data.query_number == QueryNumber.QUERY_2:
-                    self.handler_oef_query_2(msg)
+                # self.movies_preprocessor_connection.send_message(
+                #     routing_key="cleaned_movies_queue_country",
+                #     msg_body=MiddlewareMessage(
+                #         query_number=data.query_number,
+                #         client_id=data.client_id,
+                #         type=MiddlewareMessageType.EOF_MOVIES,
+                #         payload=None
+                #     ).encode_to_str()
+                # )
+
         except Exception as e:
             logging.error(f"Error en el callback: {e}")
 
         # elif data.query_number == QueryNumber.QUERY_5:
         #     self.movies_preprocessor_connection.send_message(routing_key="aggregator_nlp_queue", msg_body=msg.encode_to_str())
-
-    def handler_oef_all_querys(self, msg):
-        self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_country", msg_body=msg.encode_to_str())
-        self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_country_invesment", msg_body=msg.encode_to_str())
-        # self.movies_preprocessor_connection.send_message(routing_key="aggregator_nlp_queue", msg_body=msg.encode_to_str())         
-
-    def handler_oef_query_1(self, msg):
-        self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_country", msg_body=msg.encode_to_str())
-    
-    def handler_oef_query_2(self, msg):
-        self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_country_invesment", msg_body=msg.encode_to_str())
-    
-    # def handler_oef_query_3(self, msg):
-    #     self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_country", msg_body=msg.encode_to_str())
-    
-    # def handler_oef_query_4(self, msg):
-    #     self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_country_invesment", msg_body=msg.encode_to_str())
 
     def clean_csv(self, reader):
         col_indices = {col: i for i, col in enumerate(COLUMNS_MOVIES) if col in COLUMNS}

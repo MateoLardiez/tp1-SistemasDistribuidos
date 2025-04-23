@@ -21,11 +21,12 @@ class Query1:
         # id,title,genres,release_date,overview,production_countries,spoken_languages,budget,revenue
         data = MiddlewareMessage.decode_from_bytes(body)
         lines = data.get_batch_iter_from_payload()
-        self.handler_query_1(lines, data.client_id, data.query_number)
+        self.handler_query_1(lines)
 
-    def handler_query_1(self, lines, client_id, query_number):
+    def handler_query_1(self, lines):
         filtered_lines = []
         for line in lines:
+            #logging.info(f"LINEA FILTRADA PARA SINKEAR: {line}")
             filtered_lines.append([line[1], line[2]])
         
         if filtered_lines:
@@ -33,9 +34,9 @@ class Query1:
             result_csv = MiddlewareMessage.write_csv_batch(filtered_lines)
             
             msg = MiddlewareMessage(
-                query_number=query_number,
-                client_id=client_id,
-                type=MiddlewareMessageType.RESULT_Q1,
+                query_number=1,
+                client_id=1,
+                type=MiddlewareMessageType.MOVIES_BATCH,
                 payload=result_csv
             )
 

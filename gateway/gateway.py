@@ -120,14 +120,8 @@ class Gateway:
     def callback(self, ch, method, properties, body):
         data = MiddlewareMessage.decode_from_bytes(body)
         lines = data.get_batch_iter_from_payload()
-        if data.type == MiddlewareMessageType.RESULT_Q1:
-            logging.info(f"action: receive_response_query_1 | result: success | code: {data.type}")
-            for line in lines:
-                logging.info(f"action: receive_response_query_1 | result: success | line: {line}")
-        elif data.type == MiddlewareMessageType.RESULT_Q2:            
-            logging.info(f"action: receive_response_query_2 | result: success | code: {data.type}")
-            for line in lines:
-                logging.info(f"{line}")
+        for line in lines:
+            logging.info(f"action: receive_response_query_1 | result: success | Data filtrada: {line}")
 
     def handle_client_connection(self, client_sock, msg_type):
         self.publisher_connection = RabbitMQConnectionHandler(
@@ -169,9 +163,9 @@ class Gateway:
 
     def __handle_all_query(self, client_sock):
         # Create empty files at the beginning
-        # open("movies.csv", 'w').close()
-        # open('ratings.csv', 'w').close()
-        # open('credits.csv', 'w').close()
+        open("movies.csv", 'w').close()
+        open('ratings.csv', 'w').close()
+        open('credits.csv', 'w').close()
 
         query_number = ClientCommunication.ALL_QUERYS.value
         while True:
@@ -200,6 +194,7 @@ class Gateway:
         while message.type_message != eof_value:
 
             batchData = message.payload.replace('|', '\n')
+            # self.start_query_1(batchData)
             self.send_batch_to_preprocessor(
                 batch=batchData,
                 type_batch=message.type_message,
@@ -209,7 +204,14 @@ class Gateway:
             self.send_ack(client_sock, message.id_client, ClientCommunication.TYPE_ACK.value,"Batch received")
             message = self.receive_message(client_sock)   
             lines_received += 1     
+        
+        logging.info(f"LINES RECEIVED: {lines_received}")
+    
         self.send_eof_to_preprocessor(message.type_message, query_number, message.id_client)
+
+        logging.info(f" ENVIO EOF A PREPROCESADOR --- {message.type_message}")
+
+
         return
 
     def send_ack(self, client_sock, id_client, ack_type, message=None):
@@ -248,7 +250,8 @@ class Gateway:
             return None
 
         messageSize = int.from_bytes(header, byteorder='big')
-        #logging.info(f"action: receive_message | result: success | size: {messageSize}")  
+        #logging.info(f"action: receive_message | result: success | size: {messageSize}")
+        
         data = self.__recv_all(sock, messageSize)
         return MessageProtocol.decodeMessageBytes(data)
 

@@ -141,19 +141,6 @@ add_sinker_q1() {
   " >> "$COMPOSE_FILE"
 }
 
-add_sinker_q2() {
-  echo "  query_2:
-    container_name: query_2
-    image: query_2:latest
-    entrypoint: python3 /main.py
-    networks:
-      - testing_net
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-  " >> "$COMPOSE_FILE"
-}
-
 add_client() {
     echo "  client1:
     container_name: client1
@@ -197,6 +184,5 @@ add_filter_by_country
 add_filter_by_country_invesment
 add_filter_by_year
 add_sinker_q1
-add_sinker_q2
 add_client
 add_networks
