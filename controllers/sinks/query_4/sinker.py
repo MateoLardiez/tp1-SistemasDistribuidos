@@ -34,7 +34,8 @@ class Query4:
         results = []
         for line in self.read_data(client_id):
             actor = line[0]
-            count_movies = len(line[1])
+            movies_list = line[1].strip("[]").replace("'", "").split(", ")
+            count_movies = len(movies_list)
             q4_answer = [actor, count_movies]
             results.append(q4_answer)
 

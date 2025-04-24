@@ -136,21 +136,26 @@ class JoinerByCreditId:
             credit_id = credit[0]
             actor_names = credit[1]           
             if credit_id not in credits:
-                credits[credit_id] = []
-            credits[credit_id].append(actor_names)
+                credits[credit_id] = ""
+            credits[credit_id] = actor_names
 
         for movie in self.read_data(movies_file):
             movie_id = movie[0]
 
             if movie_id in credits:
                 actors = credits[movie_id]
-                for actor in actors:
+                actors_list = actors.strip("[]").replace("'", "").split(", ") # separo los actores por comas
+                logging.info(f"PELICUlA: {movie_id} | ACTORES: {actors}")
+                for actor in actors_list:
                     if actor not in actors_with_movies:
                         actors_with_movies[actor] = []       
                     actors_with_movies[actor].append(movie_id) # actores y cantidad de apariciones
-        list_actors = [[actor, movies] for actor, movies in actors_with_movies.items()]
-        logging.info(f"PELICUlAss: {list_actors}")
-        return list_actors
+        
+        result = []
+        for actor, movies in actors_with_movies.items():
+            result.append([actor, movies])
+        logging.info(f"PELICUlAss: {result}")
+        return result
             
     def clean_temp_files(self, client_id):
         """Elimina los archivos temporales creados para un cliente"""
