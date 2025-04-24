@@ -19,8 +19,8 @@ class FilterByCountry:
         # Configurar el callback para la cola específica
         self.filter_by_country_connection.set_message_consumer_callback("cleaned_movies_queue_country", self.callback)
         self.countries_query_1 = ["Argentina", "Spain"] 
-        # self.countries_query_3 = ["United States of America"] 
-        # self.countries_query_4 = ["United States of America"] 
+        self.countries_query_3 = ["Argentina"] 
+        self.countries_query_4 = ["Argentina"]
 
     def start(self):
         logging.info("action: start | result: success | code: filter_by_country")
@@ -34,8 +34,22 @@ class FilterByCountry:
                 self.handler_all_query(lines, data.client_id, data.query_number)
             elif data.query_number == QueryNumber.QUERY_1:
                 self.handler_country_filter(lines, self.countries_query_1, data.client_id, data.query_number)     
+            elif data.query_number == QueryNumber.QUERY_3:
+                self.handler_country_filter(lines, self.countries_query_3, data.client_id, data.query_number)
+            elif data.query_number == QueryNumber.QUERY_4:
+                self.handler_country_filter(lines, self.countries_query_4, data.client_id, data.query_number)
         else:
             logging.info("Received EOF_MOVIES message, stopping consumption.")
+            msg = MiddlewareMessage(
+                query_number=data.query_number,
+                client_id=data.client_id,
+                type=MiddlewareMessageType.EOF_MOVIES,
+                payload=""
+            )
+            self.filter_by_country_connection.send_message(
+                routing_key="country_queue",
+                msg_body=msg.encode_to_str()
+            )       
             
     def filter_by_country(self, movie, country_filter):
         countries_of_movie = movie[PROD_COUNTRIES]#<- es un string
@@ -45,8 +59,8 @@ class FilterByCountry:
 
     def handler_all_query(self, lines, id_client, query_number):
         self.handler_country_filter(lines, self.countries_query_1, id_client, query_number)
-        #self.handler_country_filter(lines, self.countries_query_3, id_client, query_number)
-        #self.handler_country_filter(lines, self.countries_query_4, id_client, query_number)
+        self.handler_country_filter(lines, self.countries_query_3, id_client, query_number)
+        self.handler_country_filter(lines, self.countries_query_4, id_client, query_number)
         
     def handler_country_filter(self, lines, countries_filter, id_client, query_number):
         filtered_lines = []

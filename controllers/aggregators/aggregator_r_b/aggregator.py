@@ -68,7 +68,7 @@ class AggregatorRB:
 
         if filtered_lines:
             # Join all filtered lines into a single CSV string
-            result_csv = '\n'.join([','.join(line) for line in filtered_lines])            
+            result_csv = MiddlewareMessage.write_csv_batch(filtered_lines)
             msg = MiddlewareMessage(
                 query_number=query_number,
                 client_id=client_id,

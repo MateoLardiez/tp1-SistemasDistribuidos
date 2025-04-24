@@ -9,9 +9,9 @@ class Query1:
             producer_exchange_name="reports_exchange",
             producer_queues_to_bind={"reports_queue": ["reports_queue"]},
             consumer_exchange_name="filter_by_year_exchange",
-            consumer_queues_to_recv_from=["filter_by_year_queue"]
+            consumer_queues_to_recv_from=["sink_query_1_queue"]
         )
-        self.query_1_connection.set_message_consumer_callback("filter_by_year_queue", self.callback)
+        self.query_1_connection.set_message_consumer_callback("sink_query_1_queue", self.callback)
 
     def start(self):
         logging.info("action: start | result: success | code: Sink_query_1 ")

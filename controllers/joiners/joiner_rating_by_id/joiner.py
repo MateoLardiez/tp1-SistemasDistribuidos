@@ -1,91 +1,179 @@
 import logging
+import csv
+import os
 
 from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
 from common.defines import QueryNumber
 from common.middleware_connection_handler import RabbitMQConnectionHandler
 
-YEAR = 3 # release_date position
+YEAR = 3  # release_date position
 class JoinerByRatingId:
     year: int
     data: object
 
     def __init__(self):
-        self.year_range_query_1 = (2000, 2009)
-        self.year_range_query_3 = (2000, None)
-        self.year_range_query_4 = (2000, None)
-        
-        self.data = ""
-        self.filter_by_year_connection = RabbitMQConnectionHandler(
-            producer_exchange_name="filter_by_year_exchange",
+        self.joiner_by_rating_id_connection = RabbitMQConnectionHandler(
+            producer_exchange_name="joiner_by_rating_id_exchange",
             producer_queues_to_bind={
-                "filter_by_year_queue": ["filter_by_year_queue"],
+                "none": ["none"],
             },
-            consumer_exchange_name="filter_by_country_exchange",
-            consumer_queues_to_recv_from=["country_queue"],
+            consumer_exchange_name="filter_by_year_exchange",
+            consumer_queues_to_recv_from=["joiner_by_ratings_movies_queue", "joiner_ratings_by_id_queue"],
+            secondary_consumer_exchange_name="ratings_preprocessor_exchange",
         )
-        self.filter_by_year_connection.set_message_consumer_callback("country_queue", self.callback)
+        
+        # Diccionario para almacenar el estado por cliente
+        self.client_state = {}  # {client_id: {"movies_eof": bool, "ratings_eof": bool}}
+        
+        # Configurar callbacks para ambas colas
+        self.joiner_by_rating_id_connection.set_message_consumer_callback("joiner_by_ratings_movies_queue", self.movies_callback)
+        self.joiner_by_rating_id_connection.set_message_consumer_callback("joiner_ratings_by_id_queue", self.ratings_callback)
+
 
     def start(self):
-        logging.info("action: start | result: success | code: filter_by_year")
-        self.filter_by_year_connection.start_consuming()
+        logging.info("action: start | result: success | code: joiner_rating_by_id")
+        self.joiner_by_rating_id_connection.start_consuming()
+        
+    def create_client_state(self, client_id):
+        """Obtiene o crea el estado del cliente en el diccionario"""
+        if client_id not in self.client_state:
+            logging.info(f"Creando nuevo estado para cliente: {client_id}")
+            self.client_state[client_id] = {
+                "movies_eof": False,
+                "ratings_eof": False,
+            }
 
-    def callback(self, ch, method, properties, body):
+    def movies_callback(self, ch, method, properties, body):
+        """Callback para procesar mensajes de la cola de movies"""
         data = MiddlewareMessage.decode_from_bytes(body)
+        client_id = data.client_id
+        
+        if client_id not in self.client_state:
+            self.create_client_state(client_id)
+        
         if data.type != MiddlewareMessageType.EOF_MOVIES:
-            lines = data.get_batch_iter_from_payload()
-            if data.query_number == QueryNumber.ALL_QUERYS:
-                self.handler_all_query(lines, data.query_number, data.client_id)
-            elif data.query_number == QueryNumber.QUERY_1:
-                self.handler_year_filter(lines, self.year_range_query_1, data.query_number, data.client_id)
+            lines = list(data.get_batch_iter_from_payload())
+            self.save_data(client_id, lines, "movies")
         else:
-            logging.info("action: EOF | result: success | code: filter_by_year")
+            # Recibimos EOF de movies para este cliente
+            logging.info(f"EOF MOVIESSSSSSSSSSSSSS --------- ??? action: EOF | source: movies | client: {client_id}")
+            self.client_state[client_id]["movies_eof"] = True
+            # Depuración: Mostrar estado actual
+            logging.info(f"Estado cliente {client_id} después de EOF movies: movies_eof={self.client_state[client_id]['movies_eof']}, ratings_eof={self.client_state[client_id]['ratings_eof']}")
+            self.check_and_process(client_id)
 
-    def handler_all_query(self, lines, query_number, client_id):
-        self.handler_year_filter(lines, self.year_range_query_1, query_number, client_id)
-        # self.handler_year_filter(lines, self.year_range_query_3)
-        # self.handler_year_filter(lines, self.year_range_query_4)
+    def ratings_callback(self, ch, method, properties, body):
+        """Callback para procesar mensajes de la cola de ratings"""
+        data = MiddlewareMessage.decode_from_bytes(body)
+        client_id = data.client_id
         
-    def filter_by_year(self, movie, year_filter):
-        if len(movie) <= 3 or not movie[YEAR]:
-            return False
-        
-        year_of_movie = movie[YEAR]
-        try:
-            release_year = int(year_of_movie.split('-')[0])
-            if isinstance(year_filter, tuple):
-                start, end = year_filter
+        if client_id not in self.client_state:
+            self.create_client_state(client_id)
+         
+        if data.type != MiddlewareMessageType.EOF_RATINGS:
+            lines = list(data.get_batch_iter_from_payload())
+            self.save_data(client_id, lines, "ratings")
+        else:
+            # Recibimos EOF de ratings para este cliente
+            logging.info(f"EOF RATINGSSSSSSSSSSSSSSSSSSSSSSSSSSS -------------------- action: EOF | source: ratings | client: {client_id}")
+            self.client_state[client_id]["ratings_eof"] = True
+            # Depuración: Mostrar estado actual
+            logging.info(f"Estado cliente {client_id} después de EOF ratings: movies_eof={self.client_state[client_id]['movies_eof']}, ratings_eof={self.client_state[client_id]['ratings_eof']}")
+            self.check_and_process(client_id)
 
-                if start is not None and end is not None:
-                    return start <= release_year <= end
-                elif start is not None:
-                    return release_year >= start
-                elif end is not None:
-                    return release_year <= end
-                else:
-                    return True  # (None, None) → no filtro
-            else:
-                return release_year == year_filter
-        except (IndexError, ValueError):
-            logging.error(f"Invalid release date format for movie: {movie}")
-            return False
-
-    def handler_year_filter(self, lines, year_filter, query_number, client_id):
-        filtered_lines = []
-        for line in lines:
-            if self.filter_by_year(line, year_filter):
-                filtered_lines.append(line)
-                
-        if filtered_lines:
-            # Join all filtered lines into a single CSV string
-            result_csv = MiddlewareMessage.write_csv_batch(filtered_lines)            
-            msg = MiddlewareMessage(
-                query_number=query_number,
-                client_id=client_id,
-                type=MiddlewareMessageType.MOVIES_BATCH,
-                payload=result_csv
-            )
-            self.filter_by_year_connection.send_message(
-                routing_key="filter_by_year_queue",
-                msg_body=msg.encode_to_str()
-            )
+    def check_and_process(self, client_id):
+        """Verifica si se han recibido ambos EOFs para un cliente y procesa los datos"""
+        # Verificar que el cliente exista en el estado
+        if client_id not in self.client_state:
+            logging.warning(f"Cliente {client_id} no encontrado en el diccionario de estado")
+            return
+            
+        movies_eof = self.client_state[client_id]["movies_eof"] 
+        ratings_eof = self.client_state[client_id]["ratings_eof"]
         
+        logging.info(f"check_and_process para cliente {client_id}: movies_eof={movies_eof}, ratings_eof={ratings_eof}")
+        
+        if movies_eof and ratings_eof:
+            logging.info(f"LOS DOSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS-> action: process_joined_data | client: {client_id} | result: starting")
+            
+            # # Procesar los datos de movies y ratings para este cliente
+            movies_filename = f"movies-client-{client_id}"
+            ratings_filename = f"ratings-client-{client_id}"
+            
+            joined_data = self.join_data(movies_filename, ratings_filename)
+            
+            # # Enviar resultados procesados
+            # if joined_data:
+            #     result_csv = MiddlewareMessage.write_csv_batch(joined_data)
+            #     msg = MiddlewareMessage(
+            #         query_number=self.client_state[client_id]["query_number"],
+            #         client_id=client_id,
+            #         type=MiddlewareMessageType.MOVIES_BATCH,
+            #         payload=result_csv
+            #     )
+            #     self.joiner_by_rating_id_connection.send_message(
+            #         routing_key="filter_by_year_queue",
+            #         msg_body=msg.encode_to_str()
+            #     )
+            
+            # # Limpiar los archivos temporales
+            # self.clean_temp_files(client_id)
+            
+            # # Eliminar el estado del cliente del diccionario
+            # del self.client_state[client_id]
+            
+            # logging.info(f"action: process_joined_data | client: {client_id} | result: completed")
+    
+    def join_data(self, movies_file, ratings_file):
+        joined_results = []
+        # leo el archivo de ratings
+        ratings = {}
+        for rating in self.read_data(ratings_file):
+            if rating[0] not in ratings:
+                ratings[rating[0]] = {
+                    "ratings_accumulator": 0,
+                    "ratings_amount": 0,
+                }
+            ratings[rating[0]]["ratings_accumulator"] += float(rating[1])
+            ratings[rating[0]]["ratings_amount"] += 1
+        logging.info(f" LALALLAA action: join_data | file: {ratings} | result: read {len(ratings)} ratings")
+
+        for movies in self.read_data(movies_file):
+            movies_id = movies[0]
+            if movies_id in ratings:
+                # Calculo el promedio
+                ratings_accumulator = ratings[movies_id]["ratings_accumulator"]
+                ratings_amount = ratings[movies_id]["ratings_amount"]
+                average_rating = ratings_accumulator / ratings_amount
+                # Agrego la info al resultado
+                # joined_results.append([movies[0], movies[1], movies[2], movies[3], average_rating]) THIS IS BAD
+            
+        return joined_results
+            
+    def clean_temp_files(self, client_id):
+        """Elimina los archivos temporales creados para un cliente"""
+        files_to_remove = [
+            f"movies-client-{client_id}",
+            f"ratings-client-{client_id}"
+        ]
+        
+        for file in files_to_remove:
+            try:
+                if os.path.exists(file):
+                    os.remove(file)
+                    logging.info(f"action: clean_temp_files | file: {file} | result: removed")
+            except Exception as e:
+                logging.error(f"action: clean_temp_files | file: {file} | error: {str(e)}")
+    
+    def save_data(self, client_id, lines, data_type) -> None:
+        filename = f"{data_type}-client-{client_id}"
+        with open(filename, 'a+') as file:
+            writer = csv.writer(file, quoting=csv.QUOTE_MINIMAL)
+            for line in lines:
+                writer.writerow(line)
+
+    def read_data(self, file_name):
+        with open (file_name, 'r') as file:
+            reader = csv.reader(file, quoting=csv.QUOTE_MINIMAL)
+            for row in reader:
+                yield row

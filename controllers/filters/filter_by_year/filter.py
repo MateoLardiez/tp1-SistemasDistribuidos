@@ -22,7 +22,9 @@ class FilterByYear:
         self.filter_by_year_connection = RabbitMQConnectionHandler(
             producer_exchange_name="filter_by_year_exchange",
             producer_queues_to_bind={
-                "filter_by_year_queue": ["filter_by_year_queue"],
+                "sink_query_1_queue": ["sink_query_1_queue"],
+                "joiner_by_ratings_movies_queue": ["joiner_by_ratings_movies_queue"],
+                "joiner_by_credits_movies_queue": ["joiner_by_credits_movies_queue"],
             },
             consumer_exchange_name="filter_by_country_exchange",
             consumer_queues_to_recv_from=["country_queue"],
@@ -41,13 +43,51 @@ class FilterByYear:
                 self.handler_all_query(lines, data.query_number, data.client_id)
             elif data.query_number == QueryNumber.QUERY_1:
                 self.handler_year_filter(lines, self.year_range_query_1, data.query_number, data.client_id)
+            elif data.query_number == QueryNumber.QUERY_3:
+                self.handler_year_filter(lines, self.year_range_query_3, data.query_number, data.client_id)
+            elif data.query_number == QueryNumber.QUERY_4:
+                self.handler_year_filter(lines, self.year_range_query_4, data.query_number, data.client_id)
         else:
             logging.info("action: EOF | result: success | code: filter_by_year")
+            msg = MiddlewareMessage(
+                query_number=data.query_number,
+                client_id=data.client_id,
+                type=MiddlewareMessageType.EOF_MOVIES,
+                payload=""
+            )
+            if data.query_number == QueryNumber.ALL_QUERYS:
+                self.filter_by_year_connection.send_message(
+                    routing_key="sink_query_1_queue",
+                    msg_body=msg.encode_to_str()
+                )
+                self.filter_by_year_connection.send_message(
+                    routing_key="joiner_by_ratings_movies_queue",
+                    msg_body=msg.encode_to_str()
+                )
+                self.filter_by_year_connection.send_message(
+                    routing_key="joiner_by_credits_movies_queue",
+                    msg_body=msg.encode_to_str()
+                )
+            elif data.query_number == QueryNumber.QUERY_1:
+                self.filter_by_year_connection.send_message(
+                    routing_key="sink_query_1_queue",
+                    msg_body=msg.encode_to_str()
+                )
+            elif data.query_number == QueryNumber.QUERY_3:
+                self.filter_by_year_connection.send_message(
+                    routing_key="joiner_by_ratings_movies_queue",
+                    msg_body=msg.encode_to_str()
+                )
+            elif data.query_number == QueryNumber.QUERY_4:
+                self.filter_by_year_connection.send_message(
+                    routing_key="joiner_by_credits_movies_queue",
+                    msg_body=msg.encode_to_str()
+                )
 
     def handler_all_query(self, lines, query_number, client_id):
         self.handler_year_filter(lines, self.year_range_query_1, query_number, client_id)
-        # self.handler_year_filter(lines, self.year_range_query_3)
-        # self.handler_year_filter(lines, self.year_range_query_4)
+        self.handler_year_filter(lines, self.year_range_query_3, query_number, client_id)
+        self.handler_year_filter(lines, self.year_range_query_4, query_number, client_id)
         
     def filter_by_year(self, movie, year_filter):
         if len(movie) <= 3 or not movie[YEAR]:
@@ -88,8 +128,32 @@ class FilterByYear:
                 type=MiddlewareMessageType.MOVIES_BATCH,
                 payload=result_csv
             )
-            self.filter_by_year_connection.send_message(
-                routing_key="filter_by_year_queue",
-                msg_body=msg.encode_to_str()
-            )
-        
+
+            if query_number == QueryNumber.ALL_QUERYS:
+                self.filter_by_year_connection.send_message(
+                    routing_key="sink_query_1_queue",
+                    msg_body=msg.encode_to_str()
+                )
+                self.filter_by_year_connection.send_message(
+                    routing_key="joiner_by_ratings_movies_queue",
+                    msg_body=msg.encode_to_str()
+                )
+                self.filter_by_year_connection.send_message(
+                    routing_key="joiner_by_credits_movies_queue",
+                    msg_body=msg.encode_to_str()
+                )
+            elif query_number == QueryNumber.QUERY_1:
+                self.filter_by_year_connection.send_message(
+                    routing_key="sink_query_1_queue",
+                    msg_body=msg.encode_to_str()
+                )
+            elif query_number == QueryNumber.QUERY_3:
+                self.filter_by_year_connection.send_message(
+                    routing_key="joiner_by_ratings_movies_queue",
+                    msg_body=msg.encode_to_str()
+                )
+            elif query_number == QueryNumber.QUERY_4:
+                self.filter_by_year_connection.send_message(
+                    routing_key="joiner_by_credits_movies_queue",
+                    msg_body=msg.encode_to_str()
+                )

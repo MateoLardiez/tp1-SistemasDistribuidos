@@ -91,6 +91,16 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  joiner_rating_by_id:
+    container_name: joiner_rating_by_id
+    image: joiner_rating_by_id:latest
+    entrypoint: python3 /main.py
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
   aggregator_nlp:
     container_name: aggregator_nlp
     image: aggregator_nlp:latest

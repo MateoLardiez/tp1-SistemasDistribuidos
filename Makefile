@@ -24,6 +24,7 @@ docker-image:
 	docker build -f ./controllers/filters/filter_by_year/Dockerfile -t "filter_by_year:latest" .
 	docker build -f ./controllers/aggregators/aggregator_r_b/Dockerfile -t "aggregator_r_b:latest" .
 	docker build -f ./controllers/aggregators/aggregator_nlp/Dockerfile -t "aggregator_nlp:latest" .
+	docker build -f ./controllers/joiners/joiner_rating_by_id/Dockerfile -t "joiner_rating_by_id:latest" .
 	docker build -f ./controllers/sinks/query_1/Dockerfile -t "query_1:latest" .
 	docker build -f ./controllers/sinks/query_2/Dockerfile -t "query_2:latest" .
 	docker build -f ./controllers/sinks/query_5/Dockerfile -t "query_5:latest" .

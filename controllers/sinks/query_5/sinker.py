@@ -3,8 +3,8 @@ from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMess
 from common.middleware_connection_handler import RabbitMQConnectionHandler
 import csv
 
-# SENTIMENT_POS = 9
-# RATE_POS = 10
+SENTIMENT_POS = 9
+RATE_POS = 10
 
 class Query5:
 
@@ -37,9 +37,8 @@ class Query5:
         sentiment_groups = {"POSITIVE": [], "NEGATIVE": []}
                 
         for line in self.read_data(client_id):
-            size_line = len(line)
-            sentiment = line[size_line-2]
-            rate = float(line[size_line-1])
+            sentiment = line[SENTIMENT_POS]
+            rate = float(line[RATE_POS])
             sentiment_groups[sentiment].append(rate)
 
 

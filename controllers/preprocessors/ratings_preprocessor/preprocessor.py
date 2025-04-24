@@ -34,28 +34,33 @@ class RatingsPreprocessor:
             if data.type != MiddlewareMessageType.EOF_RATINGS:
                 lines = data.get_batch_iter_from_payload()
                 clean_lines = self.clean_csv(lines)
-                # msg = MiddlewareMessage(
-                #     query_number=data.query_number,
-                #     client_id=data.client_id,
-                #     type=MiddlewareMessageType.MOVIES_BATCH,
-                #     payload=clean_lines,
-                # )
+                msg = MiddlewareMessage(
+                    query_number=data.query_number,
+                    client_id=data.client_id,
+                    type=MiddlewareMessageType.MOVIES_BATCH,
+                    payload=clean_lines,
+                )
+                self.ratings_preprocessor_connection.send_message(
+                    routing_key="joiner_ratings_by_id_queue",
+                    msg_body=msg.encode_to_str()
+                )
+                logging.info(f"action: send_message | result: success | code: ratings_preprocessor | routing_key: joiner_ratings_by_id_queue")
             else:
                 logging.info("action: EOF | result: success | code: ratings_preprocessor")
+                msg = MiddlewareMessage(
+                    query_number=data.query_number,
+                    client_id=data.client_id,
+                    type=MiddlewareMessageType.EOF_RATINGS,
+                    payload=""
+                )
+                self.ratings_preprocessor_connection.send_message(
+                    routing_key="joiner_ratings_by_id_queue",
+                    msg_body=msg.encode_to_str()
+                )
+                
         except Exception as e:
             logging.error(f"action: error | result: failure | code: ratings_preprocessor | error: {e}")
         
-        # if data.query_number == QueryNumber.ALL_QUERYS:
-        #     self.ratings_preprocessor_connection.send_message(routing_key="filter_by_country_queue", msg_body=msg.encode_to_str())
-        #     self.ratings_preprocessor_connection.send_message(routing_key="filter_by_country_invesment_queue", msg_body=msg.encode_to_str())
-        #     #     self.movies_preprocessor_connection.send_message(routing_key="aggregator_nlp_queue", msg_body=msg.encode_to_str())
-        # elif data.query_number == QueryNumber.QUERY_1:
-        #     self.ratings_preprocessor_connection.send_message(routing_key="filter_by_country_queue", msg_body=msg.encode_to_str())
-        # elif data.query_number == QueryNumber.QUERY_2:
-        #     self.ratings_preprocessor_connection.send_message(routing_key="filter_by_country_invesment_queue", msg_body=msg.encode_to_str())
-        # elif data.query_number == QueryNumber.QUERY_5:
-        #     self.movies_preprocessor_connection.send_message(routing_key="aggregator_nlp_queue", msg_body=msg.encode_to_str())
-
     def clean_csv(self, reader):
         col_indices = {col: i for i, col in enumerate(COLUMNS_RATINGS) if col in COLUMNS}
 
@@ -65,23 +70,10 @@ class RatingsPreprocessor:
             if len(row) != len(COLUMNS_RATINGS):
                 continue  # omitir filas mal formateadas
 
-            # Crear un diccionario con los valores de las columnas necesarias
             row_dict = {col: row[col_indices[col]] for col in col_indices}
             
-            # for key in ['genres', 'production_countries', 'spoken_languages']:
-            #     row_dict[key] = self.dictionary_to_list(row_dict[key])
-
-            # Agregar los valores en el orden definido en COLUMNS
             filtered_row = [row_dict.get(col, '') for col in COLUMNS]
 
-            # logging.info(f" FILTRO -> {filtered_row}")
             result.append(filtered_row)
-
+        
         return MiddlewareMessage.write_csv_batch(result)
-
-    # def dictionary_to_list(self, dictionary_str):
-    #     try:
-    #         dictionary_list = ast.literal_eval(dictionary_str)  
-    #         return [data['name'] for data in dictionary_list]  
-    #     except (ValueError, SyntaxError):
-    #         return [] 

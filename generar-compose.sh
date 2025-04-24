@@ -128,6 +128,19 @@ add_filter_by_year() {
 " >> "$COMPOSE_FILE"
 }
 
+add_joiner_rating_by_id() {
+    echo "  joiner_rating_by_id:
+    container_name: joiner_rating_by_id
+    image: joiner_rating_by_id:latest
+    entrypoint: python3 /main.py
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+" >> "$COMPOSE_FILE"
+}
+
 add_aggregator_nlp() {
     echo "  aggregator_nlp:
     container_name: aggregator_nlp
@@ -236,6 +249,7 @@ add_credits_preprocessor
 add_filter_by_country
 add_filter_by_country_invesment
 add_filter_by_year
+add_joiner_rating_by_id
 add_aggregator_nlp
 add_aggregator_r_b
 add_sinker_q1
