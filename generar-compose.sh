@@ -141,6 +141,19 @@ add_joiner_rating_by_id() {
 " >> "$COMPOSE_FILE"
 }
 
+add_joiner_credit_by_id() {
+    echo "  joiner_credit_by_id:
+    container_name: joiner_credit_by_id
+    image: joiner_credit_by_id:latest
+    entrypoint: python3 /main.py
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+" >> "$COMPOSE_FILE"
+}
+
 add_aggregator_nlp() {
     echo "  aggregator_nlp:
     container_name: aggregator_nlp
@@ -207,6 +220,19 @@ add_sinker_q3() {
   " >> "$COMPOSE_FILE"
 }
 
+add_sinker_q4() {
+  echo "  query_4:
+    container_name: query_4
+    image: query_4:latest
+    entrypoint: python3 /main.py
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  " >> "$COMPOSE_FILE"
+}
+
 add_sinker_q5() {
   echo "  query_5:
     container_name: query_5
@@ -263,11 +289,13 @@ add_filter_by_country
 add_filter_by_country_invesment
 add_filter_by_year
 add_joiner_rating_by_id
+add_joiner_credit_by_id
 add_aggregator_nlp
 add_aggregator_r_b
 add_sinker_q1
 add_sinker_q2
 add_sinker_q3
+add_sinker_q4
 add_sinker_q5
 add_client
 add_networks

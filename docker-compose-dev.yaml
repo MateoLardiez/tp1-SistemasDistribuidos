@@ -101,6 +101,16 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  joiner_credit_by_id:
+    container_name: joiner_credit_by_id
+    image: joiner_credit_by_id:latest
+    entrypoint: python3 /main.py
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
   aggregator_nlp:
     container_name: aggregator_nlp
     image: aggregator_nlp:latest
@@ -144,6 +154,16 @@ services:
   query_3:
     container_name: query_3
     image: query_3:latest
+    entrypoint: python3 /main.py
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  
+  query_4:
+    container_name: query_4
+    image: query_4:latest
     entrypoint: python3 /main.py
     networks:
       - testing_net

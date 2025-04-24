@@ -1,5 +1,5 @@
-from joiner import JoinerByCreditId
 import logging
+from sinker import Query4
 
 def initialize_log(logging_level):
     """
@@ -20,8 +20,8 @@ def initialize_log(logging_level):
 def main():
     initialize_log("INFO")
 
-    joinerCredit = JoinerByCreditId()
-    joinerCredit.start()
+    sinker = Query4()
+    sinker.start()
     
 if __name__ == "__main__":
     main()

@@ -70,12 +70,12 @@ class JoinerByCreditId:
         if client_id not in self.client_state:
             self.create_client_state(client_id)
          
-        if data.type != MiddlewareMessageType.EOF_RATINGS:
+        if data.type != MiddlewareMessageType.EOF_CREDITS:
             lines = list(data.get_batch_iter_from_payload())
             self.save_data(client_id, lines, "credits")
         else:
             # Recibimos EOF de credits para este cliente
-            logging.info(f"EOF RATINGSSSSSSSSSSSSSSSSSSSSSSSSSSS -------------------- action: EOF | source: credits | client: {client_id}")
+            logging.info(f"EOF CREDITS -------------------- action: EOF | source: credits | client: {client_id}")
             self.client_state[client_id]["credits_eof"] = True
             # Depuración: Mostrar estado actual
             logging.info(f"Estado cliente {client_id} después de EOF credits: movies_eof={self.client_state[client_id]['movies_eof']}, credits_eof={self.client_state[client_id]['credits_eof']}")
@@ -128,41 +128,29 @@ class JoinerByCreditId:
                     msg_body=msg_eof.encode_to_str()
                 )
                 
-            # # Limpiar los archivos temporales
-            # self.clean_temp_files(client_id)
-            
-            # # Eliminar el estado del cliente del diccionario
-            # del self.client_state[client_id]
-            
-            # logging.info(f"action: process_joined_data | client: {client_id} | result: completed")
-    
     def join_data(self, movies_file, credits_file):
-        joined_results = []
+        actors_with_movies = {}
         # leo el archivo de credits
-        credits = {}
+        credits = {} # diccionario de clave:valor -> id_pelicula: actores
         for credit in self.read_data(credits_file):
-            if credit[0] not in credits:
-                credits[credit[0]] = {
-                    "credits_accumulator": 0,
-                    "credits_amount": 0,
-                }
-            credits[credit[0]]["credits_accumulator"] += float(credit[1])
-            credits[credit[0]]["credits_amount"] += 1
-        #logging.info(f" LALALLAA action: join_data | file: {credits} | result: read {len(credits)} credits")
+            credit_id = credit[0]
+            actor_names = credit[1]           
+            if credit_id not in credits:
+                credits[credit_id] = []
+            credits[credit_id].append(actor_names)
 
-        for movies in self.read_data(movies_file):
-            movies_id = movies[0]
-            if movies_id in credits:
-                # Calculo el promedio
-                credits_accumulator = credits[movies_id]["credits_accumulator"]
-                credits_amount = credits[movies_id]["credits_amount"]
-                average_credit = credits_accumulator / credits_amount
-                # Agrego la info al resultado
-                joined_results.append([movies[1], average_credit])
-                #joined_results[movies[1]] = average_credit
-                logging.info(f"Joined movie: {movies[1]} with average credit: {average_credit}")
-        
-        return joined_results
+        for movie in self.read_data(movies_file):
+            movie_id = movie[0]
+
+            if movie_id in credits:
+                actors = credits[movie_id]
+                for actor in actors:
+                    if actor not in actors_with_movies:
+                        actors_with_movies[actor] = []       
+                    actors_with_movies[actor].append(movie_id) # actores y cantidad de apariciones
+        list_actors = [[actor, movies] for actor, movies in actors_with_movies.items()]
+        logging.info(f"PELICUlAss: {list_actors}")
+        return list_actors
             
     def clean_temp_files(self, client_id):
         """Elimina los archivos temporales creados para un cliente"""
