@@ -194,6 +194,19 @@ add_sinker_q2() {
   " >> "$COMPOSE_FILE"
 }
 
+add_sinker_q3() {
+  echo "  query_3:
+    container_name: query_3
+    image: query_3:latest
+    entrypoint: python3 /main.py
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  " >> "$COMPOSE_FILE"
+}
+
 add_sinker_q5() {
   echo "  query_5:
     container_name: query_5
@@ -254,6 +267,7 @@ add_aggregator_nlp
 add_aggregator_r_b
 add_sinker_q1
 add_sinker_q2
+add_sinker_q3
 add_sinker_q5
 add_client
 add_networks

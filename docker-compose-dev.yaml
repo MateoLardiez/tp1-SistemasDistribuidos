@@ -141,6 +141,16 @@ services:
       rabbitmq:
         condition: service_healthy
   
+  query_3:
+    container_name: query_3
+    image: query_3:latest
+    entrypoint: python3 /main.py
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  
   query_5:
     container_name: query_5
     image: query_5:latest

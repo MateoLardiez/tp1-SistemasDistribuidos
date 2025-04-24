@@ -27,6 +27,7 @@ docker-image:
 	docker build -f ./controllers/joiners/joiner_rating_by_id/Dockerfile -t "joiner_rating_by_id:latest" .
 	docker build -f ./controllers/sinks/query_1/Dockerfile -t "query_1:latest" .
 	docker build -f ./controllers/sinks/query_2/Dockerfile -t "query_2:latest" .
+	docker build -f ./controllers/sinks/query_3/Dockerfile -t "query_3:latest" .
 	docker build -f ./controllers/sinks/query_5/Dockerfile -t "query_5:latest" .
 	# Execute this command from time to time to clean up intermediate stages generated 
 	# during client build (your hard drive will like this :) ). Don't left uncommented if you 

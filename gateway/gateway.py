@@ -128,6 +128,10 @@ class Gateway:
             logging.info(f"action: receive_response_query_2 | result: success | code: {data.type}")
             for line in lines:
                 logging.info(f"action: response_query_2 | line: {line}")
+        elif data.type == MiddlewareMessageType.RESULT_Q3:            
+            logging.info(f"action: receive_response_query_3 | result: success | code: {data.type}")
+            for line in lines:
+                logging.info(f"action: response_query_3 | line: {line}")
         elif data.type == MiddlewareMessageType.RESULT_Q5:
             logging.info(f"action: receive_response_query_5 | result: success | code: {data.type}")
             for line in lines:
