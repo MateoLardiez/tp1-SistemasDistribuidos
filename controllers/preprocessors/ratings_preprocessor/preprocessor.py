@@ -5,7 +5,7 @@ from common.middleware_connection_handler import RabbitMQConnectionHandler
 from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
 
 ID = "id"
-COLUMNS = ["movieId", "rating", "timestamp"]
+COLUMNS = ["movieId", "rating"]
 COLUMNS_RATINGS =["userId", "movieId", "rating", "timestamp"]
 
 class RatingsPreprocessor:

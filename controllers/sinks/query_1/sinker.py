@@ -2,6 +2,9 @@ import logging
 from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
 from common.middleware_connection_handler import RabbitMQConnectionHandler
 
+TITLE = 0
+GENRES = 1
+
 class Query1:
 
     def __init__(self):
@@ -26,7 +29,7 @@ class Query1:
     def handler_query_1(self, lines, client_id, query_number):
         filtered_lines = []
         for line in lines:
-            filtered_lines.append([line[1], line[2]])
+            filtered_lines.append([line[TITLE], line[GENRES]])
         
         if filtered_lines:
             # Join all filtered lines into a single CSV string

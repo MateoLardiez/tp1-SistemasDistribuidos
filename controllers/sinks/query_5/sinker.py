@@ -3,8 +3,8 @@ from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMess
 from common.middleware_connection_handler import RabbitMQConnectionHandler
 import csv
 
-SENTIMENT_POS = 9
-RATE_POS = 10
+SENTIMENT_POS = 0
+RATE_POS = 1
 
 class Query5:
 

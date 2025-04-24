@@ -87,11 +87,14 @@ class AggregatorNlp:
     def handler_aggregator_query_5(self, lines, client_id, query_number):
         filtered_lines = []
         for line in lines:
-            could_aggregate, value = self.aggregator_nlp(line)
+            could_aggregate, sentiment_value = self.aggregator_nlp(line)
             if could_aggregate:
+                filtered_line = []
+                filtered_line.append(sentiment_value)
+                filtered_line.append(line[BUDGET])
+                filtered_line.append(line[REVENUE])
                 # Agregar el valor de sentimiento o POSITIVE o NEGATIVE a la linea
-                line.append(value)
-                filtered_lines.append(line)
+                filtered_lines.append(filtered_line)
 
         if filtered_lines:
             # Create a CSV string from the filtered lines

@@ -39,6 +39,9 @@ class Query4:
             q4_answer = [actor, count_movies]
             results.append(q4_answer)
 
+        results = sorted(results, key=lambda x: x[1], reverse=True)
+        # Limitar a 10 resultados
+        results = results[:10]
 
         result_csv = MiddlewareMessage.write_csv_batch(results) # NO ASI
         

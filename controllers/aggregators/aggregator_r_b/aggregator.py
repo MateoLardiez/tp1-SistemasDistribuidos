@@ -7,8 +7,8 @@ from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMess
 from common.defines import QueryNumber
 from common.middleware_connection_handler import RabbitMQConnectionHandler
 
-BUDGET = 7
-REVENUE = 8
+BUDGET = 1
+REVENUE = 2
 
 # Columns needed: ["id", "title", "overview", "budget", "revenue"]
 
@@ -60,11 +60,15 @@ class AggregatorRB:
     def handler_aggregator_query_5(self, lines, client_id, query_number):
         filtered_lines = []
         for line in lines:
-            could_aggregate, value = self.aggregator_r_b(line)
+            could_aggregate, rate_value = self.aggregator_r_b(line)
             if could_aggregate:
-                # Agregar el valor de sentimiento o POSITIVE o NEGATIVE a la linea
-                line.append(str(value))
-                filtered_lines.append(line)
+                filtered_line = []
+                # Agregar el rate
+                filtered_line.append(line[0])
+                filtered_line.append(str(rate_value))
+                # line.append(str(rate_value))
+                # filtered_lines.append(line)
+                filtered_lines.append(filtered_line)
 
         if filtered_lines:
             # Join all filtered lines into a single CSV string

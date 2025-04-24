@@ -17,9 +17,7 @@ class FilterByCountryInvesment:
             consumer_exchange_name="movies_preprocessor_exchange",
             consumer_queues_to_recv_from=["cleaned_movies_queue_country_invesment"],
         )
-        # Configurar el callback para la cola específica
         self.filter_by_country_connection.set_message_consumer_callback("cleaned_movies_queue_country_invesment", self.callback)
-        self.countries = ["Spain"]
 
     def start(self):
         logging.info("action: start | result: success | code: filter_by_country")
@@ -44,7 +42,7 @@ class FilterByCountryInvesment:
             )
 
     def filter_by_country_invesment(self, movie):
-        raw_value = movie[PROD_COUNTRIES].strip()#<- es un string
+        raw_value = movie[PROD_COUNTRIES].strip()
 
         if raw_value == "[]" or not raw_value:
             return False
@@ -63,11 +61,8 @@ class FilterByCountryInvesment:
                 result_data = [line[PROD_COUNTRIES], line[BUDGET]]
                 filtered_lines.append(result_data)
 
-        # Join all filtered lines into a single CSV string
-        # id,title,genres,release_date,overview,production_countries,spoken_languages,budget,revenue
         if filtered_lines:
             result_csv = MiddlewareMessage.write_csv_batch(filtered_lines)
-            # logging.info(f"INVESMENT MOVIES: {len(filtered_lines)}")
             msg = MiddlewareMessage(
                     query_number=1,
                     client_id=1,
