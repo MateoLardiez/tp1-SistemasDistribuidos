@@ -1,7 +1,4 @@
-import pika
 import logging
-import csv
-import io
 
 from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
 from common.defines import QueryNumber
@@ -66,8 +63,6 @@ class AggregatorRB:
                 # Agregar el rate
                 filtered_line.append(line[0])
                 filtered_line.append(str(rate_value))
-                # line.append(str(rate_value))
-                # filtered_lines.append(line)
                 filtered_lines.append(filtered_line)
 
         if filtered_lines:

@@ -1,14 +1,12 @@
-import pika
 import logging
-import csv
-import io
-
 
 from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
 from common.defines import QueryNumber
 from common.middleware_connection_handler import RabbitMQConnectionHandler
 
-YEAR = 3 # release_date position
+YEAR_Q1 = 2 # release_date position
+YEAR_Q3 = 2 # release_date position for query 3
+YEAR_Q4 = 1 # release_date position for query 4
 class FilterByYear:
     year: int
     data: object
@@ -39,14 +37,12 @@ class FilterByYear:
         data = MiddlewareMessage.decode_from_bytes(body)
         if data.type != MiddlewareMessageType.EOF_MOVIES:
             lines = data.get_batch_iter_from_payload()
-            if data.query_number == QueryNumber.ALL_QUERYS:
-                self.handler_all_query(lines, data.query_number, data.client_id)
-            elif data.query_number == QueryNumber.QUERY_1:
-                self.handler_year_filter(lines, self.year_range_query_1, data.query_number, data.client_id)
+            if data.query_number == QueryNumber.QUERY_1:
+                self.handler_year_filter(lines, self.year_range_query_1, data.query_number, data.client_id, YEAR_Q1)
             elif data.query_number == QueryNumber.QUERY_3:
-                self.handler_year_filter(lines, self.year_range_query_3, data.query_number, data.client_id)
+                self.handler_year_filter(lines, self.year_range_query_3, data.query_number, data.client_id, YEAR_Q3)
             elif data.query_number == QueryNumber.QUERY_4:
-                self.handler_year_filter(lines, self.year_range_query_4, data.query_number, data.client_id)
+                self.handler_year_filter(lines, self.year_range_query_4, data.query_number, data.client_id, YEAR_Q4)
         else:
             logging.info("action: EOF | result: success | code: filter_by_year")
             msg = MiddlewareMessage(
@@ -55,24 +51,11 @@ class FilterByYear:
                 type=MiddlewareMessageType.EOF_MOVIES,
                 payload=""
             )
-            if data.query_number == QueryNumber.ALL_QUERYS:
-                self.filter_by_year_connection.send_message(
+            if data.query_number == QueryNumber.QUERY_1:
+               self.filter_by_year_connection.send_message(
                     routing_key="sink_query_1_queue",
                     msg_body=msg.encode_to_str()
-                )
-                self.filter_by_year_connection.send_message(
-                    routing_key="joiner_by_ratings_movies_queue",
-                    msg_body=msg.encode_to_str()
-                )
-                self.filter_by_year_connection.send_message(
-                    routing_key="joiner_by_credits_movies_queue",
-                    msg_body=msg.encode_to_str()
-                )
-            elif data.query_number == QueryNumber.QUERY_1:
-                self.filter_by_year_connection.send_message(
-                    routing_key="sink_query_1_queue",
-                    msg_body=msg.encode_to_str()
-                )
+               )
             elif data.query_number == QueryNumber.QUERY_3:
                 self.filter_by_year_connection.send_message(
                     routing_key="joiner_by_ratings_movies_queue",
@@ -81,19 +64,14 @@ class FilterByYear:
             elif data.query_number == QueryNumber.QUERY_4:
                 self.filter_by_year_connection.send_message(
                     routing_key="joiner_by_credits_movies_queue",
-                    msg_body=msg.encode_to_str()
-                )
-
-    def handler_all_query(self, lines, query_number, client_id):
-        self.handler_year_filter(lines, self.year_range_query_1, query_number, client_id)
-        self.handler_year_filter(lines, self.year_range_query_3, query_number, client_id)
-        self.handler_year_filter(lines, self.year_range_query_4, query_number, client_id)
-        
-    def filter_by_year(self, movie, year_filter):
-        if len(movie) <= 3 or not movie[YEAR]:
+                           msg_body=msg.encode_to_str()
+                       )
+    
+    def filter_by_year(self, movie, year_filter, year_pos):
+        if not movie[year_pos]:
             return False
         
-        year_of_movie = movie[YEAR]
+        year_of_movie = movie[year_pos]
         try:
             release_year = int(year_of_movie.split('-')[0])
             if isinstance(year_filter, tuple):
@@ -113,15 +91,35 @@ class FilterByYear:
             logging.error(f"Invalid release date format for movie: {movie}")
             return False
 
-    def handler_year_filter(self, lines, year_filter, query_number, client_id):
+    def handler_year_filter(self, lines, year_filter, query_number, client_id, year_pos):
         filtered_lines = []
         for line in lines:
-            if self.filter_by_year(line, year_filter):
+            if self.filter_by_year(line, year_filter, year_pos):
                 filtered_lines.append(line)
                 
         if filtered_lines:
+            query_result = []
+            # Entradas
+            # Q1: [title, genres, release_date]
+            # Q3: [id, title, release_date]
+            # Q4: [id, release_date]
+            # Salidas:
+            # Q1: [title, genres]
+            # Q3: [id, title]
+            # Q4: [id]
+            
+            if query_number == QueryNumber.QUERY_1:
+                for line in filtered_lines:
+                    query_result.append([line[0], line[1]])
+            elif query_number == QueryNumber.QUERY_3:
+                for line in filtered_lines:
+                    query_result.append([line[0], line[1]])
+            elif query_number == QueryNumber.QUERY_4:
+                for line in filtered_lines:
+                    query_result.append([line[0]])
+                
             # Join all filtered lines into a single CSV string
-            result_csv = MiddlewareMessage.write_csv_batch(filtered_lines)            
+            result_csv = MiddlewareMessage.write_csv_batch(query_result)            
             msg = MiddlewareMessage(
                 query_number=query_number,
                 client_id=client_id,
@@ -129,20 +127,7 @@ class FilterByYear:
                 payload=result_csv
             )
 
-            if query_number == QueryNumber.ALL_QUERYS:
-                self.filter_by_year_connection.send_message(
-                    routing_key="sink_query_1_queue",
-                    msg_body=msg.encode_to_str()
-                )
-                self.filter_by_year_connection.send_message(
-                    routing_key="joiner_by_ratings_movies_queue",
-                    msg_body=msg.encode_to_str()
-                )
-                self.filter_by_year_connection.send_message(
-                    routing_key="joiner_by_credits_movies_queue",
-                    msg_body=msg.encode_to_str()
-                )
-            elif query_number == QueryNumber.QUERY_1:
+            if query_number == QueryNumber.QUERY_1:
                 self.filter_by_year_connection.send_message(
                     routing_key="sink_query_1_queue",
                     msg_body=msg.encode_to_str()

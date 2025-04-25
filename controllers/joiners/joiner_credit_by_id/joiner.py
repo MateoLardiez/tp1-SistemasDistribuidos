@@ -23,8 +23,7 @@ class JoinerByCreditId:
         )
         
         # Diccionario para almacenar el estado por cliente
-        self.client_state = {}  # {client_id: {"movies_eof": bool, "credits_eof": bool}}
-        
+        self.client_state = {}  # {client_id: {"movies_eof": bool, "credits_eof": bool}}        
         # Configurar callbacks para ambas colas
         self.joiner_by_credit_id_connection.set_message_consumer_callback("joiner_by_credits_movies_queue", self.movies_callback)
         self.joiner_by_credit_id_connection.set_message_consumer_callback("joiner_credits_by_id_queue", self.credits_callback)
@@ -56,10 +55,7 @@ class JoinerByCreditId:
             self.save_data(client_id, lines, "movies")
         else:
             # Recibimos EOF de movies para este cliente
-            logging.info(f"EOF MOVIESSSSSSSSSSSSSS --------- ??? action: EOF | source: movies | client: {client_id}")
             self.client_state[client_id]["movies_eof"] = True
-            # Depuración: Mostrar estado actual
-            logging.info(f"Estado cliente {client_id} después de EOF movies: movies_eof={self.client_state[client_id]['movies_eof']}, credits_eof={self.client_state[client_id]['credits_eof']}")
             self.check_and_process(client_id, data.query_number)
 
     def credits_callback(self, ch, method, properties, body):
@@ -75,10 +71,8 @@ class JoinerByCreditId:
             self.save_data(client_id, lines, "credits")
         else:
             # Recibimos EOF de credits para este cliente
-            logging.info(f"EOF CREDITS -------------------- action: EOF | source: credits | client: {client_id}")
             self.client_state[client_id]["credits_eof"] = True
             # Depuración: Mostrar estado actual
-            logging.info(f"Estado cliente {client_id} después de EOF credits: movies_eof={self.client_state[client_id]['movies_eof']}, credits_eof={self.client_state[client_id]['credits_eof']}")
             self.check_and_process(client_id, data.query_number)
 
     def check_and_process(self, client_id, query_number):
@@ -94,8 +88,6 @@ class JoinerByCreditId:
         logging.info(f"check_and_process para cliente {client_id}: movies_eof={movies_eof}, credits_eof={credits_eof}")
         
         if movies_eof and credits_eof:
-            logging.info(f"LOS DOSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS-> action: process_joined_data | client: {client_id} | result: starting")
-            
             # # Procesar los datos de movies y credits para este cliente
             movies_filename = f"movies-client-{client_id}"
             credits_filename = f"credits-client-{client_id}"
@@ -104,7 +96,6 @@ class JoinerByCreditId:
             
             # Enviar resultados procesados
             if joined_data:
-                logging.info("ENVIO DATARDA")
                 result_csv = MiddlewareMessage.write_csv_batch(joined_data) # TODO: Enviar en batches
                 msg = MiddlewareMessage(
                     query_number=query_number,
@@ -116,7 +107,6 @@ class JoinerByCreditId:
                     routing_key="average_credit_aggregated",
                     msg_body=msg.encode_to_str()
                 )
-                logging.info("ENVI0 EOF DATARDA")
             
                 msg_eof = MiddlewareMessage(
                     query_number=query_number,
@@ -154,7 +144,6 @@ class JoinerByCreditId:
         result = []
         for actor, movies in actors_with_movies.items():
             result.append([actor, movies])
-        logging.info(f"PELICUlAss: {result}")
         return result
             
     def clean_temp_files(self, client_id):

@@ -36,9 +36,6 @@ class AggregatorNlp:
         if data.type != MiddlewareMessageType.EOF_MOVIES:
             lines = data.get_batch_iter_from_payload()
             self.handler_aggregator_query_5(lines, data.client_id, data.query_number)     
-            # if data.query_number == QueryNumber.ALL_QUERYS or data.query_number == QueryNumber.QUERY_5:
-            #     self.handler_all_query(lines, data.client_id, data.query_number)
-            # elif data.query_number == QueryNumber.QUERY_5:
         else:
             logging.info("Received EOF_MOVIES message, stopping consumption.")
             msg = MiddlewareMessage(
@@ -79,10 +76,6 @@ class AggregatorNlp:
         except (IndexError, ValueError):
             logging.error(f"Invalid release date format for movie: {movie}")
             return False, 0
-
-    # def handler_all_query(self, lines, client_id, query_number):
-    #     self.handler_aggregator_query_5(lines, client_id, query_number)
-
 
     def handler_aggregator_query_5(self, lines, client_id, query_number):
         filtered_lines = []

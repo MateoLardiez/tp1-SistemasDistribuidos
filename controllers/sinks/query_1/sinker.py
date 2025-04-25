@@ -23,8 +23,22 @@ class Query1:
     def callback(self, ch, method, properties, body):
         # id,title,genres,release_date,overview,production_countries,spoken_languages,budget,revenue
         data = MiddlewareMessage.decode_from_bytes(body)
-        lines = data.get_batch_iter_from_payload()
-        self.handler_query_1(lines, data.client_id, data.query_number)
+        if data.type != MiddlewareMessageType.EOF_MOVIES:
+            lines = data.get_batch_iter_from_payload()
+            self.handler_query_1(lines, data.client_id, data.query_number)
+        else:
+            # Handle EOF message
+            msg = MiddlewareMessage(
+                query_number=data.query_number,
+                client_id=data.client_id,
+                type=MiddlewareMessageType.EOF_RESULT_Q1,
+                payload="EOF"
+            )
+            self.query_1_connection.send_message(
+                routing_key="reports_queue",
+                msg_body=msg.encode_to_str()
+            )
+
 
     def handler_query_1(self, lines, client_id, query_number):
         filtered_lines = []

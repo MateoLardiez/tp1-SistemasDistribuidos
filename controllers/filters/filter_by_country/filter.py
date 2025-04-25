@@ -4,6 +4,11 @@ from common.defines import QueryNumber
 from common.middleware_connection_handler import RabbitMQConnectionHandler
 
 PROD_COUNTRIES = 5
+ID = 0
+TITLE = 1
+GENRES = 2
+YEAR = 3
+
 
 class FilterByCountry:
     countries: list
@@ -40,16 +45,19 @@ class FilterByCountry:
                 self.handler_country_filter(lines, self.countries_query_4, data.client_id, data.query_number)
         else:
             logging.info("Received EOF_MOVIES message, stopping consumption.")
-            msg = MiddlewareMessage(
-                query_number=data.query_number,
-                client_id=data.client_id,
-                type=MiddlewareMessageType.EOF_MOVIES,
-                payload=""
-            )
-            self.filter_by_country_connection.send_message(
-                routing_key="country_queue",
-                msg_body=msg.encode_to_str()
-            )       
+            if data.query_number == QueryNumber.ALL_QUERYS:
+                self.handler_eof_all_querys(data)
+            else:
+                msg = MiddlewareMessage(
+                    query_number=data.query_number,
+                    client_id=data.client_id,
+                    type=MiddlewareMessageType.EOF_MOVIES,
+                    payload=""
+                )
+                self.filter_by_country_connection.send_message(
+                    routing_key="country_queue",
+                    msg_body=msg.encode_to_str()
+                )       
             
     def filter_by_country(self, movie, country_filter):
         countries_of_movie = movie[PROD_COUNTRIES]#<- es un string
@@ -58,9 +66,13 @@ class FilterByCountry:
         return has_countries
 
     def handler_all_query(self, lines, id_client, query_number):
-        self.handler_country_filter(lines, self.countries_query_1, id_client, query_number)
-        self.handler_country_filter(lines, self.countries_query_3, id_client, query_number)
-        self.handler_country_filter(lines, self.countries_query_4, id_client, query_number)
+        lines_to_filter = []
+        for line in lines:
+            lines_to_filter.append(line)
+
+        self.handler_country_filter(lines_to_filter, self.countries_query_3, id_client, QueryNumber.QUERY_3)
+        self.handler_country_filter(lines_to_filter, self.countries_query_1, id_client, QueryNumber.QUERY_1)
+        self.handler_country_filter(lines_to_filter, self.countries_query_4, id_client, QueryNumber.QUERY_4)
         
     def handler_country_filter(self, lines, countries_filter, id_client, query_number):
         filtered_lines = []
@@ -70,16 +82,60 @@ class FilterByCountry:
         
         # Join all filtered lines into a single CSV string
         if filtered_lines:
-            result_csv = MiddlewareMessage.write_csv_batch(filtered_lines)
-            # logging.info(f"Filtered CSV: {result_csv}")
-            msg = MiddlewareMessage(
+            # Q1: [title, genres, release_date]
+            # Q3: [id, title, release_date]
+            # Q4: [id, release_date]
+            result_csv = None
+            msg = None
+            if query_number == QueryNumber.QUERY_1:
+                query_result = []
+                for line in filtered_lines:
+                    query_result.append([line[1], line[2], line[3]])
+                result_csv = MiddlewareMessage.write_csv_batch(query_result)
+                msg = MiddlewareMessage(
                     query_number=query_number,
                     client_id=id_client,
                     type=MiddlewareMessageType.MOVIES_BATCH,
                     payload=result_csv
                 )
-            
+            if query_number == QueryNumber.QUERY_3:
+                query_result = []
+                for line in filtered_lines:
+                    query_result.append([line[0], line[1], line[3]])
+                result_csv = MiddlewareMessage.write_csv_batch(query_result)
+                msg = MiddlewareMessage(
+                    query_number=query_number,
+                    client_id=id_client,
+                    type=MiddlewareMessageType.MOVIES_BATCH,
+                    payload=result_csv
+                )
+            if query_number == QueryNumber.QUERY_4:
+                query_result = []
+                for line in filtered_lines:
+                    query_result.append([line[0], line[3]])
+                result_csv = MiddlewareMessage.write_csv_batch(query_result)
+                msg = MiddlewareMessage(
+                    query_number=query_number,
+                    client_id=id_client,
+                    type=MiddlewareMessageType.MOVIES_BATCH,
+                    payload=result_csv
+                )
+            if result_csv:
+                self.filter_by_country_connection.send_message(
+                    routing_key="country_queue",
+                    msg_body=msg.encode_to_str()
+                )
+
+    def handler_eof_all_querys(self, data):
+        for query_number in [QueryNumber.QUERY_1, QueryNumber.QUERY_3, QueryNumber.QUERY_4]:
+            msg = MiddlewareMessage(
+                query_number=query_number,
+                client_id=data.client_id,
+                type=MiddlewareMessageType.EOF_MOVIES,
+                payload=""
+            )
             self.filter_by_country_connection.send_message(
                 routing_key="country_queue",
                 msg_body=msg.encode_to_str()
             )
+        
