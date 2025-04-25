@@ -56,10 +56,10 @@ class JoinerByRatingId:
             self.save_data(client_id, lines, "movies")
         else:
             # Recibimos EOF de movies para este cliente
-            logging.info(f"EOF MOVIESSSSSSSSSSSSSS --------- ??? action: EOF | source: movies | client: {client_id}")
+            # logging.info(f"EOF MOVIESSSSSSSSSSSSSS --------- ??? action: EOF | source: movies | client: {client_id}")
             self.client_state[client_id]["movies_eof"] = True
             # Depuración: Mostrar estado actual
-            logging.info(f"Estado cliente {client_id} después de EOF movies: movies_eof={self.client_state[client_id]['movies_eof']}, ratings_eof={self.client_state[client_id]['ratings_eof']}")
+            # logging.info(f"Estado cliente {client_id} después de EOF movies: movies_eof={self.client_state[client_id]['movies_eof']}, ratings_eof={self.client_state[client_id]['ratings_eof']}")
             self.check_and_process(client_id, data.query_number)
 
     def ratings_callback(self, ch, method, properties, body):

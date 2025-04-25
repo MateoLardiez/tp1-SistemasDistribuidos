@@ -31,13 +31,9 @@ class Gateway:
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
         self.serverIsAlive = True
-        self.max_agencies = clients
-        self.clients = {}
-
         self.manager = multiprocessing.Manager()
-        self.winners = self.manager.dict()
-        self.finished_agencies = self.manager.list()
-        self.bets_lock = multiprocessing.Lock()
+        self.clients = self.manager.dict()
+        self.clients_lock = multiprocessing.Lock()
         
         self.consumer_exchange_name = "reports_exchange"
         self.consumer_queue = "reports_queue"
@@ -93,19 +89,41 @@ class Gateway:
         If a problem arises in the communication with the client, the
         client socket will also be closed
         """
+        client_id = None
         try:
             addr = client_sock.getpeername()
+            logging.info(f"action: handle_client_connection | result: start | addr: {addr}")
+            
             while True:
-                dto_message =self.receive_message(client_sock)
-                self.clients[addr] = dto_message.id_client
+                dto_message = self.receive_message(client_sock)
+                if not dto_message:
+                    logging.warning(f"action: handle_client_connection | result: fail | error: invalid message received")
+                    break
+                    
+                client_id = dto_message.id_client
+                with self.clients_lock:
+                    if client_id not in self.clients:
+                        logging.info(f"action: add_client | result: success | client_id: {client_id}")
+                        self.clients[client_id] = client_sock
 
                 if dto_message.type_message == ClientCommunication.TYPE_FINISH_COMMUNICATION:
+                    logging.info(f"action: client_finish | result: success | client_id: {client_id}")
                     break
+                    
                 self.handle_client_connection(client_sock, dto_message)
+                
         except OSError as e:
-            logging.error(f"action: receive_message | result: fail | error: {e}")
+            logging.error(f"action: handle_client_connection | result: fail | error: {e}")
         finally:
+            # Ensure client is removed from dictionary when connection closes
+            if client_id is not None:
+                with self.clients_lock:
+                    if client_id in self.clients:
+                        logging.info(f"action: remove_client | result: success | client_id: {client_id}")
+                        del self.clients[client_id]
+            
             client_sock.close()
+            logging.info(f"action: handle_client_connection | result: socket_closed | addr: {addr if 'addr' in locals() else 'unknown'}")
 
     def __handler_reports(self):
         self.rabbit_mq_report_connection = RabbitMQConnectionHandler(
@@ -120,26 +138,47 @@ class Gateway:
     def callback(self, ch, method, properties, body):
         data = MiddlewareMessage.decode_from_bytes(body)
         lines = data.get_batch_iter_from_payload()
+        result_query = []
         if data.type == MiddlewareMessageType.RESULT_Q1:
             logging.info(f"action: receive_response_query_1 | result: success | code: {data.type}")
             for line in lines:
                 logging.info(f"action: response_query_1 | line: {line}")
+                result_query.append(line)
+            self.send_result_query(MiddlewareMessage.write_csv_batch(result_query), ClientCommunication.RESULT_QUERY_1 , data.client_id)
         elif data.type == MiddlewareMessageType.RESULT_Q2:            
             logging.info(f"action: receive_response_query_2 | result: success | code: {data.type}")
             for line in lines:
                 logging.info(f"action: response_query_2 | line: {line}")
+                result_query.append(line)
+            self.send_result_query(MiddlewareMessage.write_csv_batch(result_query), ClientCommunication.RESULT_QUERY_2 , data.client_id)
         elif data.type == MiddlewareMessageType.RESULT_Q3:            
             logging.info(f"action: receive_response_query_3 | result: success | code: {data.type}")
             for line in lines:
                 logging.info(f"action: response_query_3 | line: {line}")
+                result_query.append(line)
+            self.send_result_query(MiddlewareMessage.write_csv_batch(result_query), ClientCommunication.RESULT_QUERY_3 , data.client_id)
         elif data.type == MiddlewareMessageType.RESULT_Q4:            
             logging.info(f"action: receive_response_query_4 | result: success | code: {data.type}")
             for line in lines:
                 logging.info(f"action: response_query_4 | line: {line}")
+                result_query.append(line)
+            self.send_result_query(MiddlewareMessage.write_csv_batch(result_query), ClientCommunication.RESULT_QUERY_4 , data.client_id)
         elif data.type == MiddlewareMessageType.RESULT_Q5:
             logging.info(f"action: receive_response_query_5 | result: success | code: {data.type}")
             for line in lines:
                 logging.info(f"action: response_query_5 | line: {line}")
+                result_query.append(line)
+            self.send_result_query(MiddlewareMessage.write_csv_batch(result_query), ClientCommunication.RESULT_QUERY_5 , data.client_id)
+        elif data.type == MiddlewareMessageType.EOF_RESULT_Q1:
+            self.send_result_query(MiddlewareMessage.write_csv_batch(result_query), ClientCommunication.EOF_QUERY_1 , data.client_id)
+        elif data.type == MiddlewareMessageType.EOF_RESULT_Q2:
+            self.send_result_query(MiddlewareMessage.write_csv_batch(result_query), ClientCommunication.EOF_QUERY_2 , data.client_id)
+        elif data.type == MiddlewareMessageType.EOF_RESULT_Q3:
+            self.send_result_query(MiddlewareMessage.write_csv_batch(result_query), ClientCommunication.EOF_QUERY_3 , data.client_id)   
+        elif data.type == MiddlewareMessageType.EOF_RESULT_Q4:
+            self.send_result_query(MiddlewareMessage.write_csv_batch(result_query), ClientCommunication.EOF_QUERY_4 , data.client_id)
+        elif data.type == MiddlewareMessageType.EOF_RESULT_Q5:
+            self.send_result_query(MiddlewareMessage.write_csv_batch(result_query), ClientCommunication.EOF_QUERY_5 , data.client_id)
 
     def handle_client_connection(self, client_sock, msg_type):
         self.publisher_connection = RabbitMQConnectionHandler(
@@ -218,7 +257,7 @@ class Gateway:
                 query_number=query_number,
                 client_id=message.id_client
             )
-            self.send_ack(client_sock, message.id_client, ClientCommunication.TYPE_ACK.value,"Batch received")
+            # self.send_ack(client_sock, message.id_client, ClientCommunication.TYPE_ACK.value,"Batch received")
             message = self.receive_message(client_sock)   
             lines_received += 1     
         self.send_eof_to_preprocessor(message.type_message, query_number, message.id_client)
@@ -342,6 +381,24 @@ class Gateway:
                 payload=""
             ).encode_to_str()
         )
+
+    def send_result_query(self, result_query, type_query, client_id):
+        """
+        Send result query to the client
+
+        Function blocks until the result query is sent. Then the
+        function returns True if the result query was sent successfully
+        or False if there was an error
+        """
+        msg = MessageProtocol(
+            idClient=client_id,
+            typeMessage=type_query,
+            payload=result_query
+        )
+        with self.clients_lock:
+            if client_id in self.clients:
+                sock_client = self.clients[client_id]
+                self.send_message(sock_client, msg)
 
     def start_query_1(self, batch):
         # self.publisher_channel.exchange_declare(exchange='movies', exchange_type='direct')

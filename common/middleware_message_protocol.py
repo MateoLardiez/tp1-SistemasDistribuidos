@@ -19,6 +19,10 @@ class MiddlewareMessageType(Enum):
     RESULT_Q5 = 11
     EOF_JOINER = 12
     EOF_RESULT_Q1 = 13
+    EOF_RESULT_Q2 = 14
+    EOF_RESULT_Q3 = 15
+    EOF_RESULT_Q4 = 16
+    EOF_RESULT_Q5 = 17
 
 class MiddlewareMessage:
     def __init__(self, query_number: int, client_id: int, type: MiddlewareMessageType, payload: str = ""):

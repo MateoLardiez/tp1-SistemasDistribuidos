@@ -28,6 +28,17 @@ class Query3:
         else:
             logging.info("action: EOF | result: success | code: sinker_query_3")
             self.handler_query_3(data.client_id, data.query_number)
+            # Handle EOF message
+            msg = MiddlewareMessage(
+                query_number=data.query_number,
+                client_id=data.client_id,
+                type=MiddlewareMessageType.EOF_RESULT_Q3,
+                payload="EOF"
+            )
+            self.query_3_connection.send_message(
+                routing_key="reports_queue",
+                msg_body=msg.encode_to_str()
+            )
 
     def handler_query_3(self, client_id, query_number):
         # Ya tengo toda la data en mi csv

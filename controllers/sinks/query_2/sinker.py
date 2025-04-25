@@ -29,6 +29,17 @@ class Query2:
         else:
             logging.info("action: EOF | result: success | code: sinker_query_2")
             self.handler_query_2(data.client_id, data.query_number)
+            # Handle EOF message
+            msg = MiddlewareMessage(
+                query_number=data.query_number,
+                client_id=data.client_id,
+                type=MiddlewareMessageType.EOF_RESULT_Q2,
+                payload="EOF"
+            )
+            self.query_2_connection.send_message(
+                routing_key="reports_queue",
+                msg_body=msg.encode_to_str()
+            )
 
     def handler_query_2(self, client_id, query_number):
         report_lines = {}

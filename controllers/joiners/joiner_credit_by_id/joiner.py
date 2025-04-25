@@ -85,7 +85,7 @@ class JoinerByCreditId:
         movies_eof = self.client_state[client_id]["movies_eof"] 
         credits_eof = self.client_state[client_id]["credits_eof"]
         
-        logging.info(f"check_and_process para cliente {client_id}: movies_eof={movies_eof}, credits_eof={credits_eof}")
+        # logging.info(f"check_and_process para cliente {client_id}: movies_eof={movies_eof}, credits_eof={credits_eof}")
         
         if movies_eof and credits_eof:
             # # Procesar los datos de movies y credits para este cliente
@@ -135,7 +135,7 @@ class JoinerByCreditId:
             if movie_id in credits:
                 actors = credits[movie_id]
                 actors_list = actors.strip("[]").replace("'", "").split(", ") # separo los actores por comas
-                logging.info(f"PELICUlA: {movie_id} | ACTORES: {actors}")
+                # logging.info(f"PELICUlA: {movie_id} | ACTORES: {actors}")
                 for actor in actors_list:
                     if actor not in actors_with_movies:
                         actors_with_movies[actor] = []       

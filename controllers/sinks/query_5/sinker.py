@@ -31,6 +31,17 @@ class Query5:
         else:
             logging.info("action: EOF | result: success | code: sinker_query_5")
             self.handler_query_5(data.client_id, data.query_number)
+            # Handle EOF message
+            msg = MiddlewareMessage(
+                query_number=data.query_number,
+                client_id=data.client_id,
+                type=MiddlewareMessageType.EOF_RESULT_Q5,
+                payload="EOF"
+            )
+            self.query_5_connection.send_message(
+                routing_key="reports_queue",
+                msg_body=msg.encode_to_str()
+            )
 
     def handler_query_5(self, client_id, query_number):
         # Ya tengo toda la data en mi csv
@@ -53,7 +64,7 @@ class Query5:
             ["NEGATIVE", average_rate_by_sentiment["NEGATIVE"]]
         ]
 
-        logging.info(f"QUERY 5: POSITIVE: {q5_answer[1][1]}, NEGATIVE: {q5_answer[2][1]}")
+        # logging.info(f"QUERY 5: POSITIVE: {q5_answer[1][1]}, NEGATIVE: {q5_answer[2][1]}")
         # Join all filtered lines into a single CSV string
         result_csv = MiddlewareMessage.write_csv_batch(q5_answer) # NO ASI
         
