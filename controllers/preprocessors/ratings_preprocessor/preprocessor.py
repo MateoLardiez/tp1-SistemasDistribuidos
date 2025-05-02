@@ -44,7 +44,7 @@ class RatingsPreprocessor:
                     routing_key="joiner_ratings_by_id_queue",
                     msg_body=msg.encode_to_str()
                 )
-                logging.info(f"action: send_message | result: success | code: ratings_preprocessor | routing_key: joiner_ratings_by_id_queue")
+                # logging.info(f"action: send_message | result: success | code: ratings_preprocessor | routing_key: joiner_ratings_by_id_queue")
             else:
                 logging.info("action: EOF | result: success | code: ratings_preprocessor")
                 msg = MiddlewareMessage(

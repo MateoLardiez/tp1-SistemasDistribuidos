@@ -8,6 +8,7 @@ services:
     networks:
       - testing_net
     ports:
+      - "15672:15672"
       - "5672:5672"
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
@@ -73,6 +74,16 @@ services:
 
   filter_by_country_invesment:
     container_name: filter_by_country_invesment
+    image: filter_by_country_invesment:latest
+    entrypoint: python3 /main.py
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  
+  filter_by_country_invesment_1:
+    container_name: filter_by_country_invesment_1
     image: filter_by_country_invesment:latest
     entrypoint: python3 /main.py
     networks:
