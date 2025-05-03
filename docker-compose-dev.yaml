@@ -8,7 +8,6 @@ services:
     networks:
       - testing_net
     ports:
-      - "15672:15672"
       - "5672:5672"
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
@@ -72,8 +71,8 @@ services:
       rabbitmq:
         condition: service_healthy
 
-  filter_by_country_invesment:
-    container_name: filter_by_country_invesment
+  filter_by_country_invesment_0:
+    container_name: filter_by_country_invesment_0
     image: filter_by_country_invesment:latest
     entrypoint: python3 /main.py
     networks:
@@ -81,7 +80,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-  
+
   filter_by_country_invesment_1:
     container_name: filter_by_country_invesment_1
     image: filter_by_country_invesment:latest
@@ -122,8 +121,18 @@ services:
       rabbitmq:
         condition: service_healthy
 
-  aggregator_nlp:
-    container_name: aggregator_nlp
+  aggregator_nlp_0:
+    container_name: aggregator_nlp_0
+    image: aggregator_nlp:latest
+    entrypoint: python3 /main.py
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  aggregator_nlp_1:
+    container_name: aggregator_nlp_1
     image: aggregator_nlp:latest
     entrypoint: python3 /main.py
     networks:
@@ -200,9 +209,9 @@ services:
       - CLI_ID=1
     volumes:
       - ./client/config.yaml:/config.yaml:ro
-      - ./.data/movies_empty.csv:/movies.csv:ro
-      - ./.data/ratings_empty.csv:/ratings.csv:ro
-      - ./.data/credits_empty.csv:/credits.csv:ro
+      - ./.data/movies_sample.csv:/movies.csv:ro
+      - ./.data/ratings_sample.csv:/ratings.csv:ro
+      - ./.data/credits_sample.csv:/credits.csv:ro
     networks:
       - testing_net
     depends_on:

@@ -59,7 +59,8 @@ class Query5:
         }
 
         q5_answer = []
-        if not average_rate_by_sentiment.is_empty():
+        # Verificación correcta si hay datos en las listas del diccionario
+        if sentiment_groups["POSITIVE"] or sentiment_groups["NEGATIVE"]:
             q5_answer = [
                 ["sentiment", "average_rate"],
                 ["POSITIVE", average_rate_by_sentiment["POSITIVE"]],

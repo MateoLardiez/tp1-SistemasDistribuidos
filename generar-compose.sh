@@ -1,5 +1,7 @@
 #!/bin/bash
 
+N_WORKERS=$1
+
 readonly COMPOSE_FILE="docker-compose-dev.yaml"
 
 add_compose_header() {
@@ -43,7 +45,6 @@ add_gateway() {
         condition: service_healthy
 " >> "$COMPOSE_FILE"
 }
-
 
 add_movies_preprocessor() {
     echo "  movies_preprocessor:
@@ -102,8 +103,9 @@ add_filter_by_country() {
 }
 
 add_filter_by_country_invesment() {
-    echo "  filter_by_country_invesment:
-    container_name: filter_by_country_invesment
+  for ((i=0; i<=N_WORKERS-1; i++)); do
+    echo "  filter_by_country_invesment_$i:
+    container_name: filter_by_country_invesment_$i
     image: filter_by_country_invesment:latest
     entrypoint: python3 /main.py
     networks:
@@ -112,7 +114,7 @@ add_filter_by_country_invesment() {
       rabbitmq:
         condition: service_healthy
 " >> "$COMPOSE_FILE"
-
+  done
 }
 
 add_filter_by_year() {
@@ -154,9 +156,11 @@ add_joiner_credit_by_id() {
 " >> "$COMPOSE_FILE"
 }
 
+
 add_aggregator_nlp() {
-    echo "  aggregator_nlp:
-    container_name: aggregator_nlp
+  for ((i=0; i<=N_WORKERS-1; i++)); do
+    echo "  aggregator_nlp_$i:
+    container_name: aggregator_nlp_$i
     image: aggregator_nlp:latest
     entrypoint: python3 /main.py
     networks:
@@ -165,6 +169,7 @@ add_aggregator_nlp() {
       rabbitmq:
         condition: service_healthy
 " >> "$COMPOSE_FILE"
+  done
 }
 
 add_aggregator_r_b() {
@@ -277,8 +282,26 @@ add_networks() {
 
 }
 
+check_params() {
+    if [ -z "$N_WORKERS" ]; then
+        echo "Usage: $0 <number_of_workers>"
+        exit 1
+    fi
+
+    if ! [[ "$N_WORKERS" =~ ^[0-9]+$ ]]; then
+        echo "Error: <number_of_workers> must be a positive integer."
+        exit 1
+    fi
+
+    if [ "$N_WORKERS" -lt 1 ]; then
+        echo "Error: <number_of_workers> must be at least 1."
+        exit 1
+    fi
+}
+
 # ---------------------------------------- #
 
+check_params
 add_compose_header
 add_rabbit_mq
 add_gateway
