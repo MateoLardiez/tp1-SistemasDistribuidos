@@ -61,16 +61,16 @@ class FilterByCountryInvesment:
                 result_data = [line[PROD_COUNTRIES], line[BUDGET]]
                 filtered_lines.append(result_data)
 
-        if filtered_lines:
-            result_csv = MiddlewareMessage.write_csv_batch(filtered_lines)
-            msg = MiddlewareMessage(
-                    query_number=1,
-                    client_id=1,
-                    type=MiddlewareMessageType.MOVIES_BATCH,
-                    payload=result_csv
-                )
-            
-            self.filter_by_country_connection.send_message(
-                routing_key="filter_by_country_invesment_queue",
-                msg_body=msg.encode_to_str()
+        # if filtered_lines:
+        result_csv = MiddlewareMessage.write_csv_batch(filtered_lines)
+        msg = MiddlewareMessage(
+                query_number=1,
+                client_id=1,
+                type=MiddlewareMessageType.MOVIES_BATCH,
+                payload=result_csv
             )
+        
+        self.filter_by_country_connection.send_message(
+            routing_key="filter_by_country_invesment_queue",
+            msg_body=msg.encode_to_str()
+        )

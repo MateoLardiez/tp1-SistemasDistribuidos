@@ -50,7 +50,9 @@ class Query4:
             q4_answer = [actor, count_movies]
             results.append(q4_answer)
 
-        results = sorted(results, key=lambda x: x[1], reverse=True)
+        # Ordenar por cantidad de apariciones y luego por orden alfabetico de artistas
+        results = sorted(results, key=lambda x: (-x[1], x[0]))
+        
         # Limitar a 10 resultados
         results = results[:10]
 

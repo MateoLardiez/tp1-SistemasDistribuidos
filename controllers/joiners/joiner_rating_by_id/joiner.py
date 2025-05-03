@@ -98,28 +98,28 @@ class JoinerByRatingId:
             joined_data = self.join_data(movies_filename, ratings_filename)
             
             # Enviar resultados procesados
-            if joined_data:
-                result_csv = MiddlewareMessage.write_csv_batch(joined_data) # TODO: Enviar en batches
-                msg = MiddlewareMessage(
-                    query_number=query_number,
-                    client_id=client_id,
-                    type=MiddlewareMessageType.MOVIES_BATCH,
-                    payload=result_csv
-                )
-                self.joiner_by_rating_id_connection.send_message(
-                    routing_key="average_rating_aggregated",
-                    msg_body=msg.encode_to_str()
-                )
-            
-                msg_eof = MiddlewareMessage(
-                    query_number=query_number,
-                    client_id=client_id,
-                    type=MiddlewareMessageType.EOF_JOINER
-                )
-                self.joiner_by_rating_id_connection.send_message(
-                    routing_key="average_rating_aggregated",
-                    msg_body=msg_eof.encode_to_str()
-                )
+            # if joined_data:
+            result_csv = MiddlewareMessage.write_csv_batch(joined_data) # TODO: Enviar en batches
+            msg = MiddlewareMessage(
+                query_number=query_number,
+                client_id=client_id,
+                type=MiddlewareMessageType.MOVIES_BATCH,
+                payload=result_csv
+            )
+            self.joiner_by_rating_id_connection.send_message(
+                routing_key="average_rating_aggregated",
+                msg_body=msg.encode_to_str()
+            )
+        
+            msg_eof = MiddlewareMessage(
+                query_number=query_number,
+                client_id=client_id,
+                type=MiddlewareMessageType.EOF_JOINER
+            )
+            self.joiner_by_rating_id_connection.send_message(
+                routing_key="average_rating_aggregated",
+                msg_body=msg_eof.encode_to_str()
+            )
                 
             # # Limpiar los archivos temporales
             # self.clean_temp_files(client_id)

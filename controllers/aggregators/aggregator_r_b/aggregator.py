@@ -65,17 +65,17 @@ class AggregatorRB:
                 filtered_line.append(str(rate_value))
                 filtered_lines.append(filtered_line)
 
-        if filtered_lines:
+        # if filtered_lines:
             # Join all filtered lines into a single CSV string
-            result_csv = MiddlewareMessage.write_csv_batch(filtered_lines)
-            msg = MiddlewareMessage(
-                query_number=query_number,
-                client_id=client_id,
-                type=MiddlewareMessageType.MOVIES_BATCH,
-                payload=result_csv
-            )
-            self.aggregator_r_b_connection.send_message(
-                routing_key="aggregated_r_b_data_queue",
-                msg_body=msg.encode_to_str()
-            )
+        result_csv = MiddlewareMessage.write_csv_batch(filtered_lines)
+        msg = MiddlewareMessage(
+            query_number=query_number,
+            client_id=client_id,
+            type=MiddlewareMessageType.MOVIES_BATCH,
+            payload=result_csv
+        )
+        self.aggregator_r_b_connection.send_message(
+            routing_key="aggregated_r_b_data_queue",
+            msg_body=msg.encode_to_str()
+        )
         

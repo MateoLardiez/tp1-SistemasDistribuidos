@@ -97,8 +97,8 @@ class FilterByYear:
             if self.filter_by_year(line, year_filter, year_pos):
                 filtered_lines.append(line)
                 
+        query_result = []
         if filtered_lines:
-            query_result = []
             # Entradas
             # Q1: [title, genres, release_date]
             # Q3: [id, title, release_date]
@@ -107,7 +107,6 @@ class FilterByYear:
             # Q1: [title, genres]
             # Q3: [id, title]
             # Q4: [id]
-            
             if query_number == QueryNumber.QUERY_1:
                 for line in filtered_lines:
                     query_result.append([line[0], line[1]])
@@ -117,28 +116,28 @@ class FilterByYear:
             elif query_number == QueryNumber.QUERY_4:
                 for line in filtered_lines:
                     query_result.append([line[0]])
-                
-            # Join all filtered lines into a single CSV string
-            result_csv = MiddlewareMessage.write_csv_batch(query_result)            
-            msg = MiddlewareMessage(
-                query_number=query_number,
-                client_id=client_id,
-                type=MiddlewareMessageType.MOVIES_BATCH,
-                payload=result_csv
-            )
 
-            if query_number == QueryNumber.QUERY_1:
-                self.filter_by_year_connection.send_message(
-                    routing_key="sink_query_1_queue",
-                    msg_body=msg.encode_to_str()
-                )
-            elif query_number == QueryNumber.QUERY_3:
-                self.filter_by_year_connection.send_message(
-                    routing_key="joiner_by_ratings_movies_queue",
-                    msg_body=msg.encode_to_str()
-                )
-            elif query_number == QueryNumber.QUERY_4:
-                self.filter_by_year_connection.send_message(
-                    routing_key="joiner_by_credits_movies_queue",
-                    msg_body=msg.encode_to_str()
-                )
+        # Join all filtered lines into a single CSV string
+        result_csv = MiddlewareMessage.write_csv_batch(query_result)            
+        msg = MiddlewareMessage(
+            query_number=query_number,
+            client_id=client_id,
+            type=MiddlewareMessageType.MOVIES_BATCH,
+            payload=result_csv
+        )
+
+        if query_number == QueryNumber.QUERY_1:
+            self.filter_by_year_connection.send_message(
+                routing_key="sink_query_1_queue",
+                msg_body=msg.encode_to_str()
+            )
+        elif query_number == QueryNumber.QUERY_3:
+            self.filter_by_year_connection.send_message(
+                routing_key="joiner_by_ratings_movies_queue",
+                msg_body=msg.encode_to_str()
+            )
+        elif query_number == QueryNumber.QUERY_4:
+            self.filter_by_year_connection.send_message(
+                routing_key="joiner_by_credits_movies_queue",
+                msg_body=msg.encode_to_str()
+            )

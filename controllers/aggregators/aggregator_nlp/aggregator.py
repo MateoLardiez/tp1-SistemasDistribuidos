@@ -31,7 +31,7 @@ class AggregatorNlp:
 
     def callback(self, ch, method, properties, body):
         data = MiddlewareMessage.decode_from_bytes(body)
-        logging.info(f"Entro al callback con data, AGGREGATOR NLP")
+        # logging.info(f"Entro al callback con data, AGGREGATOR NLP")
 
         if data.type != MiddlewareMessageType.EOF_MOVIES:
             lines = data.get_batch_iter_from_payload()
@@ -89,18 +89,18 @@ class AggregatorNlp:
                 # Agregar el valor de sentimiento o POSITIVE o NEGATIVE a la linea
                 filtered_lines.append(filtered_line)
 
-        if filtered_lines:
+        # if filtered_lines:
             # Create a CSV string from the filtered lines
             # Join all filtered lines into a single CSV string
-            result_csv = MiddlewareMessage.write_csv_batch(filtered_lines)            
-            msg = MiddlewareMessage(
-                query_number=query_number,
-                client_id=client_id,
-                type=MiddlewareMessageType.MOVIES_BATCH,
-                payload=result_csv
-            )
-            self.aggregator_nlp_connection.send_message(
-                routing_key="aggregated_nlp_data_queue",
-                msg_body=msg.encode_to_str()
-            )
+        result_csv = MiddlewareMessage.write_csv_batch(filtered_lines)            
+        msg = MiddlewareMessage(
+            query_number=query_number,
+            client_id=client_id,
+            type=MiddlewareMessageType.MOVIES_BATCH,
+            payload=result_csv
+        )
+        self.aggregator_nlp_connection.send_message(
+            routing_key="aggregated_nlp_data_queue",
+            msg_body=msg.encode_to_str()
+        )
         

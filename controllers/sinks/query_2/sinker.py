@@ -50,24 +50,24 @@ class Query2:
                 report_lines[country] = 0
             report_lines[country] += int(line[1])
 
-        if report_lines:
+        # if report_lines:
             # Sort the dictionary by descending value and get the top 5
-            sorted_report_lines = sorted(report_lines.items(), key=lambda x: x[1], reverse=True)[:5]
-            sorted_report_lines = [[country, revenue] for country, revenue in sorted_report_lines]
-            result_csv = MiddlewareMessage.write_csv_batch(sorted_report_lines)
-            
-            msg = MiddlewareMessage(
-                query_number=query_number,
-                client_id=client_id,
-                type=MiddlewareMessageType.RESULT_Q2,
-                payload=result_csv
-            )
+        sorted_report_lines = sorted(report_lines.items(), key=lambda x: x[1], reverse=True)[:5]
+        sorted_report_lines = [[country, revenue] for country, revenue in sorted_report_lines]
+        result_csv = MiddlewareMessage.write_csv_batch(sorted_report_lines)
+        
+        msg = MiddlewareMessage(
+            query_number=query_number,
+            client_id=client_id,
+            type=MiddlewareMessageType.RESULT_Q2,
+            payload=result_csv
+        )
 
-            # Send all filtered results in a single message
-            self.query_2_connection.send_message(
-                routing_key="reports_queue",
-                msg_body=msg.encode_to_str()
-            )
+        # Send all filtered results in a single message
+        self.query_2_connection.send_message(
+            routing_key="reports_queue",
+            msg_body=msg.encode_to_str()
+        )
                 
     def save_data(self, client_id, lines) -> None:
         # logging.info(f"LINEA PARA GUARDAR: {lines}")

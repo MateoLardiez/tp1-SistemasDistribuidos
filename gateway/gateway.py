@@ -390,6 +390,7 @@ class Gateway:
         function returns True if the result query was sent successfully
         or False if there was an error
         """
+        logging.info(f"Entro a enviar QUERY: {type_query}, con data {result_query}")
         msg = MessageProtocol(
             idClient=client_id,
             typeMessage=type_query,

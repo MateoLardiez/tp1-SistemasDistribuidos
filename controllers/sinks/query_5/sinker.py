@@ -58,11 +58,13 @@ class Query5:
             for sentiment, rates in sentiment_groups.items()
         }
 
-        q5_answer = [
-            ["sentiment", "average_rate"],
-            ["POSITIVE", average_rate_by_sentiment["POSITIVE"]],
-            ["NEGATIVE", average_rate_by_sentiment["NEGATIVE"]]
-        ]
+        q5_answer = []
+        if not average_rate_by_sentiment.is_empty():
+            q5_answer = [
+                ["sentiment", "average_rate"],
+                ["POSITIVE", average_rate_by_sentiment["POSITIVE"]],
+                ["NEGATIVE", average_rate_by_sentiment["NEGATIVE"]]
+            ]
 
         # logging.info(f"QUERY 5: POSITIVE: {q5_answer[1][1]}, NEGATIVE: {q5_answer[2][1]}")
         # Join all filtered lines into a single CSV string

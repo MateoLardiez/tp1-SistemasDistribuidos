@@ -46,13 +46,15 @@ class Query3:
         for line in self.read_data(client_id):
             joined_results.append(line)
 
-        joined_results.sort(key=lambda x: x[1])
 
-        worst_rating_movie = joined_results[0]
-        best_rating_movie = joined_results[-1]
-        logging.info(f"Best movie: {best_rating_movie}, Worst movie: {worst_rating_movie}")
+        q3_answer = []
+        if joined_results:
+            joined_results.sort(key=lambda x: x[1])
 
-        q3_answer = [best_rating_movie, worst_rating_movie]
+            worst_rating_movie = joined_results[0]
+            best_rating_movie = joined_results[-1]
+            logging.info(f"Best movie: {best_rating_movie}, Worst movie: {worst_rating_movie}")
+            q3_answer = [best_rating_movie, worst_rating_movie]
         # Join all filtered lines into a single CSV string
         result_csv = MiddlewareMessage.write_csv_batch(q3_answer) # NO ASI
         

@@ -45,20 +45,20 @@ class Query1:
         for line in lines:
             filtered_lines.append([line[TITLE], line[GENRES]])
         
-        if filtered_lines:
+        # if filtered_lines:
             # Join all filtered lines into a single CSV string
-            result_csv = MiddlewareMessage.write_csv_batch(filtered_lines)
-            
-            msg = MiddlewareMessage(
-                query_number=query_number,
-                client_id=client_id,
-                type=MiddlewareMessageType.RESULT_Q1,
-                payload=result_csv
-            )
+        result_csv = MiddlewareMessage.write_csv_batch(filtered_lines)
+        
+        msg = MiddlewareMessage(
+            query_number=query_number,
+            client_id=client_id,
+            type=MiddlewareMessageType.RESULT_Q1,
+            payload=result_csv
+        )
 
-            # Send all filtered results in a single message
-            self.query_1_connection.send_message(
-                routing_key="reports_queue",
-                msg_body=msg.encode_to_str()
-            )
+        # Send all filtered results in a single message
+        self.query_1_connection.send_message(
+            routing_key="reports_queue",
+            msg_body=msg.encode_to_str()
+        )
      
