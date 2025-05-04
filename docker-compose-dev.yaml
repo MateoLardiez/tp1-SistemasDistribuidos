@@ -35,6 +35,9 @@ services:
     container_name: movies_preprocessor
     image: movies_preprocessor:latest
     entrypoint: python3 /main.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - WORKERS=3
     networks:
       - testing_net
     depends_on:
@@ -91,6 +94,16 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  filter_by_country_invesment_2:
+    container_name: filter_by_country_invesment_2
+    image: filter_by_country_invesment:latest
+    entrypoint: python3 /main.py
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
   filter_by_year:
     container_name: filter_by_year
     image: filter_by_year:latest
@@ -125,6 +138,8 @@ services:
     container_name: aggregator_nlp_0
     image: aggregator_nlp:latest
     entrypoint: python3 /main.py
+    environment:
+      - WORKER_ID=0
     networks:
       - testing_net
     depends_on:
@@ -135,6 +150,20 @@ services:
     container_name: aggregator_nlp_1
     image: aggregator_nlp:latest
     entrypoint: python3 /main.py
+    environment:
+      - WORKER_ID=1
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  aggregator_nlp_2:
+    container_name: aggregator_nlp_2
+    image: aggregator_nlp:latest
+    entrypoint: python3 /main.py
+    environment:
+      - WORKER_ID=2
     networks:
       - testing_net
     depends_on:
@@ -209,9 +238,9 @@ services:
       - CLI_ID=1
     volumes:
       - ./client/config.yaml:/config.yaml:ro
-      - ./.data/movies_sample.csv:/movies.csv:ro
-      - ./.data/ratings_sample.csv:/ratings.csv:ro
-      - ./.data/credits_sample.csv:/credits.csv:ro
+      - ./.data/movies_sample_sucio_copy.csv:/movies.csv:ro
+      - ./.data/ratings_sample_sucio.csv:/ratings.csv:ro
+      - ./.data/credits_sample_sucio.csv:/credits.csv:ro
     networks:
       - testing_net
     depends_on:

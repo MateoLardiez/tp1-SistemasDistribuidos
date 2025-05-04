@@ -27,11 +27,11 @@ class MoviesPreprocessor:
             producer_queues_to_bind={
                 "cleaned_movies_queue_country": ["cleaned_movies_queue_country"],
                 "cleaned_movies_queue_country_invesment": ["cleaned_movies_queue_country_invesment"],
-                "cleaned_movies_queue_nlp": ["cleaned_movies_queue_nlp"],
+                "cleaned_movies_queue_nlp": ["cleaned_movies_queue_nlp"]
             },
             consumer_exchange_name="gateway_exchange",
             consumer_queues_to_recv_from=["movies_queue"]
-        )        
+        )
         # Configurar el callback para la cola específica
         self.movies_preprocessor_connection.set_message_consumer_callback("movies_queue", self.callback)
 

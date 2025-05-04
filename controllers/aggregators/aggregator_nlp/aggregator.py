@@ -24,6 +24,7 @@ class AggregatorNlp:
             consumer_queues_to_recv_from=["cleaned_movies_queue_nlp"]
         )
         self.aggregator_nlp_connection.set_message_consumer_callback("cleaned_movies_queue_nlp", self.callback)
+        self.sentiment_analyzer = pipeline('sentiment-analysis', model='distilbert-base-uncased-finetuned-sst-2-english')
 
     def start(self):
         logging.info("action: start | result: success | code: aggregator_nlp")
@@ -31,13 +32,11 @@ class AggregatorNlp:
 
     def callback(self, ch, method, properties, body):
         data = MiddlewareMessage.decode_from_bytes(body)
-        # logging.info(f"Entro al callback con data, AGGREGATOR NLP")
 
         if data.type != MiddlewareMessageType.EOF_MOVIES:
             lines = data.get_batch_iter_from_payload()
-            self.handler_aggregator_query_5(lines, data.client_id, data.query_number)     
+            self.handler_aggregator_query_5(lines, data.client_id, data.query_number)
         else:
-            logging.info("Received EOF_MOVIES message, stopping consumption.")
             msg = MiddlewareMessage(
                 query_number=data.query_number,
                 client_id=data.client_id,
@@ -48,7 +47,6 @@ class AggregatorNlp:
                 routing_key="aggregated_nlp_data_queue",
                 msg_body=msg.encode_to_str()
             )
-
 
     def aggregator_nlp(self, movie):
         if (not movie[OVERVIEW]):
@@ -62,15 +60,12 @@ class AggregatorNlp:
         except (ValueError, TypeError):
             return False, 0
 
-
-        sentiment_analyzer = pipeline('sentiment-analysis', model='distilbert-base-uncased-finetuned-sst-2-english')
-
         text = movie[OVERVIEW]
         
         try:
             truncated_text = text[:512]
             
-            result = sentiment_analyzer(truncated_text)[0]  # Ej: {'label': 'POSITIVE', 'score': 0.998}
+            result = self.sentiment_analyzer(truncated_text)[0]  # Ej: {'label': 'POSITIVE', 'score': 0.998}
             
             return True, result['label']
         except (IndexError, ValueError):
@@ -86,12 +81,8 @@ class AggregatorNlp:
                 filtered_line.append(sentiment_value)
                 filtered_line.append(line[BUDGET])
                 filtered_line.append(line[REVENUE])
-                # Agregar el valor de sentimiento o POSITIVE o NEGATIVE a la linea
                 filtered_lines.append(filtered_line)
 
-        # if filtered_lines:
-            # Create a CSV string from the filtered lines
-            # Join all filtered lines into a single CSV string
         result_csv = MiddlewareMessage.write_csv_batch(filtered_lines)            
         msg = MiddlewareMessage(
             query_number=query_number,
@@ -103,4 +94,4 @@ class AggregatorNlp:
             routing_key="aggregated_nlp_data_queue",
             msg_body=msg.encode_to_str()
         )
-        
+

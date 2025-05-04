@@ -219,11 +219,6 @@ class Gateway:
         
 
     def __handle_all_query(self, client_sock):
-        # Create empty files at the beginning
-        # open("movies.csv", 'w').close()
-        # open('ratings.csv', 'w').close()
-        # open('credits.csv', 'w').close()
-
         query_number = ClientCommunication.ALL_QUERYS.value
         while True:
             dto_message = self.receive_message(client_sock)
@@ -390,7 +385,6 @@ class Gateway:
         function returns True if the result query was sent successfully
         or False if there was an error
         """
-        logging.info(f"Entro a enviar QUERY: {type_query}, con data {result_query}")
         msg = MessageProtocol(
             idClient=client_id,
             typeMessage=type_query,

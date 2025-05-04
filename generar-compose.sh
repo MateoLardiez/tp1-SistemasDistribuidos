@@ -51,6 +51,8 @@ add_movies_preprocessor() {
     container_name: movies_preprocessor
     image: movies_preprocessor:latest
     entrypoint: python3 /main.py
+    environment:
+      - PYTHONUNBUFFERED=1
     networks:
       - testing_net
     depends_on:
@@ -260,9 +262,9 @@ add_client() {
       - CLI_ID=1
     volumes:
       - ./client/config.yaml:/config.yaml:ro
-      - ./.data/movies_sample.csv:/movies.csv:ro
-      - ./.data/ratings_sample.csv:/ratings.csv:ro
-      - ./.data/credits_sample.csv:/credits.csv:ro
+      - ./.data/movies_sample_sucio_copy.csv:/movies.csv:ro
+      - ./.data/ratings_sample_sucio.csv:/ratings.csv:ro
+      - ./.data/credits_sample_sucio.csv:/credits.csv:ro
     networks:
       - testing_net
     depends_on:

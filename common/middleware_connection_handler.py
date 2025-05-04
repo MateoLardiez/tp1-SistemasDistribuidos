@@ -16,7 +16,10 @@ class RabbitMQConnectionHandler:
             self.__configure_producer_bindings(producer_exchange_name, producer_queues_to_bind)
         if consumer_exchange_name is not None:
             self.__configure_consumer_queues(consumer_exchange_name, consumer_queues_to_recv_from, secondary_consumer_exchange_name)
-        self.channel.basic_qos(prefetch_count=1)
+        
+        # Aumentar el prefetch_count para permitir que cada worker reciba múltiples mensajes
+        # Esto permite mejor distribución de carga entre los workers
+        self.channel.basic_qos(prefetch_count=1)  # Aumentamos de 1 a 10
         self.channel.confirm_delivery()
 
     def __configure_consumer_queues(self, 
@@ -46,7 +49,22 @@ class RabbitMQConnectionHandler:
     def set_message_consumer_callback(self, 
                                         queue_name: str, 
                                         main_callback: Callable):
-        self.channel.basic_consume(queue=queue_name, on_message_callback=main_callback, auto_ack=True)
+        # Cambiamos auto_ack a False para confirmar manualmente los mensajes
+        self.channel.basic_consume(queue=queue_name, on_message_callback=self._wrap_callback(main_callback), auto_ack=False)
+
+    # Añadimos un wrapper para el callback que confirma el mensaje después de procesarlo
+    def _wrap_callback(self, callback):
+        def wrapped_callback(ch, method, properties, body):
+            try:
+                # Llamamos al callback original
+                callback(ch, method, properties, body)
+                # Confirmamos el mensaje después del procesamiento exitoso
+                ch.basic_ack(delivery_tag=method.delivery_tag)
+            except Exception as e:
+                # En caso de error, rechazamos el mensaje y lo volvemos a encolar
+                ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
+                raise e
+        return wrapped_callback
 
     def start_consuming(self):
         self.channel.start_consuming()
