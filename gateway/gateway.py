@@ -142,31 +142,31 @@ class Gateway:
         if data.type == MiddlewareMessageType.RESULT_Q1:
             logging.info(f"action: receive_response_query_1 | result: success | code: {data.type}")
             for line in lines:
-                logging.info(f"action: response_query_1 | line: {line}")
+                logging.info(f"action: response_query_1 | client: {data.client_id} | line: {line}")
                 result_query.append(line)
             self.send_result_query(MiddlewareMessage.write_csv_batch(result_query), ClientCommunication.RESULT_QUERY_1 , data.client_id)
         elif data.type == MiddlewareMessageType.RESULT_Q2:            
             logging.info(f"action: receive_response_query_2 | result: success | code: {data.type}")
             for line in lines:
-                logging.info(f"action: response_query_2 | line: {line}")
+                logging.info(f"action: response_query_2 | client: {data.client_id} | line: {line}")
                 result_query.append(line)
             self.send_result_query(MiddlewareMessage.write_csv_batch(result_query), ClientCommunication.RESULT_QUERY_2 , data.client_id)
         elif data.type == MiddlewareMessageType.RESULT_Q3:            
             logging.info(f"action: receive_response_query_3 | result: success | code: {data.type}")
             for line in lines:
-                logging.info(f"action: response_query_3 | line: {line}")
+                logging.info(f"action: response_query_3 | client: {data.client_id} | line: {line}")
                 result_query.append(line)
             self.send_result_query(MiddlewareMessage.write_csv_batch(result_query), ClientCommunication.RESULT_QUERY_3 , data.client_id)
         elif data.type == MiddlewareMessageType.RESULT_Q4:            
             logging.info(f"action: receive_response_query_4 | result: success | code: {data.type}")
             for line in lines:
-                logging.info(f"action: response_query_4 | line: {line}")
+                logging.info(f"action: response_query_4 | client: {data.client_id} | line: {line}")
                 result_query.append(line)
             self.send_result_query(MiddlewareMessage.write_csv_batch(result_query), ClientCommunication.RESULT_QUERY_4 , data.client_id)
         elif data.type == MiddlewareMessageType.RESULT_Q5:
             logging.info(f"action: receive_response_query_5 | result: success | code: {data.type}")
             for line in lines:
-                logging.info(f"action: response_query_5 | line: {line}")
+                logging.info(f"action: response_query_5 | client: {data.client_id} | line: {line}")
                 result_query.append(line)
             self.send_result_query(MiddlewareMessage.write_csv_batch(result_query), ClientCommunication.RESULT_QUERY_5 , data.client_id)
         elif data.type == MiddlewareMessageType.EOF_RESULT_Q1:

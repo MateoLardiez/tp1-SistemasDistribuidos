@@ -27,7 +27,7 @@ class FilterByCountryInvesment:
         data = MiddlewareMessage.decode_from_bytes(body)
         if data.type != MiddlewareMessageType.EOF_MOVIES:
             lines = data.get_batch_iter_from_payload()
-            self.handler_filter(lines)
+            self.handler_filter(lines, data.client_id, data.query_number)
         else:
             logging.info(f"END OF FILE INVESMENT")
             msg = MiddlewareMessage(
@@ -54,7 +54,7 @@ class FilterByCountryInvesment:
             return True
         return False
 
-    def handler_filter(self, lines):
+    def handler_filter(self, lines, client_id, query_number):
         filtered_lines = []
         for line in lines:
             if self.filter_by_country_invesment(line):
@@ -64,8 +64,8 @@ class FilterByCountryInvesment:
         # if filtered_lines:
         result_csv = MiddlewareMessage.write_csv_batch(filtered_lines)
         msg = MiddlewareMessage(
-                query_number=1,
-                client_id=1,
+                query_number=query_number,
+                client_id=client_id,
                 type=MiddlewareMessageType.MOVIES_BATCH,
                 payload=result_csv
             )

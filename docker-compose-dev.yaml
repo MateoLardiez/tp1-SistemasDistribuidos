@@ -8,6 +8,7 @@ services:
     networks:
       - testing_net
     ports:
+      - "15672:15672"
       - "5672:5672"
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
@@ -37,27 +38,54 @@ services:
     entrypoint: python3 /main.py
     environment:
       - PYTHONUNBUFFERED=1
-      - WORKERS=3
     networks:
       - testing_net
     depends_on:
       rabbitmq:
         condition: service_healthy
 
-  ratings_preprocessor:
-    container_name: ratings_preprocessor
+  ratings_preprocessor_0:
+    container_name: ratings_preprocessor_0
     image: ratings_preprocessor:latest
     entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=3
     networks:
       - testing_net
     depends_on:
       rabbitmq:
         condition: service_healthy
 
-  credits_preprocessor:
-    container_name: credits_preprocessor
+  ratings_preprocessor_1:
+    container_name: ratings_preprocessor_1
+    image: ratings_preprocessor:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=3
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  ratings_preprocessor_2:
+    container_name: ratings_preprocessor_2
+    image: ratings_preprocessor:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=3
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  credits_preprocessor_0:
+    container_name: credits_preprocessor_0
     image: credits_preprocessor:latest
     entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=3
     networks:
       - testing_net
     depends_on:
@@ -108,26 +136,86 @@ services:
     container_name: filter_by_year
     image: filter_by_year:latest
     entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=3
     networks:
       - testing_net
     depends_on:
       rabbitmq:
         condition: service_healthy
 
-  joiner_rating_by_id:
-    container_name: joiner_rating_by_id
+  joiner_rating_by_id_0:
+    container_name: joiner_rating_by_id_0
     image: joiner_rating_by_id:latest
     entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=3
+      - WORKER_ID=0
     networks:
       - testing_net
     depends_on:
       rabbitmq:
         condition: service_healthy
 
-  joiner_credit_by_id:
-    container_name: joiner_credit_by_id
+  joiner_rating_by_id_1:
+    container_name: joiner_rating_by_id_1
+    image: joiner_rating_by_id:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=3
+      - WORKER_ID=1
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  joiner_rating_by_id_2:
+    container_name: joiner_rating_by_id_2
+    image: joiner_rating_by_id:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=3
+      - WORKER_ID=2
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  joiner_credit_by_id_0:
+    container_name: joiner_credit_by_id_0
     image: joiner_credit_by_id:latest
     entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=3
+      - WORKER_ID=0
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  joiner_credit_by_id_1:
+    container_name: joiner_credit_by_id_1
+    image: joiner_credit_by_id:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=3
+      - WORKER_ID=1
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  joiner_credit_by_id_2:
+    container_name: joiner_credit_by_id_2
+    image: joiner_credit_by_id:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=3
+      - WORKER_ID=2
     networks:
       - testing_net
     depends_on:
@@ -138,8 +226,6 @@ services:
     container_name: aggregator_nlp_0
     image: aggregator_nlp:latest
     entrypoint: python3 /main.py
-    environment:
-      - WORKER_ID=0
     networks:
       - testing_net
     depends_on:
@@ -150,8 +236,6 @@ services:
     container_name: aggregator_nlp_1
     image: aggregator_nlp:latest
     entrypoint: python3 /main.py
-    environment:
-      - WORKER_ID=1
     networks:
       - testing_net
     depends_on:
@@ -162,8 +246,6 @@ services:
     container_name: aggregator_nlp_2
     image: aggregator_nlp:latest
     entrypoint: python3 /main.py
-    environment:
-      - WORKER_ID=2
     networks:
       - testing_net
     depends_on:
@@ -230,8 +312,8 @@ services:
       rabbitmq:
         condition: service_healthy
   
-  client1:
-    container_name: client1
+  client0:
+    container_name: client0
     image: client:latest
     entrypoint: /client
     environment:
@@ -246,7 +328,7 @@ services:
     depends_on:
       gateway:
         condition: service_started
-
+  
 networks:
   testing_net:
     ipam:

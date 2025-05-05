@@ -11,23 +11,23 @@ class JoinerByRatingId:
     year: int
     data: object
 
-    def __init__(self):
+    def __init__(self, id_worker, number_workers):
         self.joiner_by_rating_id_connection = RabbitMQConnectionHandler(
             producer_exchange_name="joiner_by_rating_id_exchange",
             producer_queues_to_bind={
                 "average_rating_aggregated": ["average_rating_aggregated"],
             },
             consumer_exchange_name="filter_by_year_exchange",
-            consumer_queues_to_recv_from=["joiner_by_ratings_movies_queue", "joiner_ratings_by_id_queue"],
+            consumer_queues_to_recv_from=[f"joiner_by_ratings_movies_queue_{id_worker}", f"joiner_ratings_by_id_queue_{id_worker}"],
             secondary_consumer_exchange_name="ratings_preprocessor_exchange",
         )
         
         # Diccionario para almacenar el estado por cliente
         self.client_state = {}  # {client_id: {"movies_eof": bool, "ratings_eof": bool}}
-        
+        self.number_workers = number_workers
         # Configurar callbacks para ambas colas
-        self.joiner_by_rating_id_connection.set_message_consumer_callback("joiner_by_ratings_movies_queue", self.movies_callback)
-        self.joiner_by_rating_id_connection.set_message_consumer_callback("joiner_ratings_by_id_queue", self.ratings_callback)
+        self.joiner_by_rating_id_connection.set_message_consumer_callback(f"joiner_by_ratings_movies_queue_{id_worker}", self.movies_callback)
+        self.joiner_by_rating_id_connection.set_message_consumer_callback(f"joiner_ratings_by_id_queue_{id_worker}", self.ratings_callback)
 
 
     def start(self):
@@ -88,9 +88,8 @@ class JoinerByRatingId:
             
         movies_eof = self.client_state[client_id]["movies_eof"] 
         ratings_eof = self.client_state[client_id]["ratings_eof"]
-                
+        
         if movies_eof and ratings_eof:
-            
             # # Procesar los datos de movies y ratings para este cliente
             movies_filename = f"movies-client-{client_id}"
             ratings_filename = f"ratings-client-{client_id}"

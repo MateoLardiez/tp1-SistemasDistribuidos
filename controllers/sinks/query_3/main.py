@@ -1,5 +1,6 @@
 import logging
 from sinker import Query3
+import os
 
 def initialize_log(logging_level):
     """
@@ -18,9 +19,10 @@ def initialize_log(logging_level):
     logging.getLogger('pika').setLevel(logging.WARNING)
 
 def main():
+    n_workers = int(os.getenv("N_WORKERS", 1))
     initialize_log("INFO")
 
-    sinker = Query3()
+    sinker = Query3(n_workers)
     sinker.start()
     
 if __name__ == "__main__":

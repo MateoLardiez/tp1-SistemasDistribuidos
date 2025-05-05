@@ -1,6 +1,7 @@
 #!/bin/bash
 
 N_WORKERS=$1
+N_CLIENTS=$2
 
 readonly COMPOSE_FILE="docker-compose-dev.yaml"
 
@@ -18,6 +19,7 @@ add_rabbit_mq() {
     networks:
       - testing_net
     ports:
+      - \"15672:15672\"
       - \"5672:5672\"
     healthcheck:
       test: [\"CMD\", \"rabbitmq-diagnostics\", \"check_port_connectivity\"]
@@ -63,31 +65,37 @@ add_movies_preprocessor() {
 }
 
 add_ratings_preprocessor() {
-    echo "  ratings_preprocessor:
-    container_name: ratings_preprocessor
+  for ((i=0; i<=N_WORKERS-1; i++)); do
+    echo "  ratings_preprocessor_$i:
+    container_name: ratings_preprocessor_$i
     image: ratings_preprocessor:latest
     entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=$N_WORKERS
     networks:
       - testing_net
     depends_on:
       rabbitmq:
         condition: service_healthy
 " >> "$COMPOSE_FILE"
-
+  done
 }
 
 add_credits_preprocessor() {
-    echo "  credits_preprocessor:
-    container_name: credits_preprocessor
+  # for ((i=0; i<=N_WORKERS-1; i++)); do
+    echo "  credits_preprocessor_0:
+    container_name: credits_preprocessor_0
     image: credits_preprocessor:latest
     entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=$N_WORKERS
     networks:
       - testing_net
     depends_on:
       rabbitmq:
         condition: service_healthy
 " >> "$COMPOSE_FILE"
-
+  # done
 }
 
 add_filter_by_country() {
@@ -124,6 +132,8 @@ add_filter_by_year() {
     container_name: filter_by_year
     image: filter_by_year:latest
     entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=$N_WORKERS
     networks:
       - testing_net
     depends_on:
@@ -133,29 +143,39 @@ add_filter_by_year() {
 }
 
 add_joiner_rating_by_id() {
-    echo "  joiner_rating_by_id:
-    container_name: joiner_rating_by_id
+  for ((i=0; i<=N_WORKERS-1; i++)); do
+    echo "  joiner_rating_by_id_$i:
+    container_name: joiner_rating_by_id_$i
     image: joiner_rating_by_id:latest
     entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=$N_WORKERS
+      - WORKER_ID=$i
     networks:
       - testing_net
     depends_on:
       rabbitmq:
         condition: service_healthy
 " >> "$COMPOSE_FILE"
+  done
 }
 
 add_joiner_credit_by_id() {
-    echo "  joiner_credit_by_id:
-    container_name: joiner_credit_by_id
+  for ((i=0; i<=N_WORKERS-1; i++)); do
+    echo "  joiner_credit_by_id_$i:
+    container_name: joiner_credit_by_id_$i
     image: joiner_credit_by_id:latest
     entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=$N_WORKERS
+      - WORKER_ID=$i
     networks:
       - testing_net
     depends_on:
       rabbitmq:
         condition: service_healthy
 " >> "$COMPOSE_FILE"
+  done
 }
 
 
@@ -254,12 +274,13 @@ add_sinker_q5() {
 }
 
 add_client() {
-    echo "  client1:
-    container_name: client1
+  for ((i=0; i<=N_CLIENTS-1; i++)); do
+    echo "  client$i:
+    container_name: client$i
     image: client:latest
     entrypoint: /client
     environment:
-      - CLI_ID=1
+      - CLI_ID=$((i+1))
     volumes:
       - ./client/config.yaml:/config.yaml:ro
       - ./.data/movies_sample_sucio_copy.csv:/movies.csv:ro
@@ -270,8 +291,8 @@ add_client() {
     depends_on:
       gateway:
         condition: service_started
-" >> "$COMPOSE_FILE"
-
+  " >> "$COMPOSE_FILE"
+  done
 }
 
 add_networks() {
@@ -290,6 +311,16 @@ check_params() {
         exit 1
     fi
 
+    if [ -z "$N_CLIENTS" ]; then
+        echo "Usage: $0 <number_of_workers> <number_of_clients>"
+        exit 1
+    fi
+
+    if ! [[ "$N_CLIENTS" =~ ^[0-9]+$ ]]; then
+        echo "Error: <number_of_clients> must be a positive integer."
+        exit 1
+    fi
+
     if ! [[ "$N_WORKERS" =~ ^[0-9]+$ ]]; then
         echo "Error: <number_of_workers> must be a positive integer."
         exit 1
@@ -297,6 +328,11 @@ check_params() {
 
     if [ "$N_WORKERS" -lt 1 ]; then
         echo "Error: <number_of_workers> must be at least 1."
+        exit 1
+    fi
+
+    if [ "$N_CLIENTS" -lt 1 ]; then
+        echo "Error: <number_of_clients> must be at least 1."
         exit 1
     fi
 }

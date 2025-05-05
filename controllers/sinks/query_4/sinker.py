@@ -5,7 +5,7 @@ import csv
 
 class Query4:
 
-    def __init__(self):
+    def __init__(self, number_workers):
         self.query_4_connection = RabbitMQConnectionHandler(
             producer_exchange_name="reports_exchange",
             producer_queues_to_bind={"reports_queue": ["reports_queue"]},
@@ -13,6 +13,8 @@ class Query4:
             consumer_queues_to_recv_from=["average_credit_aggregated"]
         )
         self.query_4_connection.set_message_consumer_callback("average_credit_aggregated", self.callback)
+        self.number_workers = number_workers
+        self.client_state = {}
 
     def start(self):
         logging.info("action: start | result: success | code: Sink_query_4 ")
@@ -27,18 +29,25 @@ class Query4:
             self.save_data(data.client_id, lines)
         else:
             logging.info("action: EOF | result: success | code: sinker_query_4")
-            self.handler_query_4(data.client_id, data.query_number)
-            # Handle EOF message
-            msg = MiddlewareMessage(
-                query_number=data.query_number,
-                client_id=data.client_id,
-                type=MiddlewareMessageType.EOF_RESULT_Q4,
-                payload="EOF"
-            )
-            self.query_4_connection.send_message(
-                routing_key="reports_queue",
-                msg_body=msg.encode_to_str()
-            )
+
+            if not data.client_id in self.client_state:
+                # If we don't have the client_id in the state, we need to initialize it
+                self.client_state[data.client_id] = {"eof_amount": 0}
+            self.client_state[data.client_id]["eof_amount"] += 1
+            # Check if we have received all EOF messages
+            if self.client_state[data.client_id]["eof_amount"] == self.number_workers:
+                self.handler_query_4(data.client_id, data.query_number)
+                # Handle EOF message
+                msg = MiddlewareMessage(
+                    query_number=data.query_number,
+                    client_id=data.client_id,
+                    type=MiddlewareMessageType.EOF_RESULT_Q4,
+                    payload="EOF"
+                )
+                self.query_4_connection.send_message(
+                    routing_key="reports_queue",
+                    msg_body=msg.encode_to_str()
+                )
 
     def handler_query_4(self, client_id, query_number):
         # Ya tengo toda la data en mi csv

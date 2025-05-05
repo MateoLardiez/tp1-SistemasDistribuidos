@@ -1,5 +1,6 @@
 from preprocessor import RatingsPreprocessor
 import logging
+import os
 
 def initialize_log(logging_level):
     """
@@ -18,9 +19,10 @@ def initialize_log(logging_level):
     logging.getLogger('pika').setLevel(logging.WARNING)
 
 def main():
+    numberWorkers = int(os.getenv("N_WORKERS", 1))
     initialize_log("INFO")
 
-    preprocessorRatings = RatingsPreprocessor()
+    preprocessorRatings = RatingsPreprocessor(numberWorkers)
     preprocessorRatings.start()
     
 if __name__ == "__main__":

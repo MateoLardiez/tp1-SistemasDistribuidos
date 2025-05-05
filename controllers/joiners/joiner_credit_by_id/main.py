@@ -1,5 +1,6 @@
 from joiner import JoinerByCreditId
 import logging
+import os
 
 def initialize_log(logging_level):
     """
@@ -18,9 +19,11 @@ def initialize_log(logging_level):
     logging.getLogger('pika').setLevel(logging.WARNING)
 
 def main():
+    n_workers = int(os.getenv("N_WORKERS"))
+    id_worker = int(os.getenv("WORKER_ID"))
     initialize_log("INFO")
 
-    joinerCredit = JoinerByCreditId()
+    joinerCredit = JoinerByCreditId(id_worker, n_workers)
     joinerCredit.start()
     
 if __name__ == "__main__":

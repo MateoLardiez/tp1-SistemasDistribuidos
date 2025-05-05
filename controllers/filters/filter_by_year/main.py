@@ -1,5 +1,6 @@
 from filter import FilterByYear
 import logging
+import os
 
 def initialize_log(logging_level):
     """
@@ -18,9 +19,10 @@ def initialize_log(logging_level):
     logging.getLogger('pika').setLevel(logging.WARNING)
 
 def main():
+    number_workers = int(os.getenv("N_WORKERS", 1))
     initialize_log("INFO")
 
-    filter = FilterByYear()
+    filter = FilterByYear(number_workers)
     filter.start()
     
 if __name__ == "__main__":
