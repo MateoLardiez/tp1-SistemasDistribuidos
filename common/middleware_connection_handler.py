@@ -27,9 +27,9 @@ class RabbitMQConnectionHandler:
                               consumer_queues_to_recv_from: list[str],
                               secondary_consumer_exchange_name: str | None = None
                               ):
-        self.channel.exchange_declare(exchange=consumer_exchange_name, exchange_type='topic')
+        self.channel.exchange_declare(exchange=consumer_exchange_name, exchange_type='direct')
         if secondary_consumer_exchange_name is not None:
-            self.channel.exchange_declare(exchange=secondary_consumer_exchange_name, exchange_type='topic')
+            self.channel.exchange_declare(exchange=secondary_consumer_exchange_name, exchange_type='direct')
         for queue_name in consumer_queues_to_recv_from:
             self.channel.queue_declare(queue=queue_name, durable=True)
     
@@ -39,7 +39,7 @@ class RabbitMQConnectionHandler:
                                producer_queues_to_bind: dict[str,list[str]]
                                ):
         self.producer_exchange_name = producer_exchange_name
-        self.channel.exchange_declare(exchange=producer_exchange_name, exchange_type='topic')
+        self.channel.exchange_declare(exchange=producer_exchange_name, exchange_type='direct')
         for queue_name, binding_keys in producer_queues_to_bind.items():
             self.channel.queue_declare(queue=queue_name, durable=True)
             for binding_key in binding_keys:
