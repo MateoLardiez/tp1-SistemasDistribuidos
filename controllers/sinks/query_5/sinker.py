@@ -40,8 +40,6 @@ class Query5:
                 self.clients_processed[data.client_id]["seq_number"] = data.seq_number
             if self.clients_processed[data.client_id]["eof"] and self.clients_processed[data.client_id]["seq_number"] - self.clients_processed[data.client_id]["batch_recibidos"] == 0:
                 # Si ya se recibió el EOF, no procesamos más mensajes
-                logging.info(f"action: EOF_ | result: success | code: sinker_query_5")
-                logging.info(f"CANTIDAD DE BATCHES RECIBIDOS_: {self.clients_processed[data.client_id]['batch_recibidos']}")
                 self.handler_query_5(data.client_id, data.query_number)
 
                 msg = MiddlewareMessage(
@@ -58,8 +56,6 @@ class Query5:
             # nos quedamos con el seq number mas grande
         else:
             if data.seq_number-1 - self.clients_processed[data.client_id]["batch_recibidos"] == 0:
-                logging.info(f"action: EOF | result: success | code: sinker_query_5")
-                logging.info(f"CANTIDAD DE BATCHES: {self.clients_processed[data.client_id]['batch_recibidos']}")
                 
                 self.handler_query_5(data.client_id, data.query_number)
                 msg = MiddlewareMessage(
@@ -74,7 +70,6 @@ class Query5:
                     msg_body=msg.encode_to_str()
                 )
             else:
-                logging.info(f"action: EOF_DATA FALTANTE | result: success | code: sinker_query_5 | batches recibidos: {self.clients_processed[data.client_id]['batch_recibidos']} | seq_number: {data.seq_number}")
                 self.clients_processed[data.client_id]["eof"] = True
                 self.clients_processed[data.client_id]["seq_number"] = data.seq_number
                 self.clients_processed[data.client_id]["batch_recibidos"] += 1

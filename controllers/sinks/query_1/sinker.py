@@ -32,14 +32,11 @@ class Query1:
                     "batch_recibidos": 0
                 }
             lines = data.get_batch_iter_from_payload()
-            self.handler_query_1(lines, data.client_id, data.query_number)
             self.clients_processed[data.client_id]["batch_recibidos"] += 1
             if data.seq_number > self.clients_processed[data.client_id]["seq_number"]:
                 self.clients_processed[data.client_id]["seq_number"] = data.seq_number
             if self.clients_processed[data.client_id]["eof"] and self.clients_processed[data.client_id]["seq_number"] - self.clients_processed[data.client_id]["batch_recibidos"] == 0:
-                logging.info(f"action: EOF_ | result: success | code: sinker_query_1")
-                logging.info(f"CANTIDAD DE BATCHES RECIBIDOS_: {self.clients_processed[data.client_id]['batch_recibidos']}")
-                self.handler_query_1(data.client_id, data.query_number)
+                self.handler_query_1(lines, data.client_id, data.query_number)
 
                 msg = MiddlewareMessage(
                     query_number=data.query_number,
@@ -52,13 +49,12 @@ class Query1:
                     routing_key="reports_queue",
                     msg_body=msg.encode_to_str()
                 )
-            # nos 
+
+            else:
+                self.handler_query_1(lines, data.client_id, data.query_number)
         else:
             if data.seq_number-1 - self.clients_processed[data.client_id]["batch_recibidos"] == 0:
-                logging.info(f"action: EOF | result: success | code: sinker_query_1")
-                logging.info(f"CANTIDAD DE BATCHES: {self.clients_processed[data.client_id]['batch_recibidos']}")
                 
-                self.handler_query_1(data.client_id, data.query_number)
                 msg = MiddlewareMessage(
                     query_number=data.query_number,
                     client_id=data.client_id,
@@ -66,12 +62,11 @@ class Query1:
                     type=MiddlewareMessageType.EOF_RESULT_Q1,
                     payload="EOF"
                 )
-                self.query_5_connection.send_message(
+                self.query_1_connection.send_message(
                     routing_key="reports_queue",
                     msg_body=msg.encode_to_str()
                 )
             else:
-                logging.info(f"action: EOF_DATA FALTANTE | result: success | code: sinker_query_1 | batches recibidos: {self.clients_processed[data.client_id]['batch_recibidos']} | seq_number: {data.seq_number}")
                 self.clients_processed[data.client_id]["eof"] = True
                 self.clients_processed[data.client_id]["seq_number"] = data.seq_number
                 self.clients_processed[data.client_id]["batch_recibidos"] += 1
@@ -82,21 +77,21 @@ class Query1:
         for line in lines:
             filtered_lines.append([line[TITLE], line[GENRES]])
         
-        # if filtered_lines:
+        if filtered_lines:
             # Join all filtered lines into a single CSV string
-        result_csv = MiddlewareMessage.write_csv_batch(filtered_lines)
-        
-        msg = MiddlewareMessage(
-            query_number=query_number,
-            client_id=client_id,
-            seq_number=0,
-            type=MiddlewareMessageType.RESULT_Q1,
-            payload=result_csv
-        )
+            result_csv = MiddlewareMessage.write_csv_batch(filtered_lines)
+            
+            msg = MiddlewareMessage(
+                query_number=query_number,
+                client_id=client_id,
+                seq_number=0,
+                type=MiddlewareMessageType.RESULT_Q1,
+                payload=result_csv
+            )
 
-        # Send all filtered results in a single message
-        self.query_1_connection.send_message(
-            routing_key="reports_queue",
-            msg_body=msg.encode_to_str()
-        )
+            # Send all filtered results in a single message
+            self.query_1_connection.send_message(
+                routing_key="reports_queue",
+                msg_body=msg.encode_to_str()
+            )
      

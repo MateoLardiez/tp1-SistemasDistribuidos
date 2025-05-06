@@ -28,13 +28,10 @@ class Query4:
             lines = data.get_batch_iter_from_payload()
             self.save_data(data.client_id, lines)
         else:
-            logging.info("action: EOF | result: success | code: sinker_query_4")
-
-            if not data.client_id in self.client_state:
+            if data.client_id not in self.client_state:
                 # If we don't have the client_id in the state, we need to initialize it
                 self.client_state[data.client_id] = {"eof_amount": 0}
             self.client_state[data.client_id]["eof_amount"] += 1
-            # Check if we have received all EOF messages
             if self.client_state[data.client_id]["eof_amount"] == self.number_workers:
                 self.handler_query_4(data.client_id, data.query_number)
                 # Handle EOF message

@@ -46,7 +46,6 @@ class FilterByYear:
             elif data.query_number == QueryNumber.QUERY_4:
                 self.handler_year_filter(lines, self.year_range_query_4, data.query_number, data.client_id, YEAR_Q4, data.seq_number)
         else:
-            logging.info("action: EOF | result: success | code: filter_by_year")
             msg = MiddlewareMessage(
                 query_number=data.query_number,
                 client_id=data.client_id,

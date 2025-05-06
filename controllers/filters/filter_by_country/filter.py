@@ -44,7 +44,6 @@ class FilterByCountry:
             elif data.query_number == QueryNumber.QUERY_4:
                 self.handler_country_filter(lines, self.countries_query_4, data.client_id, data.query_number, data.seq_number)
         else:
-            logging.info("Received EOF_MOVIES message, stopping consumption.")
             if data.query_number == QueryNumber.ALL_QUERYS:
                 self.handler_eof_all_querys(data)
             else:
@@ -71,8 +70,8 @@ class FilterByCountry:
         for line in lines:
             lines_to_filter.append(line)
 
-        self.handler_country_filter(lines_to_filter, self.countries_query_3, id_client, QueryNumber.QUERY_3, seq_number)
         self.handler_country_filter(lines_to_filter, self.countries_query_1, id_client, QueryNumber.QUERY_1, seq_number)
+        self.handler_country_filter(lines_to_filter, self.countries_query_3, id_client, QueryNumber.QUERY_3, seq_number)
         self.handler_country_filter(lines_to_filter, self.countries_query_4, id_client, QueryNumber.QUERY_4, seq_number)
         
     def handler_country_filter(self, lines, countries_filter, id_client, query_number, seq_number):
@@ -100,7 +99,7 @@ class FilterByCountry:
                 type=MiddlewareMessageType.MOVIES_BATCH,
                 payload=result_csv
             )
-        if query_number == QueryNumber.QUERY_3:
+        elif query_number == QueryNumber.QUERY_3:
             query_result = []
             for line in filtered_lines:
                 query_result.append([line[0], line[1], line[3]])
@@ -112,7 +111,7 @@ class FilterByCountry:
                 type=MiddlewareMessageType.MOVIES_BATCH,
                 payload=result_csv
             )
-        if query_number == QueryNumber.QUERY_4:
+        elif query_number == QueryNumber.QUERY_4:
             query_result = []
             for line in filtered_lines:
                 query_result.append([line[0], line[3]])
@@ -124,11 +123,11 @@ class FilterByCountry:
                 type=MiddlewareMessageType.MOVIES_BATCH,
                 payload=result_csv
             )
-        if result_csv:
-            self.filter_by_country_connection.send_message(
-                routing_key="country_queue",
-                msg_body=msg.encode_to_str()
-            )
+        # if result_csv:
+        self.filter_by_country_connection.send_message(
+            routing_key="country_queue",
+            msg_body=msg.encode_to_str()
+        )
 
     def handler_eof_all_querys(self, data):
         for query_number in [QueryNumber.QUERY_1, QueryNumber.QUERY_3, QueryNumber.QUERY_4]:
@@ -143,4 +142,3 @@ class FilterByCountry:
                 routing_key="country_queue",
                 msg_body=msg.encode_to_str()
             )
-        

@@ -239,6 +239,8 @@ add_sinker_q3() {
     container_name: query_3
     image: query_3:latest
     entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=$N_WORKERS
     networks:
       - testing_net
     depends_on:
@@ -252,6 +254,8 @@ add_sinker_q4() {
     container_name: query_4
     image: query_4:latest
     entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=$N_WORKERS
     networks:
       - testing_net
     depends_on:

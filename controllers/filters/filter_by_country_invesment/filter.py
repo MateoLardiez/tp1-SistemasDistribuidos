@@ -29,7 +29,6 @@ class FilterByCountryInvesment:
             lines = data.get_batch_iter_from_payload()
             self.handler_filter(lines, data.client_id, data.seq_number, data.query_number)
         else:
-            logging.info(f"END OF FILE INVESMENT")
             msg = MiddlewareMessage(
                     query_number=data.query_number,
                     client_id=data.client_id,

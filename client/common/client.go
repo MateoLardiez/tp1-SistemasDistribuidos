@@ -121,15 +121,15 @@ func (c *Client) handleAllQueries() {
 	)
 	err := c.protocol.SendMessage(message)
 	if err != nil {
-		// log.Errorf("action: send_message_code_query | result: fail | client_id: %v | error: %v",
-		// 	c.config.ID,
-		// 	err,
-		// )
+		log.Errorf("action: send_message_code_query | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
 		return
 	}
 	c.SendFile("movies.csv", communication.BATCH_MOVIES, communication.EOF_MOVIES, "movies")
-	c.SendFile("ratings.csv", communication.BATCH_RATINGS, communication.EOF_RATINGS, "ratings")
 	c.SendFile("credits.csv", communication.BATCH_CREDITS, communication.EOF_CREDITS, "credits")
+	c.SendFile("ratings.csv", communication.BATCH_RATINGS, communication.EOF_RATINGS, "ratings")
 	messageFinish := communication.NewMessageProtocol(
 		c.config.ID,
 		communication.FINISH_SEND_FILES,
@@ -157,7 +157,7 @@ func (c *Client) handleResponse() bool {
 			log.Infof("action: Received_result | result: complete | client_id: %v",
 				c.config.ID,
 			)
-			finishedMessages = true
+			finishedMessages = false
 			c.config.Phase = communication.CODE_END
 			break
 		}

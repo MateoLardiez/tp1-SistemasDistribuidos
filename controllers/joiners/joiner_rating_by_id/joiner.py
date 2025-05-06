@@ -37,7 +37,6 @@ class JoinerByRatingId:
     def create_client_state(self, client_id):
         """Obtiene o crea el estado del cliente en el diccionario"""
         if client_id not in self.client_state:
-            logging.info(f"Creando nuevo estado para cliente: {client_id}")
             self.client_state[client_id] = {
                 "movies_eof": False,
                 "ratings_eof": False,

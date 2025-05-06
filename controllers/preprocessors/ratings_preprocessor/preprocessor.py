@@ -48,7 +48,6 @@ class RatingsPreprocessor:
                         msg_body=msg.encode_to_str()
                     )
             else:
-                logging.info("action: EOF | result: success | code: ratings_preprocessor")
                 for i in range(self.numberWorkers):
                     msg = MiddlewareMessage(
                         query_number=data.query_number,

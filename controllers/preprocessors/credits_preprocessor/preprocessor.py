@@ -50,7 +50,6 @@ class CreditsPreprocessor:
                         msg_body=msg.encode_to_str()
                     )
             else:
-                logging.info("EOF message received")
                 for i in range(self.numberWorkers):
                     msg = MiddlewareMessage(
                         query_number=data.query_number,

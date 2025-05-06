@@ -67,7 +67,6 @@ class MoviesPreprocessor:
                     self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_nlp", msg_body=msg.encode_to_str())
 
             else:
-                logging.info(f"END OF FILE MOVIES")
                 msg = MiddlewareMessage(
                             query_number=data.query_number,
                             client_id=data.client_id,

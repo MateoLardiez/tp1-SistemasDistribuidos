@@ -28,7 +28,6 @@ class Query3:
             lines = data.get_batch_iter_from_payload()
             self.save_data(data.client_id, lines)
         else:
-            logging.info("action: EOF | result: success | code: sinker_query_3")
             if not data.client_id in self.client_state:
                 # If we don't have the client_id in the state, we need to initialize it
                 self.client_state[data.client_id] = {"eof_amount": 0}
@@ -62,7 +61,6 @@ class Query3:
 
             worst_rating_movie = joined_results[0]
             best_rating_movie = joined_results[-1]
-            logging.info(f"Best movie: {best_rating_movie}, Worst movie: {worst_rating_movie}")
             q3_answer = [best_rating_movie, worst_rating_movie]
         # Join all filtered lines into a single CSV string
         result_csv = MiddlewareMessage.write_csv_batch(q3_answer) # NO ASI

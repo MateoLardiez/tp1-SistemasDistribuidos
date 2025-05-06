@@ -37,7 +37,6 @@ class JoinerByCreditId:
     def create_client_state(self, client_id):
         """Obtiene o crea el estado del cliente en el diccionario"""
         if client_id not in self.client_state:
-            logging.info(f"Creando nuevo estado para cliente: {client_id}")
             self.client_state[client_id] = {
                 "movies_eof": False,
                 "credits_eof": False,
@@ -146,8 +145,10 @@ class JoinerByCreditId:
                     actors_with_movies[actor].append(movie_id) # actores y cantidad de apariciones
         
         result = []
-        for actor, movies in actors_with_movies.items():
-            result.append([actor, movies])
+        # for actor, movies in actors_with_movies.items():
+        #     result.append([actor, movies])
+        [result.append([actor, movies]) for actor, movies in actors_with_movies.items()]
+        # logging.info(f"RESULTADO JOINER CREDIT: {result}")
         return result
             
     def clean_temp_files(self, client_id):
