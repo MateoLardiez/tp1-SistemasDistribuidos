@@ -41,6 +41,7 @@ class Query4:
                 msg = MiddlewareMessage(
                     query_number=data.query_number,
                     client_id=data.client_id,
+                    seq_number=0,
                     type=MiddlewareMessageType.EOF_RESULT_Q4,
                     payload="EOF"
                 )
@@ -70,6 +71,7 @@ class Query4:
         msg = MiddlewareMessage(
             query_number=query_number,
             client_id=client_id,
+            seq_number=0,
             type=MiddlewareMessageType.RESULT_Q4,
             payload=result_csv
         )

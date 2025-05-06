@@ -36,13 +36,13 @@ class FilterByCountry:
         if data.type != MiddlewareMessageType.EOF_MOVIES:
             lines = data.get_batch_iter_from_payload()
             if data.query_number == QueryNumber.ALL_QUERYS:
-                self.handler_all_query(lines, data.client_id, data.query_number)
+                self.handler_all_query(lines, data.client_id, data.query_number, data.seq_number)
             elif data.query_number == QueryNumber.QUERY_1:
-                self.handler_country_filter(lines, self.countries_query_1, data.client_id, data.query_number)     
+                self.handler_country_filter(lines, self.countries_query_1, data.client_id, data.query_number, data.seq_number)     
             elif data.query_number == QueryNumber.QUERY_3:
-                self.handler_country_filter(lines, self.countries_query_3, data.client_id, data.query_number)
+                self.handler_country_filter(lines, self.countries_query_3, data.client_id, data.query_number, data.seq_number)
             elif data.query_number == QueryNumber.QUERY_4:
-                self.handler_country_filter(lines, self.countries_query_4, data.client_id, data.query_number)
+                self.handler_country_filter(lines, self.countries_query_4, data.client_id, data.query_number, data.seq_number)
         else:
             logging.info("Received EOF_MOVIES message, stopping consumption.")
             if data.query_number == QueryNumber.ALL_QUERYS:
@@ -51,6 +51,7 @@ class FilterByCountry:
                 msg = MiddlewareMessage(
                     query_number=data.query_number,
                     client_id=data.client_id,
+                    seq_number=data.seq_number,
                     type=MiddlewareMessageType.EOF_MOVIES,
                     payload=""
                 )
@@ -65,16 +66,16 @@ class FilterByCountry:
         has_countries = all(country in countries_of_movie for country in country_filter)
         return has_countries
 
-    def handler_all_query(self, lines, id_client, query_number):
+    def handler_all_query(self, lines, id_client, query_number, seq_number):
         lines_to_filter = []
         for line in lines:
             lines_to_filter.append(line)
 
-        self.handler_country_filter(lines_to_filter, self.countries_query_3, id_client, QueryNumber.QUERY_3)
-        self.handler_country_filter(lines_to_filter, self.countries_query_1, id_client, QueryNumber.QUERY_1)
-        self.handler_country_filter(lines_to_filter, self.countries_query_4, id_client, QueryNumber.QUERY_4)
+        self.handler_country_filter(lines_to_filter, self.countries_query_3, id_client, QueryNumber.QUERY_3, seq_number)
+        self.handler_country_filter(lines_to_filter, self.countries_query_1, id_client, QueryNumber.QUERY_1, seq_number)
+        self.handler_country_filter(lines_to_filter, self.countries_query_4, id_client, QueryNumber.QUERY_4, seq_number)
         
-    def handler_country_filter(self, lines, countries_filter, id_client, query_number):
+    def handler_country_filter(self, lines, countries_filter, id_client, query_number, seq_number):
         filtered_lines = []
         for line in lines:
             if self.filter_by_country(line, countries_filter):
@@ -95,6 +96,7 @@ class FilterByCountry:
             msg = MiddlewareMessage(
                 query_number=query_number,
                 client_id=id_client,
+                seq_number=seq_number,
                 type=MiddlewareMessageType.MOVIES_BATCH,
                 payload=result_csv
             )
@@ -106,6 +108,7 @@ class FilterByCountry:
             msg = MiddlewareMessage(
                 query_number=query_number,
                 client_id=id_client,
+                seq_number=seq_number,
                 type=MiddlewareMessageType.MOVIES_BATCH,
                 payload=result_csv
             )
@@ -117,6 +120,7 @@ class FilterByCountry:
             msg = MiddlewareMessage(
                 query_number=query_number,
                 client_id=id_client,
+                seq_number=seq_number,
                 type=MiddlewareMessageType.MOVIES_BATCH,
                 payload=result_csv
             )
@@ -131,6 +135,7 @@ class FilterByCountry:
             msg = MiddlewareMessage(
                 query_number=query_number,
                 client_id=data.client_id,
+                seq_number=data.seq_number,
                 type=MiddlewareMessageType.EOF_MOVIES,
                 payload=""
             )

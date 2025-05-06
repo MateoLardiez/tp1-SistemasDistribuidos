@@ -102,6 +102,7 @@ class JoinerByCreditId:
                 query_number=query_number,
                 client_id=client_id,
                 type=MiddlewareMessageType.MOVIES_BATCH,
+                seq_number=1,
                 payload=result_csv
             )
             self.joiner_by_credit_id_connection.send_message(
@@ -112,7 +113,9 @@ class JoinerByCreditId:
             msg_eof = MiddlewareMessage(
                 query_number=query_number,
                 client_id=client_id,
-                type=MiddlewareMessageType.EOF_JOINER
+                type=MiddlewareMessageType.EOF_JOINER,
+                seq_number=2,
+                payload="" 
             )
             self.joiner_by_credit_id_connection.send_message(
                 routing_key="average_credit_aggregated",

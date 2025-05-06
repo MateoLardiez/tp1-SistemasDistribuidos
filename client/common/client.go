@@ -121,10 +121,10 @@ func (c *Client) handleAllQueries() {
 	)
 	err := c.protocol.SendMessage(message)
 	if err != nil {
-		log.Errorf("action: send_message_code_query | result: fail | client_id: %v | error: %v",
-			c.config.ID,
-			err,
-		)
+		// log.Errorf("action: send_message_code_query | result: fail | client_id: %v | error: %v",
+		// 	c.config.ID,
+		// 	err,
+		// )
 		return
 	}
 	c.SendFile("movies.csv", communication.BATCH_MOVIES, communication.EOF_MOVIES, "movies")

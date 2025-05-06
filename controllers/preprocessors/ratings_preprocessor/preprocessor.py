@@ -39,6 +39,7 @@ class RatingsPreprocessor:
                     msg = MiddlewareMessage(
                         query_number=data.query_number,
                         client_id=data.client_id,
+                        seq_number=data.seq_number,
                         type=MiddlewareMessageType.RATINGS_BATCH,
                         payload=data_csv,
                     )
@@ -52,6 +53,7 @@ class RatingsPreprocessor:
                     msg = MiddlewareMessage(
                         query_number=data.query_number,
                         client_id=data.client_id,
+                        seq_number=data.seq_number,
                         type=MiddlewareMessageType.EOF_RATINGS,
                         payload=""
                     )

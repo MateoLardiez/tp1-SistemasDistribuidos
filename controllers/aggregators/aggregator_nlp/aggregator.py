@@ -21,7 +21,7 @@ class AggregatorNlp:
             producer_exchange_name="aggregator_nlp_exchange",
             producer_queues_to_bind={ "aggregated_nlp_data_queue": ["aggregated_nlp_data_queue"]},
             consumer_exchange_name="movies_preprocessor_exchange",
-            consumer_queues_to_recv_from=["cleaned_movies_queue_nlp"]
+            consumer_queues_to_recv_from=["cleaned_movies_queue_nlp", "movies_queue.eof"]
         )
         self.aggregator_nlp_connection.set_message_consumer_callback("cleaned_movies_queue_nlp", self.callback)
         self.sentiment_analyzer = pipeline('sentiment-analysis', model='distilbert-base-uncased-finetuned-sst-2-english')
@@ -35,12 +35,13 @@ class AggregatorNlp:
 
         if data.type != MiddlewareMessageType.EOF_MOVIES:
             lines = data.get_batch_iter_from_payload()
-            self.handler_aggregator_query_5(lines, data.client_id, data.query_number)
+            self.handler_aggregator_query_5(lines, data.client_id, data.query_number, data.seq_number)
         else:
             msg = MiddlewareMessage(
                 query_number=data.query_number,
                 client_id=data.client_id,
                 type=MiddlewareMessageType.EOF_MOVIES,
+                seq_number=data.seq_number,
                 payload=""
             )
             self.aggregator_nlp_connection.send_message(
@@ -72,7 +73,7 @@ class AggregatorNlp:
             logging.error(f"Invalid release date format for movie: {movie}")
             return False, 0
 
-    def handler_aggregator_query_5(self, lines, client_id, query_number):
+    def handler_aggregator_query_5(self, lines, client_id, query_number, seq_number):
         filtered_lines = []
         for line in lines:
             could_aggregate, sentiment_value = self.aggregator_nlp(line)
@@ -87,6 +88,7 @@ class AggregatorNlp:
         msg = MiddlewareMessage(
             query_number=query_number,
             client_id=client_id,
+            seq_number=seq_number,
             type=MiddlewareMessageType.MOVIES_BATCH,
             payload=result_csv
         )

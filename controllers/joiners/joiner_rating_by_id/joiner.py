@@ -102,6 +102,7 @@ class JoinerByRatingId:
             msg = MiddlewareMessage(
                 query_number=query_number,
                 client_id=client_id,
+                seq_number=1,
                 type=MiddlewareMessageType.MOVIES_BATCH,
                 payload=result_csv
             )
@@ -113,6 +114,7 @@ class JoinerByRatingId:
             msg_eof = MiddlewareMessage(
                 query_number=query_number,
                 client_id=client_id,
+                seq_number=2,
                 type=MiddlewareMessageType.EOF_JOINER
             )
             self.joiner_by_rating_id_connection.send_message(

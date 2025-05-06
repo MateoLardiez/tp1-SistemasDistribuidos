@@ -30,11 +30,12 @@ class AggregatorRB:
         data = MiddlewareMessage.decode_from_bytes(body)
         lines = data.get_batch_iter_from_payload()
         if data.type != MiddlewareMessageType.EOF_MOVIES:
-            self.handler_aggregator_query_5(lines, data.client_id, data.query_number)
+            self.handler_aggregator_query_5(lines, data.client_id, data.seq_number, data.query_number)
         else:
             msg = MiddlewareMessage(
                 query_number=data.query_number,
                 client_id=data.client_id,
+                seq_number=data.seq_number,
                 type=MiddlewareMessageType.EOF_MOVIES,
                 payload=""
             )
@@ -54,7 +55,7 @@ class AggregatorRB:
             logging.error(f"Invalid release date format for movie: {movie}")
             return False, 0
 
-    def handler_aggregator_query_5(self, lines, client_id, query_number):
+    def handler_aggregator_query_5(self, lines, client_id, seq_number, query_number):
         filtered_lines = []
         for line in lines:
             could_aggregate, rate_value = self.aggregator_r_b(line)
@@ -71,6 +72,7 @@ class AggregatorRB:
         msg = MiddlewareMessage(
             query_number=query_number,
             client_id=client_id,
+            seq_number=seq_number,
             type=MiddlewareMessageType.MOVIES_BATCH,
             payload=result_csv
         )

@@ -16,6 +16,7 @@ class Query5:
             consumer_queues_to_recv_from=["aggregated_r_b_data_queue"]
         )
         self.query_5_connection.set_message_consumer_callback("aggregated_r_b_data_queue", self.callback)
+        self.clients_processed = {}
 
     def start(self):
         logging.info("action: start | result: success | code: Sink_query_5 ")
@@ -26,22 +27,58 @@ class Query5:
         data = MiddlewareMessage.decode_from_bytes(body)
 
         if data.type != MiddlewareMessageType.EOF_MOVIES:
+            if data.client_id not in self.clients_processed:
+                self.clients_processed[data.client_id] = {
+                    "eof": False, 
+                    "seq_number": 0, 
+                    "batch_recibidos": 0
+                }
             lines = data.get_batch_iter_from_payload()
             self.save_data(data.client_id, lines)
+            self.clients_processed[data.client_id]["batch_recibidos"] += 1
+            if data.seq_number > self.clients_processed[data.client_id]["seq_number"]:
+                self.clients_processed[data.client_id]["seq_number"] = data.seq_number
+            if self.clients_processed[data.client_id]["eof"] and self.clients_processed[data.client_id]["seq_number"] - self.clients_processed[data.client_id]["batch_recibidos"] == 0:
+                # Si ya se recibió el EOF, no procesamos más mensajes
+                logging.info(f"action: EOF_ | result: success | code: sinker_query_5")
+                logging.info(f"CANTIDAD DE BATCHES RECIBIDOS_: {self.clients_processed[data.client_id]['batch_recibidos']}")
+                self.handler_query_5(data.client_id, data.query_number)
+
+                msg = MiddlewareMessage(
+                    query_number=data.query_number,
+                    client_id=data.client_id,
+                    seq_number=0,
+                    type=MiddlewareMessageType.EOF_RESULT_Q5,
+                    payload="EOF"
+                )
+                self.query_5_connection.send_message(
+                    routing_key="reports_queue",
+                    msg_body=msg.encode_to_str()
+                )
+            # nos quedamos con el seq number mas grande
         else:
-            logging.info("action: EOF | result: success | code: sinker_query_5")
-            self.handler_query_5(data.client_id, data.query_number)
-            # Handle EOF message
-            msg = MiddlewareMessage(
-                query_number=data.query_number,
-                client_id=data.client_id,
-                type=MiddlewareMessageType.EOF_RESULT_Q5,
-                payload="EOF"
-            )
-            self.query_5_connection.send_message(
-                routing_key="reports_queue",
-                msg_body=msg.encode_to_str()
-            )
+            if data.seq_number-1 - self.clients_processed[data.client_id]["batch_recibidos"] == 0:
+                logging.info(f"action: EOF | result: success | code: sinker_query_5")
+                logging.info(f"CANTIDAD DE BATCHES: {self.clients_processed[data.client_id]['batch_recibidos']}")
+                
+                self.handler_query_5(data.client_id, data.query_number)
+                msg = MiddlewareMessage(
+                    query_number=data.query_number,
+                    client_id=data.client_id,
+                    seq_number=0,
+                    type=MiddlewareMessageType.EOF_RESULT_Q5,
+                    payload="EOF"
+                )
+                self.query_5_connection.send_message(
+                    routing_key="reports_queue",
+                    msg_body=msg.encode_to_str()
+                )
+            else:
+                logging.info(f"action: EOF_DATA FALTANTE | result: success | code: sinker_query_5 | batches recibidos: {self.clients_processed[data.client_id]['batch_recibidos']} | seq_number: {data.seq_number}")
+                self.clients_processed[data.client_id]["eof"] = True
+                self.clients_processed[data.client_id]["seq_number"] = data.seq_number
+                self.clients_processed[data.client_id]["batch_recibidos"] += 1
+
 
     def handler_query_5(self, client_id, query_number):
         # Ya tengo toda la data en mi csv
@@ -74,6 +111,7 @@ class Query5:
         msg = MiddlewareMessage(
             query_number=query_number,
             client_id=client_id,
+            seq_number=0,
             type=MiddlewareMessageType.RESULT_Q5,
             payload=result_csv
         )

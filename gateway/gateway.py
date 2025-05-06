@@ -42,6 +42,7 @@ class Gateway:
         self.producer_queue_of_ratings = "ratings_queue"
         self.producer_queue_of_credits = "credits_queue"
         self.publisher_connection = None
+        self.clients_batch_received = {}
 
     def set_signals(self):
         signal.signal(signal.SIGTERM, self.__signal_handler)
@@ -222,7 +223,12 @@ class Gateway:
         query_number = ClientCommunication.ALL_QUERYS.value
         while True:
             dto_message = self.receive_message(client_sock)
-
+            if dto_message.id_client not in self.clients_batch_received:
+                self.clients_batch_received[dto_message.id_client] = {
+                    ClientCommunication.BATCH_MOVIES: 0,
+                    ClientCommunication.BATCH_RATINGS: 0,
+                    ClientCommunication.BATCH_CREDITS: 0
+                }
             if dto_message.type_message == ClientCommunication.BATCH_MOVIES:
                 self.receive_file(client_sock, query_number, dto_message, ClientCommunication.EOF_MOVIES) 
             elif dto_message.type_message == ClientCommunication.BATCH_RATINGS:
@@ -241,20 +247,20 @@ class Gateway:
         function is saved in the specified path
         """
         message = msg
-        lines_received = 0
         # Process the initial message that was passed in first
         while message.type_message != eof_value:
-
+            self.clients_batch_received[message.id_client][message.type_message] += 1
             batchData = message.payload.replace('|', '\n')
             self.send_batch_to_preprocessor(
                 batch=batchData,
                 type_batch=message.type_message,
+                seq_number=self.clients_batch_received[message.id_client][message.type_message],
                 query_number=query_number,
                 client_id=message.id_client
             )
             # self.send_ack(client_sock, message.id_client, ClientCommunication.TYPE_ACK.value,"Batch received")
             message = self.receive_message(client_sock)   
-            lines_received += 1     
+
         self.send_eof_to_preprocessor(message.type_message, query_number, message.id_client)
         return
 
@@ -329,7 +335,7 @@ class Gateway:
                 return None
         return data
 
-    def send_batch_to_preprocessor(self, batch, type_batch, query_number, client_id):
+    def send_batch_to_preprocessor(self, batch, type_batch, seq_number, query_number, client_id):
         batch_type = None
         producer_queue = None
         if type_batch == ClientCommunication.BATCH_MOVIES:
@@ -345,6 +351,7 @@ class Gateway:
         msg = MiddlewareMessage(
             query_number=query_number,
             client_id=client_id,
+            seq_number=seq_number,
             type=batch_type,
             payload=batch
         )
@@ -357,14 +364,18 @@ class Gateway:
     def send_eof_to_preprocessor(self, type_batch, query_number, client_id):
         typeEof = None
         producer_queue = None
+        eof_number = 0
         if type_batch == ClientCommunication.EOF_MOVIES:
             typeEof = MiddlewareMessageType.EOF_MOVIES
+            eof_number = self.clients_batch_received[client_id][ClientCommunication.BATCH_MOVIES] + 1 
             producer_queue = self.producer_queue_of_movies
         elif type_batch == ClientCommunication.EOF_RATINGS:
             typeEof = MiddlewareMessageType.EOF_RATINGS
+            eof_number = self.clients_batch_received[client_id][ClientCommunication.BATCH_RATINGS] + 1 
             producer_queue = self.producer_queue_of_ratings
         elif type_batch == ClientCommunication.EOF_CREDITS:
             typeEof = MiddlewareMessageType.EOF_CREDITS
+            eof_number = self.clients_batch_received[client_id][ClientCommunication.BATCH_CREDITS] + 1
             producer_queue = self.producer_queue_of_credits
 
         self.publisher_connection.send_message(
@@ -372,6 +383,7 @@ class Gateway:
             msg_body=MiddlewareMessage(
                 query_number=query_number,
                 client_id=client_id,
+                seq_number=eof_number,
                 type=typeEof,
                 payload=""
             ).encode_to_str()
@@ -397,17 +409,17 @@ class Gateway:
 
     def start_query_1(self, batch):
         # self.publisher_channel.exchange_declare(exchange='movies', exchange_type='direct')
-        msg = MiddlewareMessage(
-            query_number=0,
-            client_id=1,
-            type=MiddlewareMessageType.MOVIES_BATCH,
-            payload=batch)
-        # Enviar la línea al filtro
-        # logging.info(f"action: send_RabbitMq_message | result: success | message: {batch}")
-        self.publisher_connection.send_message(
-            routing_key=self.producer_queue_of_movies,
-            msg_body=msg.encode_to_str()
-        )
+        # msg = MiddlewareMessage(
+        #     query_number=0,
+        #     client_id=1,
+        #     type=MiddlewareMessageType.MOVIES_BATCH,
+        #     payload=batch)
+        # # Enviar la línea al filtro
+        # # logging.info(f"action: send_RabbitMq_message | result: success | message: {batch}")
+        # self.publisher_connection.send_message(
+        #     routing_key=self.producer_queue_of_movies,
+        #     msg_body=msg.encode_to_str()
+        # )
 
         return 0
 

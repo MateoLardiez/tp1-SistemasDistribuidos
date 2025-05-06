@@ -25,9 +25,9 @@ class MoviesPreprocessor:
         self.movies_preprocessor_connection = RabbitMQConnectionHandler(
             producer_exchange_name="movies_preprocessor_exchange",
             producer_queues_to_bind={
-                "cleaned_movies_queue_country": ["cleaned_movies_queue_country"],
+                "cleaned_movies_queue_country": ["cleaned_movies_queue_country" ],
                 "cleaned_movies_queue_country_invesment": ["cleaned_movies_queue_country_invesment"],
-                "cleaned_movies_queue_nlp": ["cleaned_movies_queue_nlp"]
+                "cleaned_movies_queue_nlp": ["cleaned_movies_queue_nlp"],
             },
             consumer_exchange_name="gateway_exchange",
             consumer_queues_to_recv_from=["movies_queue"]
@@ -52,6 +52,7 @@ class MoviesPreprocessor:
                     client_id=data.client_id,
                     type=MiddlewareMessageType.MOVIES_BATCH,
                     payload=clean_lines,
+                    seq_number=data.seq_number
                 )
 
                 if data.query_number == QueryNumber.ALL_QUERYS:
@@ -71,6 +72,7 @@ class MoviesPreprocessor:
                             query_number=data.query_number,
                             client_id=data.client_id,
                             type=MiddlewareMessageType.EOF_MOVIES,
+                            seq_number=data.seq_number,
                             payload=""
                         )
                 if data.query_number == QueryNumber.ALL_QUERYS:
@@ -99,7 +101,7 @@ class MoviesPreprocessor:
         self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_country_invesment", msg_body=msg.encode_to_str())
     
     def handler_oef_query_5(self, msg):
-        self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_nlp", msg_body=msg.encode_to_str())
+        self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_nlp_eof", msg_body=msg.encode_to_str())
     
     def clean_csv(self, reader):
         col_indices = {col: i for i, col in enumerate(COLUMNS_MOVIES) if col in COLUMNS}

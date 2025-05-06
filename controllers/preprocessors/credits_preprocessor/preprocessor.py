@@ -41,6 +41,7 @@ class CreditsPreprocessor:
                     msg = MiddlewareMessage(
                         query_number=data.query_number,
                         client_id=data.client_id,
+                        seq_number=data.seq_number,
                         type=MiddlewareMessageType.CREDITS_BATCH,
                         payload=data_csv,
                     )
@@ -54,6 +55,7 @@ class CreditsPreprocessor:
                     msg = MiddlewareMessage(
                         query_number=data.query_number,
                         client_id=data.client_id,
+                        seq_number=data.seq_number,
                         type=MiddlewareMessageType.EOF_CREDITS,
                         payload=""
                     )
@@ -74,8 +76,8 @@ class CreditsPreprocessor:
                 continue  # omitir filas mal formateadas
 
             # Crear un diccionario con los valores de las columnas necesarias
-            row_dict = {col: row[col_indices[col]] for col in col_indices}
-            
+            row_dict = {col: row[col_indices[col]] for col in col_indices}            
+
             for key in ['cast']:
                 row_dict[key] = self.dictionary_to_list(row_dict[key])
 
@@ -85,7 +87,8 @@ class CreditsPreprocessor:
             sharding_key = int(filtered_row[ID]) % self.numberWorkers
             if sharding_key not in result:
                 result[sharding_key] = []
-            result[sharding_key].append(filtered_row)
+            if filtered_row[1]:
+                result[sharding_key].append(filtered_row)
         
         return result
 

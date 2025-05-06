@@ -40,16 +40,17 @@ class FilterByYear:
         if data.type != MiddlewareMessageType.EOF_MOVIES:
             lines = data.get_batch_iter_from_payload()
             if data.query_number == QueryNumber.QUERY_1:
-                self.handler_year_filter(lines, self.year_range_query_1, data.query_number, data.client_id, YEAR_Q1)
+                self.handler_year_filter(lines, self.year_range_query_1, data.query_number, data.client_id, YEAR_Q1, data.seq_number)
             elif data.query_number == QueryNumber.QUERY_3:
-                self.handler_year_filter(lines, self.year_range_query_3, data.query_number, data.client_id, YEAR_Q3)
+                self.handler_year_filter(lines, self.year_range_query_3, data.query_number, data.client_id, YEAR_Q3, data.seq_number)
             elif data.query_number == QueryNumber.QUERY_4:
-                self.handler_year_filter(lines, self.year_range_query_4, data.query_number, data.client_id, YEAR_Q4)
+                self.handler_year_filter(lines, self.year_range_query_4, data.query_number, data.client_id, YEAR_Q4, data.seq_number)
         else:
             logging.info("action: EOF | result: success | code: filter_by_year")
             msg = MiddlewareMessage(
                 query_number=data.query_number,
                 client_id=data.client_id,
+                seq_number=data.seq_number,
                 type=MiddlewareMessageType.EOF_MOVIES,
                 payload=""
             )
@@ -63,6 +64,7 @@ class FilterByYear:
                     msg = MiddlewareMessage(
                         query_number=data.query_number,
                         client_id=data.client_id,
+                        seq_number=data.seq_number,
                         type=MiddlewareMessageType.EOF_MOVIES,
                         payload=""
                     )
@@ -75,6 +77,7 @@ class FilterByYear:
                     msg = MiddlewareMessage(
                         query_number=data.query_number,
                         client_id=data.client_id,
+                        seq_number=data.seq_number,
                         type=MiddlewareMessageType.EOF_MOVIES,
                         payload=""
                     )
@@ -107,7 +110,7 @@ class FilterByYear:
             logging.error(f"Invalid release date format for movie: {movie}")
             return False
 
-    def handler_year_filter(self, lines, year_filter, query_number, client_id, year_pos):
+    def handler_year_filter(self, lines, year_filter, query_number, client_id, year_pos, seq_number):
         filtered_lines = []
         for line in lines:
             if self.filter_by_year(line, year_filter, year_pos):
@@ -130,6 +133,7 @@ class FilterByYear:
             self.send_message_queue(
                 routing_key="sink_query_1_queue",
                 data=result_csv,
+                seq_number=seq_number,
                 query_number=query_number,
                 client_id=client_id
             )
@@ -145,6 +149,7 @@ class FilterByYear:
                 self.send_message_queue(
                     routing_key=f"joiner_by_ratings_movies_queue_{key}",
                     data=result_csv,
+                    seq_number=seq_number,
                     query_number=query_number,
                     client_id=client_id
                 )
@@ -160,15 +165,17 @@ class FilterByYear:
                 self.send_message_queue(
                     routing_key=f"joiner_by_credits_movies_queue_{key}",
                     data=result_csv,
+                    seq_number=seq_number,
                     query_number=query_number,
                     client_id=client_id
                 )
 
 
-    def send_message_queue(self, routing_key, data, query_number, client_id):
+    def send_message_queue(self, routing_key, data, query_number, client_id, seq_number):
         msg = MiddlewareMessage(
             query_number=query_number,
             client_id=client_id,
+            seq_number=seq_number,
             type=MiddlewareMessageType.MOVIES_BATCH,
             payload=data
         )
