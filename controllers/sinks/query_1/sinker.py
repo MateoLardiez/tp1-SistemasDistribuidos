@@ -7,14 +7,14 @@ GENRES = 1
 
 class Query1:
 
-    def __init__(self):
+    def __init__(self, id_worker):
         self.query_1_connection = RabbitMQConnectionHandler(
             producer_exchange_name="reports_exchange",
             producer_queues_to_bind={"reports_queue": ["reports_queue"]},
             consumer_exchange_name="filter_by_year_exchange",
-            consumer_queues_to_recv_from=["sink_query_1_queue"]
+            consumer_queues_to_recv_from=[f"sink_query_1_queue_{id_worker}"],
         )
-        self.query_1_connection.set_message_consumer_callback("sink_query_1_queue", self.callback)
+        self.query_1_connection.set_message_consumer_callback(f"sink_query_1_queue_{id_worker}", self.callback)
         self.clients_processed = {}
 
     def start(self):
@@ -67,6 +67,7 @@ class Query1:
                     msg_body=msg.encode_to_str()
                 )
             else:
+                logging.info(f"EOF message received for client {data.client_id} with seq_number {data.seq_number}")
                 self.clients_processed[data.client_id]["eof"] = True
                 self.clients_processed[data.client_id]["seq_number"] = data.seq_number
                 self.clients_processed[data.client_id]["batch_recibidos"] += 1

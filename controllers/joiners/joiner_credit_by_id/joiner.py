@@ -11,11 +11,11 @@ class JoinerByCreditId:
     year: int
     data: object
 
-    def __init__(self, id_worker, number_workers):
+    def __init__(self, id_worker, number_sinkers):
         self.joiner_by_credit_id_connection = RabbitMQConnectionHandler(
             producer_exchange_name="joiner_by_credit_id_exchange",
             producer_queues_to_bind={
-                "average_credit_aggregated": ["average_credit_aggregated"],
+                **{f"average_credit_aggregated_{i}": [f"average_credit_aggregated_{i}"] for i in range(number_sinkers)}
             },
             consumer_exchange_name="filter_by_year_exchange",
             consumer_queues_to_recv_from=[f"joiner_by_credits_movies_queue_{id_worker}", f"joiner_credits_by_id_queue_{id_worker}"],
@@ -24,7 +24,7 @@ class JoinerByCreditId:
         
         # Diccionario para almacenar el estado por cliente
         self.client_state = {}  # {client_id: {"movies_eof": bool, "credits_eof": bool}}     
-        self.number_workers = number_workers   
+        self.number_sinkers = number_sinkers   
         # Configurar callbacks para ambas colas
         self.joiner_by_credit_id_connection.set_message_consumer_callback(f"joiner_by_credits_movies_queue_{id_worker}", self.movies_callback)
         self.joiner_by_credit_id_connection.set_message_consumer_callback(f"joiner_credits_by_id_queue_{id_worker}", self.credits_callback)
@@ -104,8 +104,9 @@ class JoinerByCreditId:
                 seq_number=1,
                 payload=result_csv
             )
+            sinker_id = client_id % self.number_sinkers
             self.joiner_by_credit_id_connection.send_message(
-                routing_key="average_credit_aggregated",
+                routing_key=f"average_credit_aggregated_{sinker_id}",
                 msg_body=msg.encode_to_str()
             )
         
@@ -117,9 +118,15 @@ class JoinerByCreditId:
                 payload="" 
             )
             self.joiner_by_credit_id_connection.send_message(
-                routing_key="average_credit_aggregated",
+                routing_key=f"average_credit_aggregated_{sinker_id}",
                 msg_body=msg_eof.encode_to_str()
             )
+
+            # # Limpiar los archivos temporales
+            self.clean_temp_files(client_id)
+            
+            # # Eliminar el estado del cliente del diccionario
+            del self.client_state[client_id]
                 
     def join_data(self, movies_file, credits_file):
         actors_with_movies = {}

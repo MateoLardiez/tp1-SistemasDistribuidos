@@ -1,5 +1,5 @@
+from groupby import GroupByCountry
 import logging
-from sinker import Query5
 import os
 
 def initialize_log(logging_level):
@@ -19,11 +19,11 @@ def initialize_log(logging_level):
     logging.getLogger('pika').setLevel(logging.WARNING)
 
 def main():
-    id_sinker = int(os.getenv("SINKER_ID"))
+    number_sinkers = int(os.getenv("N_SINKERS"))
     initialize_log("INFO")
 
-    sinker = Query5(id_sinker)
-    sinker.start()
+    groupby = GroupByCountry(numberSinkers=number_sinkers)
+    groupby.start()
     
 if __name__ == "__main__":
     main()

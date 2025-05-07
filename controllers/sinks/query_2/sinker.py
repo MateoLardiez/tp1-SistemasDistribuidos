@@ -7,14 +7,14 @@ QUERY_NUMBER = 2
 
 class Query2:
 
-    def __init__(self):
+    def __init__(self, id_worker):
         self.query_2_connection = RabbitMQConnectionHandler(
             producer_exchange_name="reports_exchange",
             producer_queues_to_bind={"reports_queue": ["reports_queue"]},
-            consumer_exchange_name="filter_by_country_invesment_exchange",
-            consumer_queues_to_recv_from=["filter_by_country_invesment_queue"],
+            consumer_exchange_name="group_by_country_exchange",
+            consumer_queues_to_recv_from=[f"group_by_country_queue_{id_worker}"],
         )
-        self.query_2_connection.set_message_consumer_callback("filter_by_country_invesment_queue", self.callback)
+        self.query_2_connection.set_message_consumer_callback(f"group_by_country_queue_{id_worker}", self.callback)
         self.clients_processed = {}
 
     def start(self):
@@ -75,7 +75,7 @@ class Query2:
         report_lines = {}
         
         for line in self.read_data(client_id):
-            country = line[0].strip("[]").replace("'", "")
+            country = line[0]
             if country not in report_lines:
                 report_lines[country] = 0
             report_lines[country] += int(line[1])

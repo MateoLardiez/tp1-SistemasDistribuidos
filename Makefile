@@ -22,6 +22,8 @@ docker-image:
 	docker build -f ./controllers/filters/filter_by_country/Dockerfile -t "filter_by_country:latest" .
 	docker build -f ./controllers/filters/filter_by_country_invesment/Dockerfile -t "filter_by_country_invesment:latest" .
 	docker build -f ./controllers/filters/filter_by_year/Dockerfile -t "filter_by_year:latest" .
+	docker build -f ./controllers/groupby/group_by_country/Dockerfile -t "group_by_country:latest" .
+	docker build -f ./controllers/groupby/group_by_sentiment/Dockerfile -t "group_by_sentiment:latest" .
 	docker build -f ./controllers/aggregators/aggregator_r_b/Dockerfile -t "aggregator_r_b:latest" .
 	docker build -f ./controllers/aggregators/aggregator_nlp/Dockerfile -t "aggregator_nlp:latest" .
 	docker build -f ./controllers/joiners/joiner_rating_by_id/Dockerfile -t "joiner_rating_by_id:latest" .

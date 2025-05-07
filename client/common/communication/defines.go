@@ -2,7 +2,7 @@ package communication
 
 // Common constants used across the application
 const (
-	MAX_BATCH_SIZE = 8 * 1024
+	MAX_BATCH_SIZE = 24 * 1024
 	// CODE_AGENCY          = 'A'
 	// CODE_BATCH           = 'B'
 	// CODE_WAIT_FOR_RESULT = 'W'

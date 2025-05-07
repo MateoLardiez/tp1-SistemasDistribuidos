@@ -5,14 +5,14 @@ import csv
 
 class Query4:
 
-    def __init__(self, number_workers):
+    def __init__(self, id_sinker, number_workers):
         self.query_4_connection = RabbitMQConnectionHandler(
             producer_exchange_name="reports_exchange",
             producer_queues_to_bind={"reports_queue": ["reports_queue"]},
             consumer_exchange_name="joiner_by_credit_id_exchange",
-            consumer_queues_to_recv_from=["average_credit_aggregated"]
+            consumer_queues_to_recv_from=[f"average_credit_aggregated_{id_sinker}"],
         )
-        self.query_4_connection.set_message_consumer_callback("average_credit_aggregated", self.callback)
+        self.query_4_connection.set_message_consumer_callback(f"average_credit_aggregated_{id_sinker}", self.callback)
         self.number_workers = number_workers
         self.client_state = {}
 

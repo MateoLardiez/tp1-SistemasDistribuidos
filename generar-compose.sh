@@ -1,7 +1,8 @@
 #!/bin/bash
 
-N_WORKERS=$1
-N_CLIENTS=$2
+N_CLIENTS=$1
+N_WORKERS=$2
+N_SINKERS=$3
 
 readonly COMPOSE_FILE="docker-compose-dev.yaml"
 
@@ -49,8 +50,9 @@ add_gateway() {
 }
 
 add_movies_preprocessor() {
-    echo "  movies_preprocessor:
-    container_name: movies_preprocessor
+  for ((i=0; i<=N_WORKERS-1; i++)); do
+    echo "  movies_preprocessor_$i:
+    container_name: movies_preprocessor_$i
     image: movies_preprocessor:latest
     entrypoint: python3 /main.py
     environment:
@@ -61,7 +63,7 @@ add_movies_preprocessor() {
       rabbitmq:
         condition: service_healthy
 " >> "$COMPOSE_FILE"
-
+  done
 }
 
 add_ratings_preprocessor() {
@@ -82,9 +84,9 @@ add_ratings_preprocessor() {
 }
 
 add_credits_preprocessor() {
-  # for ((i=0; i<=N_WORKERS-1; i++)); do
-    echo "  credits_preprocessor_0:
-    container_name: credits_preprocessor_0
+  for ((i=0; i<=N_WORKERS-1; i++)); do
+    echo "  credits_preprocessor_$i:
+    container_name: credits_preprocessor_$i
     image: credits_preprocessor:latest
     entrypoint: python3 /main.py
     environment:
@@ -95,7 +97,7 @@ add_credits_preprocessor() {
       rabbitmq:
         condition: service_healthy
 " >> "$COMPOSE_FILE"
-  # done
+  done
 }
 
 add_filter_by_country() {
@@ -112,6 +114,37 @@ add_filter_by_country() {
 
 }
 
+add_group_by_country() {
+    echo "  group_by_country:
+    container_name: group_by_country
+    image: group_by_country:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_SINKERS=$N_SINKERS
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+" >> "$COMPOSE_FILE"
+
+}
+
+add_group_by_sentiment() {
+    echo "  group_by_sentiment:
+    container_name: group_by_sentiment
+    image: group_by_sentiment:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_SINKERS=$N_SINKERS
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+" >> "$COMPOSE_FILE"
+
+}
 add_filter_by_country_invesment() {
   for ((i=0; i<=N_WORKERS-1; i++)); do
     echo "  filter_by_country_invesment_$i:
@@ -134,6 +167,7 @@ add_filter_by_year() {
     entrypoint: python3 /main.py
     environment:
       - N_WORKERS=$N_WORKERS
+      - N_SINKERS=$N_SINKERS
     networks:
       - testing_net
     depends_on:
@@ -149,7 +183,7 @@ add_joiner_rating_by_id() {
     image: joiner_rating_by_id:latest
     entrypoint: python3 /main.py
     environment:
-      - N_WORKERS=$N_WORKERS
+      - N_SINKERS=$N_SINKERS
       - WORKER_ID=$i
     networks:
       - testing_net
@@ -167,7 +201,7 @@ add_joiner_credit_by_id() {
     image: joiner_credit_by_id:latest
     entrypoint: python3 /main.py
     environment:
-      - N_WORKERS=$N_WORKERS
+      - N_SINKERS=$N_SINKERS
       - WORKER_ID=$i
     networks:
       - testing_net
@@ -209,72 +243,90 @@ add_aggregator_r_b() {
 
 
 add_sinker_q1() {
-  echo "  query_1:
-    container_name: query_1
+  for ((i=0; i<=N_SINKERS-1; i++)); do
+    echo "  query_1_sinker_$i:
+    container_name: query_1_sinker_$i
     image: query_1:latest
     entrypoint: python3 /main.py
+    environment:
+      - SINKER_ID=$i
     networks:
       - testing_net
     depends_on:
       rabbitmq:
         condition: service_healthy
   " >> "$COMPOSE_FILE"
+  done
 }
 
 add_sinker_q2() {
-  echo "  query_2:
-    container_name: query_2
+  for ((i=0; i<=N_SINKERS-1; i++)); do
+    echo "  query_2_sinker_$i:
+    container_name: query_2_sinker_$i
     image: query_2:latest
     entrypoint: python3 /main.py
+    environment:
+      - SINKER_ID=$i
     networks:
       - testing_net
     depends_on:
       rabbitmq:
         condition: service_healthy
   " >> "$COMPOSE_FILE"
+  done
 }
 
 add_sinker_q3() {
-  echo "  query_3:
-    container_name: query_3
+  for ((i=0; i<=N_SINKERS-1; i++)); do
+    echo "  query_3_sinker_$i:
+    container_name: query_3_sinker_$i
     image: query_3:latest
     entrypoint: python3 /main.py
     environment:
       - N_WORKERS=$N_WORKERS
+      - SINKER_ID=$i
     networks:
       - testing_net
     depends_on:
       rabbitmq:
         condition: service_healthy
   " >> "$COMPOSE_FILE"
+  done
 }
 
 add_sinker_q4() {
-  echo "  query_4:
-    container_name: query_4
+  for ((i=0; i<=N_SINKERS-1; i++)); do
+    echo "  query_4_sinker_$i:
+    container_name: query_4_sinker_$i
     image: query_4:latest
     entrypoint: python3 /main.py
     environment:
       - N_WORKERS=$N_WORKERS
+      - SINKER_ID=$i
     networks:
       - testing_net
     depends_on:
       rabbitmq:
         condition: service_healthy
   " >> "$COMPOSE_FILE"
+  done
 }
 
 add_sinker_q5() {
-  echo "  query_5:
-    container_name: query_5
+  for ((i=0; i<=N_SINKERS-1; i++)); do
+    echo "  query_5_sinker_$i:
+    container_name: query_5_sinker_$i
     image: query_5:latest
     entrypoint: python3 /main.py
+    environment:
+      - SINKER_ID=$i
     networks:
       - testing_net
     depends_on:
       rabbitmq:
         condition: service_healthy
   " >> "$COMPOSE_FILE"
+  done
 }
 
 add_client() {
@@ -320,6 +372,11 @@ check_params() {
         exit 1
     fi
 
+    if [ -z "$N_SINKERS" ]; then
+        echo "Usage: $0 <number_of_workers> <number_of_clients> <number_of_sinkers>"
+        exit 1
+    fi
+
     if ! [[ "$N_CLIENTS" =~ ^[0-9]+$ ]]; then
         echo "Error: <number_of_clients> must be a positive integer."
         exit 1
@@ -327,6 +384,16 @@ check_params() {
 
     if ! [[ "$N_WORKERS" =~ ^[0-9]+$ ]]; then
         echo "Error: <number_of_workers> must be a positive integer."
+        exit 1
+    fi
+
+    if ! [[ "$N_SINKERS" =~ ^[0-9]+$ ]]; then
+        echo "Error: <number_of_sinkers> must be a positive integer."
+        exit 1
+    fi
+
+    if [ "$N_SINKERS" -lt 1 ]; then
+        echo "Error: <number_of_sinkers> must be at least 1."
         exit 1
     fi
 
@@ -353,6 +420,8 @@ add_credits_preprocessor
 add_filter_by_country
 add_filter_by_country_invesment
 add_filter_by_year
+add_group_by_country
+add_group_by_sentiment
 add_joiner_rating_by_id
 add_joiner_credit_by_id
 add_aggregator_nlp

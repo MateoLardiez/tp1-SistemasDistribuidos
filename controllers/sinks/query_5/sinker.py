@@ -5,17 +5,18 @@ import csv
 
 SENTIMENT_POS = 0
 RATE_POS = 1
+AMOUNT_POS = 2
 
 class Query5:
 
-    def __init__(self):
+    def __init__(self, id_sinker):
         self.query_5_connection = RabbitMQConnectionHandler(
             producer_exchange_name="reports_exchange",
             producer_queues_to_bind={"reports_queue": ["reports_queue"]},
-            consumer_exchange_name="aggregator_r_b_exchange",
-            consumer_queues_to_recv_from=["aggregated_r_b_data_queue"]
+            consumer_exchange_name="group_by_sentiment_exchange",
+            consumer_queues_to_recv_from=[f"group_by_sentiment_queue_{id_sinker}"]
         )
-        self.query_5_connection.set_message_consumer_callback("aggregated_r_b_data_queue", self.callback)
+        self.query_5_connection.set_message_consumer_callback(f"group_by_sentiment_queue_{id_sinker}", self.callback)
         self.clients_processed = {}
 
     def start(self):
@@ -77,24 +78,33 @@ class Query5:
 
     def handler_query_5(self, client_id, query_number):
         # Ya tengo toda la data en mi csv
-        sentiment_groups = {"POSITIVE": [], "NEGATIVE": []}
+        sentiment_groups = {
+            "POSITIVE": {
+                "acumulator": 0,
+                "count": 0
+            },
+            "NEGATIVE": {
+                "acumulator": 0,
+                "count": 0
+            }
+        }
                 
         for line in self.read_data(client_id):
             sentiment = line[SENTIMENT_POS]
             rate = float(line[RATE_POS])
-            sentiment_groups[sentiment].append(rate)
-
+            amount = int(line[AMOUNT_POS])
+            sentiment_groups[sentiment]["acumulator"] += rate
+            sentiment_groups[sentiment]["count"] += amount
 
         average_rate_by_sentiment = {
-            sentiment: (sum(rates) / len(rates)) if rates else 0
-            for sentiment, rates in sentiment_groups.items()
+            sentiment: (sentiment_groups[sentiment]["acumulator"] / sentiment_groups[sentiment]["count"]) if sentiment_groups[sentiment]["count"] > 0 else 0
+            for sentiment in sentiment_groups
         }
 
         q5_answer = []
         # Verificación correcta si hay datos en las listas del diccionario
-        if sentiment_groups["POSITIVE"] or sentiment_groups["NEGATIVE"]:
+        if sentiment_groups["POSITIVE"]["count"] > 0 or sentiment_groups["NEGATIVE"]["count"] > 0:
             q5_answer = [
-                ["sentiment", "average_rate"],
                 ["POSITIVE", average_rate_by_sentiment["POSITIVE"]],
                 ["NEGATIVE", average_rate_by_sentiment["NEGATIVE"]]
             ]

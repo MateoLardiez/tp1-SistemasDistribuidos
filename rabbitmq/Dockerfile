@@ -1,4 +1,4 @@
-FROM rabbitmq:3.13-management-alpine
+FROM rabbitmq:4.1-management-alpine
 RUN apk update && apk add curl
 
 RUN mkdir -p /etc/rabbitmq/conf.d

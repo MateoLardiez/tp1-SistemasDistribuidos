@@ -11,11 +11,11 @@ class JoinerByRatingId:
     year: int
     data: object
 
-    def __init__(self, id_worker, number_workers):
+    def __init__(self, id_worker, number_sinkers):
         self.joiner_by_rating_id_connection = RabbitMQConnectionHandler(
             producer_exchange_name="joiner_by_rating_id_exchange",
             producer_queues_to_bind={
-                "average_rating_aggregated": ["average_rating_aggregated"],
+                **{f"average_rating_aggregated_{i}": [f"average_rating_aggregated_{i}"] for i in range(number_sinkers)},
             },
             consumer_exchange_name="filter_by_year_exchange",
             consumer_queues_to_recv_from=[f"joiner_by_ratings_movies_queue_{id_worker}", f"joiner_ratings_by_id_queue_{id_worker}"],
@@ -24,7 +24,7 @@ class JoinerByRatingId:
         
         # Diccionario para almacenar el estado por cliente
         self.client_state = {}  # {client_id: {"movies_eof": bool, "ratings_eof": bool}}
-        self.number_workers = number_workers
+        self.number_sinkers = number_sinkers
         # Configurar callbacks para ambas colas
         self.joiner_by_rating_id_connection.set_message_consumer_callback(f"joiner_by_ratings_movies_queue_{id_worker}", self.movies_callback)
         self.joiner_by_rating_id_connection.set_message_consumer_callback(f"joiner_ratings_by_id_queue_{id_worker}", self.ratings_callback)
@@ -105,8 +105,9 @@ class JoinerByRatingId:
                 type=MiddlewareMessageType.MOVIES_BATCH,
                 payload=result_csv
             )
+            sinker_id = client_id % self.number_sinkers
             self.joiner_by_rating_id_connection.send_message(
-                routing_key="average_rating_aggregated",
+                routing_key=f"average_rating_aggregated_{sinker_id}",
                 msg_body=msg.encode_to_str()
             )
         
@@ -117,15 +118,15 @@ class JoinerByRatingId:
                 type=MiddlewareMessageType.EOF_JOINER
             )
             self.joiner_by_rating_id_connection.send_message(
-                routing_key="average_rating_aggregated",
+                routing_key=f"average_rating_aggregated_{sinker_id}",
                 msg_body=msg_eof.encode_to_str()
             )
                 
             # # Limpiar los archivos temporales
-            # self.clean_temp_files(client_id)
+            self.clean_temp_files(client_id)
             
             # # Eliminar el estado del cliente del diccionario
-            # del self.client_state[client_id]
+            del self.client_state[client_id]
             
             # logging.info(f"action: process_joined_data | client: {client_id} | result: completed")
     

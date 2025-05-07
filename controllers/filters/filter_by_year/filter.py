@@ -11,7 +11,7 @@ class FilterByYear:
     year: int
     data: object
 
-    def __init__(self, numberWorkers):
+    def __init__(self, numberWorkers, numberSinkers):
         self.year_range_query_1 = (2000, 2009)
         self.year_range_query_3 = (2000, None)
         self.year_range_query_4 = (2000, None)
@@ -20,10 +20,9 @@ class FilterByYear:
         self.filter_by_year_connection = RabbitMQConnectionHandler(
             producer_exchange_name="filter_by_year_exchange",
             producer_queues_to_bind={
-                "sink_query_1_queue": ["sink_query_1_queue"],
-                # "joiner_by_ratings_movies_queue": ["joiner_by_ratings_movies_queue"],
-                    **{f"joiner_by_ratings_movies_queue_{i}": [f"joiner_by_ratings_movies_queue_{i}"] for i in range(numberWorkers)},
-                    **{f"joiner_by_credits_movies_queue_{i}": [f"joiner_by_credits_movies_queue_{i}"] for i in range(numberWorkers)},
+                **{f"sink_query_1_queue_{i}": [f"sink_query_1_queue_{i}"] for i in range(numberSinkers)},
+                **{f"joiner_by_ratings_movies_queue_{i}": [f"joiner_by_ratings_movies_queue_{i}"] for i in range(numberWorkers)},
+                **{f"joiner_by_credits_movies_queue_{i}": [f"joiner_by_credits_movies_queue_{i}"] for i in range(numberWorkers)},
             },
             consumer_exchange_name="filter_by_country_exchange",
             consumer_queues_to_recv_from=["country_queue"],
@@ -54,8 +53,9 @@ class FilterByYear:
                 payload=""
             )
             if data.query_number == QueryNumber.QUERY_1:
+               sinker_id = data.client_id % self.numberWorkers
                self.filter_by_year_connection.send_message(
-                    routing_key="sink_query_1_queue",
+                    routing_key=f"sink_query_1_queue_{sinker_id}",
                     msg_body=msg.encode_to_str()
                )
             elif data.query_number == QueryNumber.QUERY_3:
@@ -128,9 +128,10 @@ class FilterByYear:
         if query_number == QueryNumber.QUERY_1:
             for line in filtered_lines:
                 query_result.append([line[0], line[1]])
+            sinker_id = client_id % self.numberWorkers
             result_csv = MiddlewareMessage.write_csv_batch(query_result) 
             self.send_message_queue(
-                routing_key="sink_query_1_queue",
+                routing_key=f"sink_query_1_queue_{sinker_id}",
                 data=result_csv,
                 seq_number=seq_number,
                 query_number=query_number,

@@ -19,10 +19,11 @@ def initialize_log(logging_level):
     logging.getLogger('pika').setLevel(logging.WARNING)
 
 def main():
-    number_workers = int(os.getenv("N_WORKERS", 1))
+    number_workers = int(os.getenv("N_WORKERS"))
+    number_sinkers = int(os.getenv("N_SINKERS"))
     initialize_log("INFO")
 
-    filter = FilterByYear(number_workers)
+    filter = FilterByYear(number_workers, number_sinkers)
     filter.start()
     
 if __name__ == "__main__":

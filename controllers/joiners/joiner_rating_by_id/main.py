@@ -19,11 +19,11 @@ def initialize_log(logging_level):
     logging.getLogger('pika').setLevel(logging.WARNING)
 
 def main():
-    n_workers = int(os.getenv("N_WORKERS"))
+    n_sinkers = int(os.getenv("N_SINKERS"))
     id_worker = int(os.getenv("WORKER_ID"))
     initialize_log("INFO")
 
-    joinerRating = JoinerByRatingId(id_worker, n_workers)
+    joinerRating = JoinerByRatingId(id_worker, n_sinkers)
     joinerRating.start()
     
 if __name__ == "__main__":
