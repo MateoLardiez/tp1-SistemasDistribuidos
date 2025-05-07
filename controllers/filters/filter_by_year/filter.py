@@ -29,6 +29,7 @@ class FilterByYear:
         )
         self.filter_by_year_connection.set_message_consumer_callback("country_queue", self.callback)
         self.numberWorkers = numberWorkers
+        self.numberSinkers = numberSinkers
 
     def start(self):
         logging.info("action: start | result: success | code: filter_by_year")
@@ -53,7 +54,7 @@ class FilterByYear:
                 payload=""
             )
             if data.query_number == QueryNumber.QUERY_1:
-               sinker_id = data.client_id % self.numberWorkers
+               sinker_id = data.client_id % self.numberSinkers
                self.filter_by_year_connection.send_message(
                     routing_key=f"sink_query_1_queue_{sinker_id}",
                     msg_body=msg.encode_to_str()
@@ -128,7 +129,7 @@ class FilterByYear:
         if query_number == QueryNumber.QUERY_1:
             for line in filtered_lines:
                 query_result.append([line[0], line[1]])
-            sinker_id = client_id % self.numberWorkers
+            sinker_id = client_id % self.numberSinkers
             result_csv = MiddlewareMessage.write_csv_batch(query_result) 
             self.send_message_queue(
                 routing_key=f"sink_query_1_queue_{sinker_id}",

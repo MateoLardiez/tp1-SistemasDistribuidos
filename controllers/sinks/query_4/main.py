@@ -20,7 +20,7 @@ def initialize_log(logging_level):
 
 def main():
     id_sinker = int(os.getenv("SINKER_ID"))
-    n_workers = int(os.getenv("N_WORKERS", 1))
+    n_workers = int(os.getenv("N_WORKERS"))
     initialize_log("INFO")
 
     sinker = Query4(id_sinker, n_workers)

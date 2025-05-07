@@ -101,8 +101,9 @@ add_credits_preprocessor() {
 }
 
 add_filter_by_country() {
-    echo "  filter_by_country:
-    container_name: filter_by_country
+  for ((i=0; i<=N_WORKERS-1; i++)); do
+    echo "  filter_by_country_$i:
+    container_name: filter_by_country_$i
     image: filter_by_country:latest
     entrypoint: python3 /main.py
     networks:
@@ -111,40 +112,9 @@ add_filter_by_country() {
       rabbitmq:
         condition: service_healthy
 " >> "$COMPOSE_FILE"
-
+  done
 }
 
-add_group_by_country() {
-    echo "  group_by_country:
-    container_name: group_by_country
-    image: group_by_country:latest
-    entrypoint: python3 /main.py
-    environment:
-      - N_SINKERS=$N_SINKERS
-    networks:
-      - testing_net
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-" >> "$COMPOSE_FILE"
-
-}
-
-add_group_by_sentiment() {
-    echo "  group_by_sentiment:
-    container_name: group_by_sentiment
-    image: group_by_sentiment:latest
-    entrypoint: python3 /main.py
-    environment:
-      - N_SINKERS=$N_SINKERS
-    networks:
-      - testing_net
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-" >> "$COMPOSE_FILE"
-
-}
 add_filter_by_country_invesment() {
   for ((i=0; i<=N_WORKERS-1; i++)); do
     echo "  filter_by_country_invesment_$i:
@@ -161,8 +131,9 @@ add_filter_by_country_invesment() {
 }
 
 add_filter_by_year() {
-    echo "  filter_by_year:
-    container_name: filter_by_year
+  for ((i=0; i<=N_WORKERS-1; i++)); do
+    echo "  filter_by_year_$i:
+    container_name: filter_by_year_$i
     image: filter_by_year:latest
     entrypoint: python3 /main.py
     environment:
@@ -174,6 +145,41 @@ add_filter_by_year() {
       rabbitmq:
         condition: service_healthy
 " >> "$COMPOSE_FILE"
+  done
+}
+
+add_group_by_country() {
+  for ((i=0; i<=N_WORKERS-1; i++)); do
+    echo "  group_by_country_$i:
+    container_name: group_by_country_$i
+    image: group_by_country:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_SINKERS=$N_SINKERS
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+" >> "$COMPOSE_FILE"
+  done
+}
+
+add_group_by_sentiment() {
+  for ((i=0; i<=N_WORKERS-1; i++)); do
+    echo "  group_by_sentiment_$i:
+    container_name: group_by_sentiment_$i
+    image: group_by_sentiment:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_SINKERS=$N_SINKERS
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+" >> "$COMPOSE_FILE"
+  done  
 }
 
 add_joiner_rating_by_id() {
@@ -229,8 +235,9 @@ add_aggregator_nlp() {
 }
 
 add_aggregator_r_b() {
-    echo "  aggregator_r_b:
-    container_name: aggregator_r_b
+  for ((i=0; i<=N_WORKERS-1; i++)); do
+    echo "  aggregator_r_b_$i:
+    container_name: aggregator_r_b_$i
     image: aggregator_r_b:latest
     entrypoint: python3 /main.py
     networks:
@@ -239,6 +246,7 @@ add_aggregator_r_b() {
       rabbitmq:
         condition: service_healthy
 " >> "$COMPOSE_FILE"
+  done
 }
 
 
