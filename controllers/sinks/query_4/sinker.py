@@ -49,21 +49,20 @@ class Query4:
 
     def handler_query_4(self, client_id, query_number):
         # Ya tengo toda la data en mi csv
-        results = []
+        actors = {}
         for line in self.read_data(client_id):
             actor = line[0]
-            movies_list = line[1].strip("[]").replace("'", "").split(", ")
-            count_movies = len(movies_list)
-            q4_answer = [actor, count_movies]
-            results.append(q4_answer)
+            if actor not in actors:
+                actors[actor] = 0
+            actors[actor] += int(line[1])  # Cantidad de creditos
 
         # Ordenar por cantidad de apariciones y luego por orden alfabetico de artistas
-        results = sorted(results, key=lambda x: (-x[1], x[0]))
+        sorted_actors = sorted(actors.items(), key=lambda x: (-x[1], x[0]))
         
         # Limitar a 10 resultados
-        results = results[:10]
+        result = [[actor, count] for actor, count in sorted_actors[:10]]
 
-        result_csv = MiddlewareMessage.write_csv_batch(results) # NO ASI
+        result_csv = MiddlewareMessage.write_csv_batch(result)
         
         msg = MiddlewareMessage(
             query_number=query_number,
@@ -81,13 +80,13 @@ class Query4:
     
     def save_data(self, client_id, lines) -> None:
         # logging.info(f"LINEA PARA GUARDAR: {lines}")
-        with open(f"query_3-client-{client_id}", 'a+') as file:
+        with open(f"query_4-client-{client_id}", 'a+') as file:
             writer = csv.writer(file, quoting=csv.QUOTE_MINIMAL)
             for line in lines:
                 writer.writerow(line)
 
     def read_data(self, client_id):
-        with open (f"query_3-client-{client_id}", 'r') as file:
+        with open (f"query_4-client-{client_id}", 'r') as file:
             reader = csv.reader(file, quoting=csv.QUOTE_MINIMAL)
             for row in reader:
                 yield row

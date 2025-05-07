@@ -2,6 +2,7 @@ import logging
 from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
 from common.defines import QueryNumber
 from common.middleware_connection_handler import RabbitMQConnectionHandler
+import ast
 
 PROD_COUNTRIES = 5
 ID = 0
@@ -60,8 +61,7 @@ class FilterByCountry:
                 )       
             
     def filter_by_country(self, movie, country_filter):
-        countries_of_movie = movie[PROD_COUNTRIES]#<- es un string
-        countries_of_movie = countries_of_movie.strip("[]").replace("'", "").split(", ")
+        countries_of_movie = ast.literal_eval(movie[PROD_COUNTRIES])#<- es un string
         has_countries = all(country in countries_of_movie for country in country_filter)
         return has_countries
 
@@ -78,8 +78,7 @@ class FilterByCountry:
         filtered_lines = []
         for line in lines:
             if self.filter_by_country(line, countries_filter):
-                filtered_lines.append(line)
-        
+                filtered_lines.append(line)          
         # Join all filtered lines into a single CSV string
         # if filtered_lines:
             # Q1: [title, genres, release_date]

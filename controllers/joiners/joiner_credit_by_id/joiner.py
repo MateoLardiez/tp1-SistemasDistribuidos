@@ -29,7 +29,6 @@ class JoinerByCreditId:
         self.joiner_by_credit_id_connection.set_message_consumer_callback(f"joiner_by_credits_movies_queue_{id_worker}", self.movies_callback)
         self.joiner_by_credit_id_connection.set_message_consumer_callback(f"joiner_credits_by_id_queue_{id_worker}", self.credits_callback)
 
-
     def start(self):
         logging.info("action: start | result: success | code: joiner_credit_by_id")
         self.joiner_by_credit_id_connection.start_consuming()
@@ -85,8 +84,6 @@ class JoinerByCreditId:
         movies_eof = self.client_state[client_id]["movies_eof"] 
         credits_eof = self.client_state[client_id]["credits_eof"]
         
-        # logging.info(f"check_and_process para cliente {client_id}: movies_eof={movies_eof}, credits_eof={credits_eof}")
-        
         if movies_eof and credits_eof:
             # # Procesar los datos de movies y credits para este cliente
             movies_filename = f"movies-client-{client_id}"
@@ -95,7 +92,6 @@ class JoinerByCreditId:
             joined_data = self.join_data(movies_filename, credits_filename)
             
             # Enviar resultados procesados
-            # if joined_data:
             result_csv = MiddlewareMessage.write_csv_batch(joined_data) # TODO: Enviar en batches
             msg = MiddlewareMessage(
                 query_number=query_number,
@@ -130,7 +126,6 @@ class JoinerByCreditId:
                 
     def join_data(self, movies_file, credits_file):
         actors_with_movies = {}
-        # leo el archivo de credits
         credits = {} # diccionario de clave:valor -> id_pelicula: actores
         for credit in self.read_data(credits_file):
             credit_id = credit[0]
@@ -139,23 +134,20 @@ class JoinerByCreditId:
                 credits[credit_id] = ""
             credits[credit_id] = actor_names
 
-        for movie in self.read_data(movies_file):
-            movie_id = movie[0]
 
-            if movie_id in credits:
-                actors = credits[movie_id]
-                actors_list = actors.strip("[]").replace("'", "").split(", ") # separo los actores por comas
-                # logging.info(f"PELICUlA: {movie_id} | ACTORES: {actors}")
-                for actor in actors_list:
-                    if actor not in actors_with_movies:
-                        actors_with_movies[actor] = []       
-                    actors_with_movies[actor].append(movie_id) # actores y cantidad de apariciones
+        for movies in self.read_data(movies_file):
+            for movie in movies:
+                movie_id = movie
+                if movie_id in credits:
+                    actors = credits[movie_id]
+                    actors_list = actors.strip("[]").replace("'", "").split(", ") # separo los actores por comas
+                    for actor in actors_list:
+                        if actor not in actors_with_movies:
+                            actors_with_movies[actor] = []       
+                        actors_with_movies[actor].append(movie_id) # actores y cantidad de apariciones
         
         result = []
-        # for actor, movies in actors_with_movies.items():
-        #     result.append([actor, movies])
-        [result.append([actor, movies]) for actor, movies in actors_with_movies.items()]
-        # logging.info(f"RESULTADO JOINER CREDIT: {result}")
+        [result.append([actor, len(movies)]) for actor, movies in actors_with_movies.items()]
         return result
             
     def clean_temp_files(self, client_id):

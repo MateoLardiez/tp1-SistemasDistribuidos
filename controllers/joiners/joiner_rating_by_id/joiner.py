@@ -5,6 +5,7 @@ import os
 from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
 from common.defines import QueryNumber
 from common.middleware_connection_handler import RabbitMQConnectionHandler
+import ast
 
 YEAR = 3  # release_date position
 class JoinerByRatingId:
@@ -123,10 +124,10 @@ class JoinerByRatingId:
             )
                 
             # # Limpiar los archivos temporales
-            self.clean_temp_files(client_id)
+            # self.clean_temp_files(client_id)
             
             # # Eliminar el estado del cliente del diccionario
-            del self.client_state[client_id]
+            # del self.client_state[client_id]
             
             # logging.info(f"action: process_joined_data | client: {client_id} | result: completed")
     
@@ -144,14 +145,16 @@ class JoinerByRatingId:
             ratings[rating[0]]["ratings_amount"] += 1
 
         for movies in self.read_data(movies_file):
-            movies_id = movies[0]
-            if movies_id in ratings:
+            for movie in movies:
+                movie_str = ast.literal_eval(movie)
+                movie_id = movie_str[0]
+                if movie_id in ratings:
                 # Calculo el promedio
-                ratings_accumulator = ratings[movies_id]["ratings_accumulator"]
-                ratings_amount = ratings[movies_id]["ratings_amount"]
-                average_rating = ratings_accumulator / ratings_amount
-                # Agrego la info al resultado
-                joined_results.append([movies[1], average_rating])
+                    ratings_accumulator = ratings[movie_id]["ratings_accumulator"]
+                    ratings_amount = ratings[movie_id]["ratings_amount"]
+                    average_rating = ratings_accumulator / ratings_amount
+                    # Agrego la info al resultado
+                    joined_results.append([movie_str[1], average_rating])
         
         return joined_results
             

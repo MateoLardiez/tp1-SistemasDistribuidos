@@ -143,7 +143,8 @@ class FilterByYear:
             for line in filtered_lines:
                 sharding_key = int(line[0]) % self.numberWorkers
                 if sharding_key not in sharding_data:
-                    sharding_data[sharding_key] = [line[0], line[1]]
+                    sharding_data[sharding_key] = []
+                sharding_data[sharding_key].append([line[0], line[1]])
 
             for key, value in sharding_data.items():
                 result_csv = MiddlewareMessage.write_csv_batch([value])
@@ -159,7 +160,8 @@ class FilterByYear:
             for line in filtered_lines:
                 sharding_key = int(line[0]) % self.numberWorkers
                 if sharding_key not in sharding_data:
-                    sharding_data[sharding_key] = [line[0]]
+                    sharding_data[sharding_key] = []
+                sharding_data[sharding_key].append(line[0])
 
             for key, value in sharding_data.items():
                 result_csv = MiddlewareMessage.write_csv_batch([value])

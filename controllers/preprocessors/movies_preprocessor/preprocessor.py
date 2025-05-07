@@ -114,6 +114,10 @@ class MoviesPreprocessor:
             # Crear un diccionario con los valores de las columnas necesarias
             row_dict = {col: row[col_indices[col]] for col in col_indices}
             
+            # Filtrar filas con valores nulos
+            if any(row_dict[col] in (None, '', 'null') for col in col_indices):
+                continue
+
             for key in ['genres', 'production_countries', 'spoken_languages']:
                 row_dict[key] = self.dictionary_to_list(row_dict[key])
 

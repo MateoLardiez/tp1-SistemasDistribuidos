@@ -67,19 +67,13 @@ class CreditsPreprocessor:
 
     def clean_csv(self, reader):
         col_indices = {col: i for i, col in enumerate(COLUMNS_CREDITS) if col in COLUMNS}
-
         result = {}
-
         for row in reader:
-            if len(row) != len(COLUMNS_CREDITS):
-                continue  # omitir filas mal formateadas
-
             # Crear un diccionario con los valores de las columnas necesarias
             row_dict = {col: row[col_indices[col]] for col in col_indices}            
 
             for key in ['cast']:
-                row_dict[key] = self.dictionary_to_list(row_dict[key])
-
+                row_dict[key] = self.dictionary_to_list(row_dict[key])   
             # Agregar los valores en el orden definido en COLUMNS
             filtered_row = [row_dict.get(col, '') for col in COLUMNS]
 
