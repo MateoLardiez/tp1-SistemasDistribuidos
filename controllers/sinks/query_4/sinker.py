@@ -84,7 +84,7 @@ class Query4:
     def clean_temp_files(self, client_id):
         """Elimina los archivos temporales creados para un cliente"""
         files_to_remove = [
-            f"query_5-client-{client_id}",
+            f"query_4-client-{client_id}",
         ]
         
         for file in files_to_remove:
