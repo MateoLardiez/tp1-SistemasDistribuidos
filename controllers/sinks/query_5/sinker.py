@@ -2,6 +2,7 @@ import logging
 from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
 from common.middleware_connection_handler import RabbitMQConnectionHandler
 import csv
+import os
 
 SENTIMENT_POS = 0
 RATE_POS = 1
@@ -54,6 +55,8 @@ class Query5:
                     routing_key="reports_queue",
                     msg_body=msg.encode_to_str()
                 )
+                self.clean_temp_files(data.client_id)
+                del self.clients_processed[data.client_id]
             # nos quedamos con el seq number mas grande
         else:
             if data.seq_number-1 - self.clients_processed[data.client_id]["batch_recibidos"] == 0:
@@ -70,6 +73,8 @@ class Query5:
                     routing_key="reports_queue",
                     msg_body=msg.encode_to_str()
                 )
+                self.clean_temp_files(data.client_id)
+                del self.clients_processed[data.client_id]
             else:
                 self.clients_processed[data.client_id]["eof"] = True
                 self.clients_processed[data.client_id]["seq_number"] = data.seq_number
@@ -127,6 +132,20 @@ class Query5:
             msg_body=msg.encode_to_str()
         )
     
+    def clean_temp_files(self, client_id):
+        """Elimina los archivos temporales creados para un cliente"""
+        files_to_remove = [
+            f"query_5-client-{client_id}",
+        ]
+        
+        for file in files_to_remove:
+            try:
+                if os.path.exists(file):
+                    os.remove(file)
+                    logging.info(f"action: clean_temp_files | file: {file} | result: removed")
+            except Exception as e:
+                logging.error(f"action: clean_temp_files | file: {file} | error: {str(e)}")
+
     def save_data(self, client_id, lines) -> None:
         # logging.info(f"LINEA PARA GUARDAR: {lines}")
         with open(f"query_5-client-{client_id}", 'a+') as file:

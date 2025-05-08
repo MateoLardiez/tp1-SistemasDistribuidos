@@ -6,6 +6,10 @@ from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMess
 from common.defines import QueryNumber
 from common.middleware_connection_handler import RabbitMQConnectionHandler
 
+import torch
+
+torch.set_num_threads(1)  
+
 ID = "id"
 OVERVIEW = 4
 BUDGET = 7
@@ -21,7 +25,7 @@ class AggregatorNlp:
             producer_exchange_name="aggregator_nlp_exchange",
             producer_queues_to_bind={ "aggregated_nlp_data_queue": ["aggregated_nlp_data_queue"]},
             consumer_exchange_name="movies_preprocessor_exchange",
-            consumer_queues_to_recv_from=["cleaned_movies_queue_nlp", "movies_queue.eof"]
+            consumer_queues_to_recv_from=["cleaned_movies_queue_nlp"]
         )
         self.aggregator_nlp_connection.set_message_consumer_callback("cleaned_movies_queue_nlp", self.callback)
         self.sentiment_analyzer = pipeline('sentiment-analysis', model='distilbert-base-uncased-finetuned-sst-2-english')

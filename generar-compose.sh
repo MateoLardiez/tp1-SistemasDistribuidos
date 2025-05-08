@@ -3,6 +3,7 @@
 N_CLIENTS=$1
 N_WORKERS=$2
 N_SINKERS=$3
+N_NLP=$4
 
 readonly COMPOSE_FILE="docker-compose-dev.yaml"
 
@@ -220,7 +221,7 @@ add_joiner_credit_by_id() {
 
 
 add_aggregator_nlp() {
-  for ((i=0; i<=N_WORKERS-1; i++)); do
+  for ((i=0; i<=N_NLP-1; i++)); do
     echo "  aggregator_nlp_$i:
     container_name: aggregator_nlp_$i
     image: aggregator_nlp:latest
@@ -347,9 +348,9 @@ add_client() {
       - CLI_ID=$((i+1))
     volumes:
       - ./client/config.yaml:/config.yaml:ro
-      - ./.data/movies_sample_sucio_copy.csv:/movies.csv:ro
-      - ./.data/ratings_sample_sucio.csv:/ratings.csv:ro
-      - ./.data/credits_sample_sucio.csv:/credits.csv:ro
+      - ./.data/movies_metadata.csv:/movies.csv:ro
+      - ./.data/ratings.csv:/ratings.csv:ro
+      - ./.data/credits.csv:/credits.csv:ro
     networks:
       - testing_net
     depends_on:
@@ -400,6 +401,11 @@ check_params() {
         exit 1
     fi
 
+    if ! [[ "$N_NLP" =~ ^[0-9]+$ ]]; then
+        echo "Error: <number_of_nlp> must be a positive integer."
+        exit 1
+    fi
+
     if [ "$N_SINKERS" -lt 1 ]; then
         echo "Error: <number_of_sinkers> must be at least 1."
         exit 1
@@ -412,6 +418,11 @@ check_params() {
 
     if [ "$N_CLIENTS" -lt 1 ]; then
         echo "Error: <number_of_clients> must be at least 1."
+        exit 1
+    fi
+
+    if [ "$N_NLP" -lt 1 ]; then
+        echo "Error: <number_of_nlp> must be at least 1."
         exit 1
     fi
 }

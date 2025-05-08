@@ -1,4 +1,5 @@
 import logging
+import os
 from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
 from common.middleware_connection_handler import RabbitMQConnectionHandler
 import csv
@@ -47,6 +48,10 @@ class Query3:
                     routing_key="reports_queue",
                     msg_body=msg.encode_to_str()
                 )
+                self.clean_temp_files(data.client_id)
+                del self.client_state[data.client_id]
+        
+
 
     def handler_query_3(self, client_id, query_number):
         # Ya tengo toda la data en mi csv
@@ -78,6 +83,21 @@ class Query3:
             routing_key="reports_queue",
             msg_body=msg.encode_to_str()
         )
+    
+
+    def clean_temp_files(self, client_id):
+        """Elimina los archivos temporales creados para un cliente"""
+        files_to_remove = [
+            f"query_3-client-{client_id}",
+        ]
+        
+        for file in files_to_remove:
+            try:
+                if os.path.exists(file):
+                    os.remove(file)
+                    logging.info(f"action: clean_temp_files | file: {file} | result: removed")
+            except Exception as e:
+                logging.error(f"action: clean_temp_files | file: {file} | error: {str(e)}")
     
     def save_data(self, client_id, lines) -> None:
         # logging.info(f"LINEA PARA GUARDAR: {lines}")
