@@ -6,6 +6,7 @@ from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMess
 from common.message_protocol import MessageProtocol
 from common.defines import ClientCommunication
 from common.middleware_connection_handler import RabbitMQConnectionHandler
+from common.socket_handler import SocketHandler
 
 CODE_ALL_QUERYS = 0
 CODE_BATCH = 6
@@ -26,10 +27,8 @@ BATCH_END = 9
 class Gateway:
     def __init__(self, port, listen_backlog, clients):
         # Initialize server socket
-        self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._server_socket.bind(('', port))
-        self._server_socket.listen(listen_backlog)
+        self._socket_handler = SocketHandler(server_mode=True)
+        self._socket_handler.create_socket(port=port, listen_backlog=listen_backlog)
         self.serverIsAlive = True
         self.manager = multiprocessing.Manager()
         self.clients = self.manager.dict()
@@ -295,15 +294,7 @@ class Gateway:
         Function blocks until a message is received. Then the
         message is decoded and returned
         """
-        header = self.__recv_all(sock, 4)
-        if not header:
-            logging.error(f"action: receive_message | result: fail | error: short-read")
-            return None
-
-        messageSize = int.from_bytes(header, byteorder='big')
-        #logging.info(f"action: receive_message | result: success | size: {messageSize}")  
-        data = self.__recv_all(sock, messageSize)
-        return MessageProtocol.decodeMessageBytes(data)
+        return SocketHandler.receive_message_from(sock)
 
     def send_message(self, sock, message):
         """
@@ -313,28 +304,7 @@ class Gateway:
         function returns True if the message was sent successfully
         or False if there was an error
         """
-        # Encode message
-        encoded_message = message.encodeMessageBytes()
-        # Get size of message
-        size = len(encoded_message)
-        # Send size of message
-        self.__send_all(sock, size.to_bytes(4, byteorder='big'))
-        # Send message
-        return self.__send_all(sock, encoded_message)
-    
-    
-    def __recv_all(self, sock, size):
-        data = b''
-        while len(data) < size:
-            try:
-                chunk = sock.recv(size - len(data))
-                if not chunk:
-                    return None
-                data += chunk
-            except OSError as e:
-                logging.error(f"action: receive_message | result: fail | error: {e}")
-                return None
-        return data
+        return SocketHandler.send_message_to(sock, message)
 
     def send_batch_to_preprocessor(self, batch, type_batch, seq_number, query_number, client_id):
         batch_type = None
@@ -428,18 +398,7 @@ class Gateway:
         return 0
 
 
-    def __send_all(self, sock, data):
-        totalSent = 0
-        while totalSent < len(data):
-            try:
-                sent = sock.send(data[totalSent:])
-                if sent == 0:
-                    return False
-                totalSent += sent
-            except OSError as e:
-                logging.error(f"action: send_message | result: fail | error: {e}")
-                return False
-        return True
+    # El método __send_all ya no es necesario porque se utiliza SocketHandler
 
     def __accept_new_connection(self):
         """
@@ -449,13 +408,12 @@ class Gateway:
         Then connection created is printed and returned
         """
         # Connection arrived
-        try:
-            logging.info('action: accept_connections | result: in_progress')
-            c, addr = self._server_socket.accept()
-            logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
-            return c
-        except OSError:
-            return None
+        logging.info('action: accept_connections | result: in_progress')
+        client_handler, client_addr = self._socket_handler.accept_connection()
+        if client_handler:
+            logging.info(f'action: accept_connections | result: success | ip: {client_addr[0]}')
+            return client_handler.get_socket()
+        return None
 
     def __signal_handler(self, signum, frame):
         signame = signal.Signals(signum).name
@@ -464,6 +422,6 @@ class Gateway:
         self.__close_server()
 
     def __close_server(self):
-        self._server_socket.close()
+        self._socket_handler.close()
         logging.info("action: close_server | result: success")
         exit(0)
