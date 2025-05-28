@@ -2,6 +2,7 @@ import socket
 import logging
 import signal
 import multiprocessing
+import uuid
 from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
 from common.message_protocol import MessageProtocol
 from common.defines import ClientCommunication
@@ -100,7 +101,7 @@ class Gateway:
                     logging.warning(f"action: handle_client_connection | result: fail | error: invalid message received")
                     break
                     
-                client_id = dto_message.id_client
+                client_id = uuid.uuid4().int
                 with self.clients_lock:
                     if client_id not in self.clients:
                         logging.info(f"action: add_client | result: success | client_id: {client_id}")
@@ -110,7 +111,7 @@ class Gateway:
                     logging.info(f"action: client_finish | result: success | client_id: {client_id}")
                     break
                     
-                self.handle_client_connection(client_sock, dto_message)
+                self.handle_client_connection(client_sock, dto_message, client_id)
                 
         except OSError as e:
             logging.error(f"action: handle_client_connection | result: fail | error: {e}")
@@ -181,7 +182,7 @@ class Gateway:
             logging.info(f"EOF_RESULT_Q5")
             self.send_result_query(MiddlewareMessage.write_csv_batch(result_query), ClientCommunication.EOF_QUERY_5 , data.client_id)
 
-    def handle_client_connection(self, client_sock, msg_type):
+    def handle_client_connection(self, client_sock, msg_type, client_id):
         self.publisher_connection = RabbitMQConnectionHandler(
             producer_exchange_name=self.producer_exchange_name,
             producer_queues_to_bind={
@@ -194,10 +195,10 @@ class Gateway:
         )
         logging.info(f"action: receive_message | result: success | code: {msg_type.type_message}")
         if msg_type.type_message == ClientCommunication.TYPE_QUERY:
-            self.__handle_query(client_sock, msg_type.payload)
+            self.__handle_query(client_sock, msg_type.payload, client_id)
         # Agregar las demas querys aqui
 
-    def __handle_query(self, client_sock, query):
+    def __handle_query(self, client_sock, query, client_id):
         """
         Handle query from client
 
@@ -206,7 +207,7 @@ class Gateway:
         """
         query_number = int(query)
         if query_number == ALL_QUERY:
-            self.__handle_all_query(client_sock)
+            self.__handle_all_query(client_sock, client_id)
         elif query_number == QUERY_1:
             self.start_query_1()
         elif query_number == 2:
@@ -219,27 +220,27 @@ class Gateway:
             self.start_query_5()
         
 
-    def __handle_all_query(self, client_sock):
+    def __handle_all_query(self, client_sock, client_id):
         query_number = ClientCommunication.ALL_QUERYS.value
         while True:
             dto_message = self.receive_message(client_sock)
-            if dto_message.id_client not in self.clients_batch_received:
-                self.clients_batch_received[dto_message.id_client] = {
+            if client_id not in self.clients_batch_received:
+                self.clients_batch_received[client_id] = {
                     ClientCommunication.BATCH_MOVIES: 0,
                     ClientCommunication.BATCH_RATINGS: 0,
                     ClientCommunication.BATCH_CREDITS: 0
                 }
             if dto_message.type_message == ClientCommunication.BATCH_MOVIES:
-                self.receive_file(client_sock, query_number, dto_message, ClientCommunication.EOF_MOVIES) 
+                self.receive_file(client_sock, query_number, dto_message, ClientCommunication.EOF_MOVIES, client_id) 
             elif dto_message.type_message == ClientCommunication.BATCH_RATINGS:
-                self.receive_file(client_sock, query_number, dto_message, ClientCommunication.EOF_RATINGS)
+                self.receive_file(client_sock, query_number, dto_message, ClientCommunication.EOF_RATINGS, client_id)
             elif dto_message.type_message == ClientCommunication.BATCH_CREDITS:
-                self.receive_file(client_sock, query_number, dto_message, ClientCommunication.EOF_CREDITS)
+                self.receive_file(client_sock, query_number, dto_message, ClientCommunication.EOF_CREDITS, client_id)
             elif dto_message.type_message == ClientCommunication.FINISH_SEND_FILES:
                 logging.info(f"action: receive_message | result: success | code: {dto_message.type_message}")            
                 break
 
-    def receive_file(self, client_sock, query_number, msg, eof_value):
+    def receive_file(self, client_sock, query_number, msg, eof_value, client_id):
         """
         Receive a file from the client
 
@@ -249,19 +250,19 @@ class Gateway:
         message = msg
         # Process the initial message that was passed in first
         while message.type_message != eof_value:
-            self.clients_batch_received[message.id_client][message.type_message] += 1
+            self.clients_batch_received[client_id][message.type_message] += 1
             batchData = message.payload.replace('|', '\n')
             self.send_batch_to_preprocessor(
                 batch=batchData,
                 type_batch=message.type_message,
-                seq_number=self.clients_batch_received[message.id_client][message.type_message],
+                seq_number=self.clients_batch_received[client_id][message.type_message],
                 query_number=query_number,
-                client_id=message.id_client
+                client_id=client_id
             )
             # self.send_ack(client_sock, message.id_client, ClientCommunication.TYPE_ACK.value,"Batch received")
             message = self.receive_message(client_sock)   
 
-        self.send_eof_to_preprocessor(message.type_message, query_number, message.id_client)
+        self.send_eof_to_preprocessor(message.type_message, query_number, client_id)
         return
 
     def send_ack(self, client_sock, id_client, ack_type, message=None):
@@ -369,7 +370,7 @@ class Gateway:
         or False if there was an error
         """
         msg = MessageProtocol(
-            idClient=client_id,
+            # idClient=client_id,
             typeMessage=type_query,
             payload=result_query
         )

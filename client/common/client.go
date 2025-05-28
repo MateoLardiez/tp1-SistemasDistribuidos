@@ -115,23 +115,23 @@ func (c *Client) handleQuery() bool {
 
 func (c *Client) handleAllQueries() {
 	message := communication.NewMessageProtocol(
-		c.config.ID,
+		// c.config.ID,
 		communication.TYPE_QUERY,
 		[]byte(strconv.Itoa(communication.ALL_QUERYS)),
 	)
 	err := c.protocol.SendMessage(message)
 	if err != nil {
-		log.Errorf("action: send_message_code_query | result: fail | client_id: %v | error: %v",
-			c.config.ID,
-			err,
-		)
+		// log.Errorf("action: send_message_code_query | result: fail | client_id: %v | error: %v",
+		// 	c.config.ID,
+		// 	err,
+		// )
 		return
 	}
 	c.SendFile("movies.csv", communication.BATCH_MOVIES, communication.EOF_MOVIES, "movies")
 	c.SendFile("credits.csv", communication.BATCH_CREDITS, communication.EOF_CREDITS, "credits")
 	c.SendFile("ratings.csv", communication.BATCH_RATINGS, communication.EOF_RATINGS, "ratings")
 	messageFinish := communication.NewMessageProtocol(
-		c.config.ID,
+		// c.config.ID,
 		communication.FINISH_SEND_FILES,
 		nil,
 	)
@@ -243,7 +243,7 @@ func (c *Client) SendFile(filename string, code int, codeEOF int, fileType strin
 		}
 	}
 	messageEOF := communication.NewMessageProtocol(
-		c.config.ID,
+		// c.config.ID,
 		codeEOF,
 		nil,
 	)
@@ -312,7 +312,7 @@ func (c *Client) handleBatch(reader *FileReader, code int) bool {
 	}
 
 	messageBatch := communication.NewMessageProtocol(
-		c.config.ID,
+		// c.config.ID,
 		code,
 		batch,
 	)
@@ -368,7 +368,7 @@ func (c *Client) handleBatch(reader *FileReader, code int) bool {
 
 func (c *Client) handleCloseConnection() {
 	message := communication.NewMessageProtocol(
-		c.config.ID,
+		// c.config.ID,
 		communication.TYPE_FINISH_COMMUNICATION,
 		nil,
 	)
