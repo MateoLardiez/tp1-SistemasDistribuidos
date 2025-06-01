@@ -476,4 +476,18 @@ func (c *Client) sendResultsToTester(payload string) {
 			string(response.Payload),
 		)
 	}
+
+	messageFinish := communication.NewMessageProtocol(
+		communication.TYPE_FINISH_COMMUNICATION,
+		nil,
+	)
+	errFinish := testerProtocol.SendMessage(messageFinish)
+	if errFinish != nil {
+		log.Errorf("action: send_message_code_end | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			errFinish,
+		)
+		return
+	}
+	log.Infof("action: send_results_to_tester | result: complete | client_id: %v", c.config.ID)
 }

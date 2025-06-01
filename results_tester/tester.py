@@ -9,6 +9,44 @@ from common.defines import ClientCommunication
 
 # Expected results for validation
 EXPECTED_RESULTS = {
+  "query_1": {
+    "Bombón: The Dog": [
+      "Drama"
+    ],
+    "The Method": [
+      "Drama",
+      "Thriller"
+    ]
+  },
+  "query_2": {
+    "Australia": 131700000,
+    "China": 120341000,
+    "Russia": 56523508,
+    "United Kingdom": 65118051,
+    "United States of America": 5734392263
+  },
+  "query_3": {
+    "Bombón: The Dog": 4
+  },
+  "query_4": {
+    "Adriana Ozores": 1,
+    "Adrián Giampani": 1,
+    "Adrián Suar": 1,
+    "Alejandro Awada": 1,
+    "Ana María Castel": 1,
+    "Andrea Goldberg": 1,
+    "Andrers Ciavaglia": 1,
+    "Andrés Gavaldá": 1,
+    "Arturo Frutos": 1,
+    "Carlos Rossi": 1
+  },
+  "query_5": {
+    "NEGATIVE": 4.82498845992441,
+    "POSITIVE": 5.40500988010654
+  }
+}
+
+EXPECTED_RESULTS_ORIGINAL= {
     "query_1": {
         "La Cienaga": ["Comedy", "Drama"],
         "Burnt Money": ["Crime"],
@@ -124,6 +162,12 @@ class Tester:
                         f"action: handle_client_connection | result: fail | error: invalid message received"
                     )
                     break
+                if dto_message.type_message == ClientCommunication.TYPE_FINISH_COMMUNICATION:
+                    logging.info(
+                        f"action: handle_client_connection | result: finish_communication | client_id: {client_id}"
+                    )
+                    break
+
                 self.handle_client_connection(client_sock, dto_message, client_id)
 
         except OSError as e:
@@ -149,7 +193,7 @@ class Tester:
                 results = payload_data.get("results")
 
                 # Validate the results
-                validation_result = self.validate_results(results)
+                validation_result = self.validate_results(results, client_id)
 
                 # Log the validation result
                 if validation_result:
@@ -187,80 +231,145 @@ class Tester:
                 f"action: handle_message | result: unknown_message_type | type: {msg_protocol.type_message}"
             )
 
-    def validate_results(self, client_results):
+    def validate_results(self, client_results, client_id):
         """
         Compare client results with expected results
         """
         if not client_results:
+            print("No client results provided")
             return False
+            
+        # Ensure client_results is a dictionary
+        if isinstance(client_results, str):
+            try:
+                client_results = json.loads(client_results)
+            except json.JSONDecodeError:
+                logging.error("Failed to parse client_results as JSON")
+                print("Failed to parse client results as JSON")
+                return False
+
+        all_queries_passed = True
+        validation_report = []
 
         # Check each query result
         for query_key in EXPECTED_RESULTS:
+            str_query_key = str(query_key)  # Ensure the key is a string
 
-            if query_key not in client_results:
-                logging.warning(
-                    f"action: validate_results | result: fail | reason: missing_query_{query_key}"
-                )
-                return False
+            if str_query_key not in client_results and query_key not in client_results:
+                validation_report.append({
+                    "query": query_key.upper(),
+                    "status": "ERROR",
+                    "error": f"Missing query {query_key} in client results"
+                })
+                all_queries_passed = False
+                continue
 
             expected_query_result = EXPECTED_RESULTS[query_key]
-            client_query_result = client_results[query_key]
+            # Try to get using either string or original key type
+            client_query_result = client_results.get(str_query_key, client_results.get(query_key))
 
             # Compare the results for this query
-            if not self._compare_query_results(
+            query_validation_result = self._compare_query_results(
                 query_key, expected_query_result, client_query_result
-            ):
-                return False
+            )
+            
+            if query_validation_result["passed"]:
+                validation_report.append({
+                    "query": query_key.upper(),
+                    "status": "OK"
+                })
+            else:
+                validation_report.append({
+                    "query": query_key.upper(),
+                    "status": "ERROR",
+                    "differences": query_validation_result["differences"]
+                })
+                all_queries_passed = False
 
-        return True
+        # Print detailed validation report
+        self._print_validation_report(validation_report, client_id)
+
+        return all_queries_passed
 
     def _compare_query_results(self, query_key, expected, client):
         """
         Compare results for a specific query
         """
+        differences = []
+        
         # Check if the number of items matches
         if len(expected) != len(client):
-            logging.warning(
-                f"action: validate_query | query: {query_key} | result: fail | reason: item_count_mismatch | expected: {len(expected)} | got: {len(client)}"
-            )
-            return False
+            differences.append(f"Item count mismatch: expected {len(expected)}, got {len(client)}")
 
-        # Check each item in the query result
+        # Check for missing keys in client results
+        missing_keys = []
         for key in expected:
             if key not in client:
-                logging.warning(
-                    f"action: validate_query | query: {query_key} | result: fail | reason: missing_key | key: {key}"
-                )
-                return False
+                missing_keys.append(key)
+        
+        if missing_keys:
+            differences.append(f"Missing keys: {missing_keys}")
 
-            expected_value = expected[key]
-            client_value = client[key]
+        # Check for extra keys in client results
+        extra_keys = []
+        for key in client:
+            if key not in expected:
+                extra_keys.append(key)
+        
+        if extra_keys:
+            differences.append(f"Extra keys: {extra_keys}")
 
-            # Special handling for floats (allow small differences)
-            if isinstance(expected_value, float) and isinstance(
-                client_value, (float, int)
-            ):
-                if abs(expected_value - client_value) > 0.001:
-                    logging.warning(
-                        f"action: validate_query | query: {query_key} | result: fail | reason: float_value_mismatch | key: {key} | expected: {expected_value} | got: {client_value}"
-                    )
-                    return False
-            # Special handling for lists
-            elif isinstance(expected_value, list) and isinstance(client_value, list):
-                if set(expected_value) != set(client_value):
-                    logging.warning(
-                        f"action: validate_query | query: {query_key} | result: fail | reason: list_value_mismatch | key: {key} | expected: {expected_value} | got: {client_value}"
-                    )
-                    return False
-            # Direct comparison for other types
-            elif expected_value != client_value:
-                logging.warning(
-                    f"action: validate_query | query: {query_key} | result: fail | reason: value_mismatch | key: {key} | expected: {expected_value} | got: {client_value}"
-                )
-                return False
+        # Check each item value in the query result
+        value_mismatches = []
+        for key in expected:
+            if key in client:
+                expected_value = expected[key]
+                client_value = client[key]
+                
+                # Clean up string values that may have \"\r at the end
+                if isinstance(client_value, str):
+                    client_value = client_value.rstrip('"\r')
+                    # Convert to numeric type if possible
+                    try:
+                        if '.' in client_value:
+                            client_value = float(client_value)
+                        else:
+                            client_value = int(client_value)
+                    except ValueError:
+                        pass
+                
+                # Special handling for floats (allow small differences)
+                if isinstance(expected_value, float) and isinstance(client_value, (float, int)):
+                    if abs(expected_value - client_value) > 0.001:
+                        value_mismatches.append({
+                            "key": key,
+                            "expected": expected_value,
+                            "got": client_value
+                        })
+                # Special handling for lists
+                elif isinstance(expected_value, list) and isinstance(client_value, list):
+                    if set(expected_value) != set(client_value):
+                        value_mismatches.append({
+                            "key": key,
+                            "expected": expected_value,
+                            "got": client_value
+                        })
+                # Direct comparison for other types
+                elif expected_value != client_value:
+                    value_mismatches.append({
+                        "key": key,
+                        "expected": expected_value,
+                        "got": client_value
+                    })
 
-        logging.info(f"action: validate_query | query: {query_key} | result: success")
-        return True
+        if value_mismatches:
+            differences.append(f"Value mismatches: {value_mismatches}")
+
+        # Log results
+        if differences:
+            return {"passed": False, "differences": differences}
+        else:
+            return {"passed": True, "differences": []}
 
     def receive_message(self, sock) -> MessageProtocol:
         """
@@ -308,3 +417,58 @@ class Tester:
         self._socket_handler.close()
         logging.info("action: close_server | result: success")
         exit(0)
+
+    def _print_validation_report(self, validation_report,client_id):    
+        """
+        Print a detailed validation report for all queries
+        """
+        print("\n" + "="*50)
+        print("          VALIDATION REPORT: Client ID", client_id)
+        print("="*50)
+        
+        for report in validation_report:
+            query_name = report["query"]
+            status = report["status"]
+            
+            if status == "OK":
+                print(f"{query_name}: OK")
+            else:
+                print(f"{query_name}: ERROR")
+                
+                if "error" in report:
+                    # Handle missing query error
+                    print(f"  Error: {report['error']}")
+                elif "differences" in report:
+                    # Handle validation differences
+                    for difference in report["differences"]:
+                        print(f"  - {difference}")
+                        
+                        # If this is a value mismatch, show expected vs obtained
+                        if "Value mismatches:" in difference:
+                            value_mismatches_str = difference.replace("Value mismatches: ", "")
+                            try:
+                                import ast
+                                value_mismatches = ast.literal_eval(value_mismatches_str)
+                                
+                                if isinstance(value_mismatches, list):
+                                    print("  Expected:")
+                                    expected_dict = {}
+                                    obtained_dict = {}
+                                    
+                                    for mismatch in value_mismatches:
+                                        if isinstance(mismatch, dict):
+                                            key = mismatch.get("key")
+                                            expected_val = mismatch.get("expected")
+                                            obtained_val = mismatch.get("got")
+                                            expected_dict[key] = expected_val
+                                            obtained_dict[key] = obtained_val
+                                    
+                                    print(f"  {json.dumps(expected_dict, indent=2)}")
+                                    print("  Obtained:")
+                                    print(f"  {json.dumps(obtained_dict, indent=2)}")
+                            except (ValueError, SyntaxError):
+                                # If parsing fails, just show the raw difference
+                                pass
+                print()
+        
+        print("="*50)
