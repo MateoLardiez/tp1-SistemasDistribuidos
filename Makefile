@@ -16,6 +16,7 @@ build: deps
 docker-image:
 	docker build -f ./gateway/Dockerfile -t "gateway:latest" .
 	docker build -f ./client/Dockerfile -t "client:latest" .
+	docker build -f ./results_tester/Dockerfile -t "results_tester:latest" .
 	docker build -f ./controllers/preprocessors/movies_preprocessor/Dockerfile -t "movies_preprocessor:latest" .
 	docker build -f ./controllers/preprocessors/ratings_preprocessor/Dockerfile -t "ratings_preprocessor:latest" .
 	docker build -f ./controllers/preprocessors/credits_preprocessor/Dockerfile -t "credits_preprocessor:latest" .
@@ -34,7 +35,7 @@ docker-image:
 	docker build -f ./controllers/sinks/query_4/Dockerfile -t "query_4:latest" .
 	docker build -f ./controllers/sinks/query_5/Dockerfile -t "query_5:latest" .
 	# Execute this command from time to time to clean up intermediate stages generated 
-	# during client build (your hard drive will like this :) ). Don't left uncommented if you 
+	# during client build (your hard drive will like this :). Don't left uncommented if you 
 	# want to avoid rebuilding client image every time the docker-compose-up command 
 	# is executed, even when client code has not changed
 	# docker rmi `docker images --filter label=intermediateStageToBeDeleted=true -q`

@@ -1,6 +1,8 @@
 package common
 
 import (
+	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"os/signal"
@@ -9,6 +11,7 @@ import (
 	"time"
 
 	"movies-analysis/client/common/communication"
+	"movies-analysis/client/common/result"
 	"movies-analysis/client/config"
 )
 
@@ -18,6 +21,7 @@ var log = config.Log
 type ClientConfig struct {
 	ID             int
 	ServerAddress  string
+	TesterAddress  string // Address of the tester server
 	LoopAmount     int
 	LoopPeriod     time.Duration
 	MaxAmount      int
@@ -31,8 +35,9 @@ type Client struct {
 	config          ClientConfig
 	protocol        *communication.Protocol
 	quit            chan os.Signal
-	bufferedLine    string // Buffer to store a line that didn't fit in the previous batch
-	hasBufferedLine bool   // Flag to indicate if we have a buffered line
+	bufferedLine    string                      // Buffer to store a line that didn't fit in the previous batch
+	hasBufferedLine bool                        // Flag to indicate if we have a buffered line
+	resultQueries   map[int]*result.ResultQuery // Store results of queries
 }
 
 // NewClient Initializes a new client receiving the configuration
@@ -49,6 +54,7 @@ func NewClient(config ClientConfig) *Client {
 		protocol:        protocol,
 		quit:            make(chan os.Signal, 1),
 		hasBufferedLine: false,
+		resultQueries:   make(map[int]*result.ResultQuery),
 	}
 	signal.Notify(client.quit, syscall.SIGINT, syscall.SIGTERM)
 	return client
@@ -152,6 +158,7 @@ func (c *Client) handleResponse() bool {
 	)
 	result_received := 0
 	finishedMessages := false
+
 	for {
 		if c.resultReceived(result_received) {
 			log.Infof("action: Received_result | result: complete | client_id: %v",
@@ -178,6 +185,9 @@ func (c *Client) resultReceived(resultReceived int) bool {
 	switch c.config.Query {
 	case communication.ALL_QUERYS:
 		if resultReceived == 5 {
+			// Print and send results to tester
+			payload := c.fmtResultQueries()
+			c.sendResultsToTester(payload)
 			return true
 		}
 	default:
@@ -188,7 +198,31 @@ func (c *Client) resultReceived(resultReceived int) bool {
 	return false
 }
 
-func (c *Client) handler_message_response(message *communication.MessageProtocol, resultReceived *int) bool {
+func (c *Client) fmtResultQueries() string {
+	// Create a map to hold all query results
+	allResults := make(map[string]interface{})
+
+	for i := 1; i <= 5; i++ {
+		if resultQuery, exists := c.resultQueries[i]; exists {
+			// Convert result to JSON format
+			queryKey := fmt.Sprintf("query_%d", i)
+			allResults[queryKey] = resultQuery.ParseToMap()
+		}
+	}
+
+	// Convert the entire result to JSON
+	jsonData, err := json.MarshalIndent(allResults, "", "  ")
+	if err != nil {
+		log.Errorf("action: format_results_to_json | result: fail | error: %v", err)
+		return "{}"
+	}
+
+	// Print the JSON result
+	fmt.Println(string(jsonData))
+	return string(jsonData)
+}
+
+func (c *Client) handler_message_response(message *communication.MessageProtocol, resultReceived *int) {
 	switch message.TypeMessage {
 	case communication.RESULT_QUERY_1:
 		c.handleQueryResult(communication.QUERY_1, message)
@@ -215,9 +249,7 @@ func (c *Client) handler_message_response(message *communication.MessageProtocol
 			c.config.ID,
 			message.TypeMessage,
 		)
-		return false
 	}
-	return false
 }
 
 func (c *Client) handleQueryResult(queryNumber uint, message *communication.MessageProtocol) {
@@ -225,6 +257,16 @@ func (c *Client) handleQueryResult(queryNumber uint, message *communication.Mess
 		queryNumber,
 		string(message.Payload),
 	)
+	if message.TypeMessage != communication.RESULT_QUERY_1 {
+		c.resultQueries[int(queryNumber)] = result.NewResultQuery(int(queryNumber), string(message.Payload))
+	} else {
+		if _, exists := c.resultQueries[int(queryNumber)]; !exists {
+			c.resultQueries[int(queryNumber)] = result.NewResultQuery(int(queryNumber), string(message.Payload))
+		} else {
+			// Append the result to the existing query result
+			c.resultQueries[int(queryNumber)].AppendResult(string(message.Payload))
+		}
+	}
 }
 
 func (c *Client) SendFile(filename string, code int, codeEOF int, fileType string) {
@@ -384,5 +426,54 @@ func (c *Client) closeClient() {
 	if err := c.protocol.Close(); err != nil {
 		log.Errorf("action: close_protocol | result: fail | error: %v", err)
 		return
+	}
+}
+
+func (c *Client) sendResultsToTester(payload string) {
+	// Create a JSON object with client ID and results
+	testerProtocol, err := communication.NewProtocol(c.config.TesterAddress)
+	if err != nil {
+		log.Criticalf("action: create_protocol_tester | result: fail | error: %v", err)
+		return
+	}
+
+	defer testerProtocol.Close()
+
+	messageWithClientID := map[string]interface{}{
+		"client_id": c.config.ID,
+		"results":   payload,
+	}
+
+	// Convert the map to JSON
+	jsonData, err := json.Marshal(messageWithClientID)
+	if err != nil {
+		log.Errorf("action: format_results_to_json | result: fail | error: %v", err)
+		return
+	}
+
+	// Create a message with the JSON results
+	message := communication.NewMessageProtocol(
+		communication.CLIENT_RESULTS,
+		jsonData,
+	)
+
+	err = testerProtocol.SendMessage(message)
+	if err != nil {
+		log.Errorf("action: send_results_to_tester | result: fail | error: %v", err)
+		return
+	}
+
+	// Wait for validation response
+	response, err := testerProtocol.ReceiveMessage()
+	if err != nil {
+		log.Errorf("action: receive_validation | result: fail | error: %v", err)
+		return
+	}
+
+	if response.TypeMessage == communication.RESULTS_VALIDATION {
+		log.Infof("action: receive_validation | result: success | client_id: %v | validation: %s",
+			c.config.ID,
+			string(response.Payload),
+		)
 	}
 }

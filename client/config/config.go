@@ -28,6 +28,7 @@ func InitConfig() (*viper.Viper, error) {
 	// Add env variables supported
 	v.BindEnv("id")
 	v.BindEnv("server", "address")
+	v.BindEnv("tester", "address")
 	v.BindEnv("loop", "period")
 	v.BindEnv("loop", "amount")
 	v.BindEnv("log", "level")
@@ -55,9 +56,10 @@ func InitConfig() (*viper.Viper, error) {
 // PrintConfig Print all the configuration parameters of the program.
 // For debugging purposes only
 func PrintConfig(v *viper.Viper) {
-	Log.Infof("action: config | result: success | client_id: %s | server_address: %s | loop_amount: %v | loop_period: %v | log_level: %s | batch_maxAmount: %v | files: %v | query_number: %v",
+	Log.Infof("action: config | result: success | client_id: %s | server_address: %s | tester_address: %s | loop_amount: %v | loop_period: %v | log_level: %s | batch_maxAmount: %v | files: %v | query_number: %v",
 		v.GetString("id"),
 		v.GetString("server.address"),
+		v.GetString("tester.address"),
 		v.GetInt("loop.amount"),
 		v.GetDuration("loop.period"),
 		v.GetString("log.level"),

@@ -21,6 +21,7 @@ func main() {
 
 	clientConfig := common.ClientConfig{
 		ServerAddress: v.GetString("server.address"),
+		TesterAddress: v.GetString("tester.address"),
 		ID:            v.GetInt("id"),
 		LoopAmount:    v.GetInt("loop.amount"),
 		LoopPeriod:    v.GetDuration("loop.period"),

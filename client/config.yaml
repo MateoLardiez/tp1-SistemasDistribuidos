@@ -1,5 +1,7 @@
 server:
   address: "gateway:12345"
+tester:
+  address: "results_tester:12345"
 loop:
   amount: 5
   period: "50ms"

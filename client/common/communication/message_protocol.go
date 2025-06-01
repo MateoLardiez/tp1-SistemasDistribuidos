@@ -37,3 +37,7 @@ func EncodeMessageProtocol(message *MessageProtocol) []byte {
 	}
 	return data
 }
+
+func (m *MessageProtocol) Encode() []byte {
+	return EncodeMessageProtocol(m)
+}

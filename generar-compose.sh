@@ -338,6 +338,18 @@ add_sinker_q5() {
   done
 }
 
+add_results_tester() {
+  echo "  results_tester:
+    container_name: results_tester
+    image: results_tester:latest
+    entrypoint: python3 /main.py
+    volumes:
+      - ./.data/results.json:/results.json:ro
+    networks:
+      - testing_net
+" >> "$COMPOSE_FILE"
+}
+
 add_client() {
   for ((i=0; i<=N_CLIENTS-1; i++)); do
     echo "  client$i:
@@ -450,5 +462,6 @@ add_sinker_q2
 add_sinker_q3
 add_sinker_q4
 add_sinker_q5
+add_results_tester
 add_client
 add_networks

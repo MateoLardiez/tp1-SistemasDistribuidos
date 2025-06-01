@@ -52,4 +52,7 @@ const (
 	//
 	FINISH_SEND_FILES = 19
 	TYPE_ERROR        = 20
+	// Results testing
+	CLIENT_RESULTS     = 21
+	RESULTS_VALIDATION = 22
 )
