@@ -26,4 +26,99 @@ Valores como resultados patron: https://www.kaggle.com/code/gabrielrobles/fiuba-
 
 # Diseno
 
+# Sistema Killer
+
+## Inicio en 3 pasos:
+
+```bash
+# 1. Generar docker-compose con killer
+./generar-compose.sh 2 3 2 1
+
+# 2. Levantar sistema completo
+make docker-compose-up
+
+# 3. Usar killer en modo interactivo
+make killer-interactive
+```
+
+## Comandos más usados:
+
+| Comando | Descripción |
+|---------|-------------|
+| `make killer-interactive` | Modo interactivo (recomendado) |
+| `make killer-show-system` | Ver contenedores organizados por tipo |
+| `make killer-list` | Listar todos los contenedores |
+| `make killer-kill` | Matar un contenedor (pide nombre) |
+
+## Ejemplos prácticos:
+
+### Simular falla en preprocessors:
+```bash
+./manage_containers.sh --kill movies_preprocessor_0
+./manage_containers.sh --kill ratings_preprocessor_1
+```
+
+### Simular falla en filtros:
+```bash
+./manage_containers.sh --kill filter_by_year_0
+./manage_containers.sh --kill filter_by_country_1
+```
+
+### Simular falla en sinkers:
+```bash
+./manage_containers.sh --kill query_1_sinker_0
+./manage_containers.sh --kill query_2_sinker_1
+```
+
+### Ver impacto en el sistema:
+```bash
+# Antes de matar contenedores
+make killer-show-system
+
+# Matar algunos contenedores
+./manage_containers.sh --kill movies_preprocessor_0
+
+# Ver estado después
+make killer-show-system
+```
+
+## Modo interactivo - Comandos internos:
+
+Una vez en modo interactivo (`make killer-interactive`):
+
+- `list` - Ver contenedores disponibles
+- `<nombre_contenedor>` - Matar contenedor específico
+- `exit` - Salir del modo interactivo
+
+## Reiniciar servicios eliminados:
+
+```bash
+# Reiniciar un servicio específico
+docker-compose up -d movies_preprocessor_0
+
+# Reiniciar todos los servicios
+make docker-compose-up
+```
+
+## Troubleshooting:
+
+```bash
+# Verificar que killer esté ejecutándose
+docker ps | grep killer
+
+# Si killer no está disponible
+make docker-compose-down
+make docker-compose-up
+
+# Verificar conectividad con Docker
+docker exec killer python -c "import docker; print(docker.APIClient().ping())"
+```
+
+## Casos de uso para testing:
+
+1. **Test de tolerancia a fallos**: Mata workers de diferentes tipos
+2. **Test de balanceo de carga**: Mata algunos workers de un tipo específico
+3. **Test de recuperación**: Mata servicios críticos y observa comportamiento
+4. **Test de cascada**: Mata múltiples servicios en secuencia
+
 ...

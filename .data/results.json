@@ -1,55 +1,37 @@
 {
   "query_1": {
-    "La Cienaga": ["Comedy", "Drama"],
-    "Burnt Money": ["Crime"],
-    "The City of No Limits": ["Thriller", "Drama"],
-    "Nicotina": ["Drama", "Action", "Comedy", "Thriller"],
-    "Lost Embrace": ["Drama", "Foreign"],
-    "Whisky": ["Comedy", "Drama", "Foreign"],
-    "The Holy Girl": ["Drama", "Foreign"],
-    "The Aura": ["Crime", "Drama", "Thriller"],
-    "Bombón: The Dog": ["Drama"],
-    "Rolling Family": ["Drama", "Comedy"],
-    "The Method": ["Drama", "Thriller"],
-    "Every Stewardess Goes to Heaven": ["Drama", "Romance", "Foreign"],
-    "Tetro": ["Drama", "Mystery"],
-    "The Secret in Their Eyes": ["Crime", "Drama", "Mystery", "Romance"],
-    "Liverpool": ["Drama"],
-    "The Headless Woman": ["Drama", "Mystery", "Thriller"],
-    "The Last Summer of La Boyita": ["Drama"],
-    "The Appeared": ["Horror", "Thriller", "Mystery"],
-    "The Fish Child": ["Drama", "Thriller", "Romance", "Foreign"],
-    "Cleopatra": ["Drama", "Comedy", "Foreign"],
-    "Roma": ["Drama", "Foreign"],
-    "Conversations with Mother": ["Comedy", "Drama", "Foreign"],
-    "The Education of Fairies": ["Drama"],
-    "The Good Life": ["Drama"]
+    "Bombón: The Dog": [
+      "Drama"
+    ],
+    "The Method": [
+      "Drama",
+      "Thriller"
+    ]
   },
   "query_2": {
-    "United States of America": 120153886644,
-    "France": 2256831838,
-    "United Kingdom": 1611604610,
-    "India": 1169682797,
-    "Japan": 832585873
+    "Australia": 131700000,
+    "China": 120341000,
+    "Russia": 56523508,
+    "United Kingdom": 65118051,
+    "United States of America": 5734392263
   },
   "query_3": {
-    "The forbidden education": 4.0,
-    "Left for Dead": 1.0
+    "Bombón: The Dog": 4
   },
   "query_4": {
-    "Ricardo Darín": 17,
-    "Alejandro Awada": 7,
-    "Inés Efron": 7,
-    "Leonardo Sbaraglia": 7,
-    "Valeria Bertuccelli": 7,
-    "Arturo Goetz": 6,
-    "Diego Peretti": 6,
-    "Pablo Echarri": 6,
-    "Rafael Spregelburd": 6,
-    "Rodrigo de la Serna": 6
+    "Adriana Ozores": 1,
+    "Adrián Giampani": 1,
+    "Adrián Suar": 1,
+    "Alejandro Awada": 1,
+    "Ana María Castel": 1,
+    "Andrea Goldberg": 1,
+    "Andrers Ciavaglia": 1,
+    "Andrés Gavaldá": 1,
+    "Arturo Frutos": 1,
+    "Carlos Rossi": 1
   },
   "query_5": {
-    "POSITIVE": 5703.6952437095715,
-    "NEGATIVE": 5408.329048731048
+    "NEGATIVE": 4.82498845992441,
+    "POSITIVE": 5.40500988010654
   }
 }

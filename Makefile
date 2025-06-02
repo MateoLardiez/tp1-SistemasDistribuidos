@@ -34,6 +34,7 @@ docker-image:
 	docker build -f ./controllers/sinks/query_3/Dockerfile -t "query_3:latest" .
 	docker build -f ./controllers/sinks/query_4/Dockerfile -t "query_4:latest" .
 	docker build -f ./controllers/sinks/query_5/Dockerfile -t "query_5:latest" .
+	docker build -f ./controllers/killer/Dockerfile -t "killer:latest" .
 	# Execute this command from time to time to clean up intermediate stages generated 
 	# during client build (your hard drive will like this :). Don't left uncommented if you 
 	# want to avoid rebuilding client image every time the docker-compose-up command 
@@ -53,3 +54,26 @@ docker-compose-down:
 docker-compose-logs:
 	docker compose -f docker-compose-dev.yaml logs -f
 .PHONY: docker-compose-logs
+
+# === Killer Management Targets ===
+killer-interactive:
+	@./manage_containers.sh --interactive
+.PHONY: killer-interactive
+
+killer-list:
+	@./manage_containers.sh --list
+.PHONY: killer-list
+
+killer-show-system:
+	@./manage_containers.sh --show-system
+.PHONY: killer-show-system
+
+killer-kill:
+	@read -p "Ingresa el nombre del contenedor a matar: " container && \
+	./manage_containers.sh --kill $$container
+.PHONY: killer-kill
+
+killer-help:
+	@./manage_containers.sh --help
+.PHONY: killer-help
+

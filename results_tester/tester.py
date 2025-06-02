@@ -2,49 +2,32 @@ import logging
 import signal
 import multiprocessing
 import json
+import os
 from common.socket_handler import SocketHandler
 from common.message_protocol import MessageProtocol
 from common.defines import ClientCommunication
 
 
-# Expected results for validation
-EXPECTED_RESULTS = {
-  "query_1": {
-    "Bombón: The Dog": [
-      "Drama"
-    ],
-    "The Method": [
-      "Drama",
-      "Thriller"
-    ]
-  },
-  "query_2": {
-    "Australia": 131700000,
-    "China": 120341000,
-    "Russia": 56523508,
-    "United Kingdom": 65118051,
-    "United States of America": 5734392263
-  },
-  "query_3": {
-    "Bombón: The Dog": 4
-  },
-  "query_4": {
-    "Adriana Ozores": 1,
-    "Adrián Giampani": 1,
-    "Adrián Suar": 1,
-    "Alejandro Awada": 1,
-    "Ana María Castel": 1,
-    "Andrea Goldberg": 1,
-    "Andrers Ciavaglia": 1,
-    "Andrés Gavaldá": 1,
-    "Arturo Frutos": 1,
-    "Carlos Rossi": 1
-  },
-  "query_5": {
-    "NEGATIVE": 4.82498845992441,
-    "POSITIVE": 5.40500988010654
-  }
-}
+def load_expected_results():
+    """
+    Load expected results from results.json file
+    """
+    try:
+        # Get the directory where this script is located
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        results_file = os.path.join(script_dir, 'results.json')
+        
+        with open(results_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        logging.error(f"Results file not found: {results_file}")
+        raise
+    except json.JSONDecodeError as e:
+        logging.error(f"Error parsing results JSON file: {e}")
+        raise
+
+# Load expected results from JSON file
+EXPECTED_RESULTS = load_expected_results()
 
 EXPECTED_RESULTS_ORIGINAL= {
     "query_1": {

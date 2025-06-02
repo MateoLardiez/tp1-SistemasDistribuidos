@@ -350,6 +350,24 @@ add_results_tester() {
 " >> "$COMPOSE_FILE"
 }
 
+add_killer() {
+  echo "  killer:
+    container_name: killer
+    image: killer:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    stdin_open: true
+    tty: true
+    networks:
+      - testing_net
+    entrypoint: [\"/bin/sh\"]
+    # Para usar en modo interactivo:
+    # docker exec -it killer python main.py --interactive
+    # Para matar un contenedor específico:
+    # docker exec killer python main.py --kill <container_name>
+" >> "$COMPOSE_FILE"
+}
+
 add_client() {
   for ((i=0; i<=N_CLIENTS-1; i++)); do
     echo "  client$i:
@@ -463,5 +481,6 @@ add_sinker_q3
 add_sinker_q4
 add_sinker_q5
 add_results_tester
+add_killer
 add_client
 add_networks
