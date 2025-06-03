@@ -39,8 +39,10 @@ class JoinerByCreditId:
             self.client_state[client_id] = {
                 "movies_eof": False,
                 "credits_eof": False,
+                "movies_per_actor": {},
             }
 
+                       
     def movies_callback(self, ch, method, properties, body):
         """Callback para procesar mensajes de la cola de movies"""
         data = MiddlewareMessage.decode_from_bytes(body)
@@ -55,7 +57,7 @@ class JoinerByCreditId:
         else:
             # Recibimos EOF de movies para este cliente
             self.client_state[client_id]["movies_eof"] = True
-            self.check_and_process(client_id, data.query_number)
+            self.loading_data(client_id, data.query_number)
 
     def credits_callback(self, ch, method, properties, body):
         """Callback para procesar mensajes de la cola de credits"""
@@ -67,65 +69,101 @@ class JoinerByCreditId:
          
         if data.type != MiddlewareMessageType.EOF_CREDITS:
             lines = list(data.get_batch_iter_from_payload())
-            self.save_data(client_id, lines, "credits")
+            if not self.client_state[client_id]["movies_eof"]:    
+                self.save_data(client_id, lines, "credits")
+            else:
+                self.process_credits(lines, client_id)
         else:
             # Recibimos EOF de credits para este cliente
             self.client_state[client_id]["credits_eof"] = True
             # Depuración: Mostrar estado actual
-            self.check_and_process(client_id, data.query_number)
+            self.send_results(client_id, data.query_number) 
 
-    def check_and_process(self, client_id, query_number):
+
+    def process_credits(self, lines, client_id):
+        """Process the credit data for a client"""
+        movies_per_actor = self.client_state[client_id]["movies_per_actor"]
+        for line in lines:
+            # Assuming line is a list with the structure [credit_id, actor_names]
+            movie_id = line[0]  # credit_id
+            if movie_id in movies_per_actor:
+                actor_names = line[1].strip("[]").replace("'", "").split(", ")  # Clean and split actor names
+                movies_per_actor[movie_id] += actor_names
+                            
+            #logging.info(f"Processing credit data for client {client_id}: {line}")
+
+        self.client_state[client_id]["movies_per_actor"] = movies_per_actor
+
+    def send_results(self, client_id, query_number):
+        """Send the results to the appropriate sinker"""
+        
+        # Enviar resultados procesados
+        
+        joined_data = self.client_state[client_id]["movies_per_actor"]
+        
+        logging.info(f"DATA TO SEND: {joined_data}")
+        
+        movies_per_actor = {}
+        for _, actors in joined_data.items():
+            for actor in actors:
+                if actor not in movies_per_actor:
+                    movies_per_actor[actor] = 0
+                movies_per_actor[actor] += 1
+        
+        result = []
+        [result.append([actor, count]) for actor, count in movies_per_actor.items()]
+
+        result_csv = MiddlewareMessage.write_csv_batch(result) # TODO: Enviar en batches
+        msg = MiddlewareMessage(
+            query_number=query_number,
+            client_id=client_id,
+            type=MiddlewareMessageType.MOVIES_BATCH,
+            seq_number=1,
+            payload=result_csv
+        )
+        sinker_id = client_id % self.number_sinkers
+        self.joiner_by_credit_id_connection.send_message(
+            routing_key=f"average_credit_aggregated_{sinker_id}",
+            msg_body=msg.encode_to_str()
+        )
+    
+        msg_eof = MiddlewareMessage(
+            query_number=query_number,
+            client_id=client_id,
+            type=MiddlewareMessageType.EOF_JOINER,
+            seq_number=2,
+            payload="" 
+        )
+        self.joiner_by_credit_id_connection.send_message(
+            routing_key=f"average_credit_aggregated_{sinker_id}",
+            msg_body=msg_eof.encode_to_str()
+        )
+
+        # # Limpiar los archivos temporales
+        self.clean_temp_files(client_id)
+        
+        # # Eliminar el estado del cliente del diccionario
+        del self.client_state[client_id]
+
+    def loading_data(self, client_id, query_number):
         """Verifica si se han recibido ambos EOFs para un cliente y procesa los datos"""
         # Verificar que el cliente exista en el estado
         if client_id not in self.client_state:
             logging.warning(f"Cliente {client_id} no encontrado en el diccionario de estado")
             return
-            
-        movies_eof = self.client_state[client_id]["movies_eof"] 
-        credits_eof = self.client_state[client_id]["credits_eof"]
         
-        if movies_eof and credits_eof:
-            # # Procesar los datos de movies y credits para este cliente
-            movies_filename = f"movies-client-{client_id}"
-            credits_filename = f"credits-client-{client_id}"
-            
-            joined_data = self.join_data(movies_filename, credits_filename)
-            
-            # Enviar resultados procesados
-            result_csv = MiddlewareMessage.write_csv_batch(joined_data) # TODO: Enviar en batches
-            msg = MiddlewareMessage(
-                query_number=query_number,
-                client_id=client_id,
-                type=MiddlewareMessageType.MOVIES_BATCH,
-                seq_number=1,
-                payload=result_csv
-            )
-            sinker_id = client_id % self.number_sinkers
-            self.joiner_by_credit_id_connection.send_message(
-                routing_key=f"average_credit_aggregated_{sinker_id}",
-                msg_body=msg.encode_to_str()
-            )
+        # # Procesar los datos de movies y credits para este cliente
+        movies_filename = f"movies-client-{client_id}"
+        credits_filename = f"credits-client-{client_id}"
         
-            msg_eof = MiddlewareMessage(
-                query_number=query_number,
-                client_id=client_id,
-                type=MiddlewareMessageType.EOF_JOINER,
-                seq_number=2,
-                payload="" 
-            )
-            self.joiner_by_credit_id_connection.send_message(
-                routing_key=f"average_credit_aggregated_{sinker_id}",
-                msg_body=msg_eof.encode_to_str()
-            )
+        joined_data = self.join_data(movies_filename, credits_filename)
+        
+        self.client_state[client_id]["movies_per_actor"] = joined_data
 
-            # # Limpiar los archivos temporales
-            self.clean_temp_files(client_id)
-            
-            # # Eliminar el estado del cliente del diccionario
-            del self.client_state[client_id]
+        
                 
-    def join_data(self, movies_file, credits_file):
-        actors_with_movies = {}
+    def join_data(self, movies_file, credits_file):     
+        movies_with_actors = {}
         credits = {} # diccionario de clave:valor -> id_pelicula: actores
         for credit in self.read_data(credits_file):
             credit_id = credit[0]
@@ -141,14 +179,16 @@ class JoinerByCreditId:
                 if movie_id in credits:
                     actors = credits[movie_id]
                     actors_list = actors.strip("[]").replace("'", "").split(", ") # separo los actores por comas
-                    for actor in actors_list:
-                        if actor not in actors_with_movies:
-                            actors_with_movies[actor] = []       
-                        actors_with_movies[actor].append(movie_id) # actores y cantidad de apariciones
-        
-        result = []
-        [result.append([actor, len(movies)]) for actor, movies in actors_with_movies.items()]
-        return result
+                    # for actor in actors_list:
+                    if movie_id not in movies_with_actors:
+                        movies_with_actors[movie_id] = []   
+                    movies_with_actors[movie_id] += actors_list # actores y cantidad de apariciones
+
+        # result = []
+        # #[result.append([actor, len(movies)]) for actor, movies in actors_with_movies.items()]
+        # result = {actor: len(movies) for actor, movies in actors_with_movies.items()}
+        logging.info(f"JOINED DATA: {movies_with_actors}")
+        return movies_with_actors
             
     def clean_temp_files(self, client_id):
         """Elimina los archivos temporales creados para un cliente"""

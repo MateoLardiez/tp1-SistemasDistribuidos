@@ -265,9 +265,9 @@ services:
       - CLI_ID=1
     volumes:
       - ./client/config.yaml:/config.yaml:ro
-      - ./.data/movies_metadata.csv:/movies.csv:ro
-      - ./.data/ratings.csv:/ratings.csv:ro
-      - ./.data/credits.csv:/credits.csv:ro
+      - ./.data/movies_metadata_1.csv:/movies.csv:ro
+      - ./.data/ratings_1.csv:/ratings.csv:ro
+      - ./.data/credits_1.csv:/credits.csv:ro
     networks:
       - testing_net
     depends_on:
