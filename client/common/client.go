@@ -218,7 +218,10 @@ func (c *Client) fmtResultQueries() string {
 	}
 
 	// Print the JSON result
-	fmt.Println(string(jsonData))
+	log.Infof("action: results | result: success | client_id: %v | json: %s",
+		c.config.ID,
+		string(jsonData),
+	)
 	return string(jsonData)
 }
 
@@ -253,10 +256,6 @@ func (c *Client) handler_message_response(message *communication.MessageProtocol
 }
 
 func (c *Client) handleQueryResult(queryNumber uint, message *communication.MessageProtocol) {
-	log.Infof("action: result_query_%d | result: %s",
-		queryNumber,
-		string(message.Payload),
-	)
 	if message.TypeMessage != communication.RESULT_QUERY_1 {
 		c.resultQueries[int(queryNumber)] = result.NewResultQuery(int(queryNumber), string(message.Payload))
 	} else {

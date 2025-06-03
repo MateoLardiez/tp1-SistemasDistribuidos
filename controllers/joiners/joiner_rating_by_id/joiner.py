@@ -41,6 +41,7 @@ class JoinerByRatingId:
             self.client_state[client_id] = {
                 "movies_eof": False,
                 "ratings_eof": False,
+                "movies_with_ratings": {},
             }
 
     def movies_callback(self, ch, method, properties, body):
@@ -56,11 +57,8 @@ class JoinerByRatingId:
             self.save_data(client_id, lines, "movies")
         else:
             # Recibimos EOF de movies para este cliente
-            # logging.info(f"EOF MOVIESSSSSSSSSSSSSS --------- ??? action: EOF | source: movies | client: {client_id}")
             self.client_state[client_id]["movies_eof"] = True
-            # Depuración: Mostrar estado actual
-            # logging.info(f"Estado cliente {client_id} después de EOF movies: movies_eof={self.client_state[client_id]['movies_eof']}, ratings_eof={self.client_state[client_id]['ratings_eof']}")
-            self.check_and_process(client_id, data.query_number)
+            self.loading_data(client_id)
 
     def ratings_callback(self, ch, method, properties, body):
         """Callback para procesar mensajes de la cola de ratings"""
@@ -72,65 +70,89 @@ class JoinerByRatingId:
          
         if data.type != MiddlewareMessageType.EOF_RATINGS:
             lines = list(data.get_batch_iter_from_payload())
-            self.save_data(client_id, lines, "ratings")
+            if not self.client_state[client_id]["movies_eof"]:
+                self.save_data(client_id, lines, "ratings")
+            else:
+                self.process_ratings(client_id, lines)
         else:
             # Recibimos EOF de ratings para este cliente
             self.client_state[client_id]["ratings_eof"] = True
             # Depuración: Mostrar estado actual
-            self.check_and_process(client_id, data.query_number)
+            self.send_results(client_id, data.query_number)
 
-    def check_and_process(self, client_id, query_number):
-        """Verifica si se han recibido ambos EOFs para un cliente y procesa los datos"""
-        # Verificar que el cliente exista en el estado
+    def loading_data(self, client_id):
         if client_id not in self.client_state:
             logging.warning(f"Cliente {client_id} no encontrado en el diccionario de estado")
             return
-            
-        movies_eof = self.client_state[client_id]["movies_eof"] 
-        ratings_eof = self.client_state[client_id]["ratings_eof"]
         
-        if movies_eof and ratings_eof:
-            # # Procesar los datos de movies y ratings para este cliente
-            movies_filename = f"movies-client-{client_id}"
-            ratings_filename = f"ratings-client-{client_id}"
+        movies_filename = f"movies-client-{client_id}"
+        ratings_filename = f"ratings-client-{client_id}"
             
-            joined_data = self.join_data(movies_filename, ratings_filename)
-            
-            # Enviar resultados procesados
-            # if joined_data:
-            result_csv = MiddlewareMessage.write_csv_batch(joined_data) # TODO: Enviar en batches
-            msg = MiddlewareMessage(
-                query_number=query_number,
-                client_id=client_id,
-                seq_number=1,
-                type=MiddlewareMessageType.MOVIES_BATCH,
-                payload=result_csv
-            )
-            sinker_id = client_id % self.number_sinkers
-            self.joiner_by_rating_id_connection.send_message(
-                routing_key=f"average_rating_aggregated_{sinker_id}",
-                msg_body=msg.encode_to_str()
-            )
+        joined_data = self.join_data(movies_filename, ratings_filename)
+
+        self.client_state[client_id]["movies_with_ratings"] = joined_data
+
+
+    def send_results(self, client_id, query_number):
+        """Verifica si se han recibido ambos EOFs para un cliente y procesa los datos"""
+        # Verificar que el cliente exista en el estado
         
-            msg_eof = MiddlewareMessage(
-                query_number=query_number,
-                client_id=client_id,
-                seq_number=2,
-                type=MiddlewareMessageType.EOF_JOINER
-            )
-            self.joiner_by_rating_id_connection.send_message(
-                routing_key=f"average_rating_aggregated_{sinker_id}",
-                msg_body=msg_eof.encode_to_str()
-            )
+        data = self.client_state[client_id]["movies_with_ratings"]
+
+        joined_data = {}
+        for _, movie_info in data.items():
+            if movie_info["ratings_amount"] > 0:
+                if movie_info["title"] not in joined_data:
+                    joined_data[movie_info["title"]] = 0.0
+                joined_data[movie_info["title"]] = movie_info["ratings_accumulator"] / movie_info["ratings_amount"]
                 
-            # # Limpiar los archivos temporales
-            # self.clean_temp_files(client_id)
-            
-            # # Eliminar el estado del cliente del diccionario
-            # del self.client_state[client_id]
-            
-            # logging.info(f"action: process_joined_data | client: {client_id} | result: completed")
+        result = []
+        [result.append([title, rating]) for title, rating in joined_data.items()]
+
+        result_csv = MiddlewareMessage.write_csv_batch(result) # TODO: Enviar en batches
+        msg = MiddlewareMessage(
+            query_number=query_number,
+            client_id=client_id,
+            seq_number=1,
+            type=MiddlewareMessageType.MOVIES_BATCH,
+            payload=result_csv
+        )
+        sinker_id = client_id % self.number_sinkers
+        self.joiner_by_rating_id_connection.send_message(
+            routing_key=f"average_rating_aggregated_{sinker_id}",
+            msg_body=msg.encode_to_str()
+        )
     
+        msg_eof = MiddlewareMessage(
+            query_number=query_number,
+            client_id=client_id,
+            seq_number=2,
+            type=MiddlewareMessageType.EOF_JOINER
+        )
+        self.joiner_by_rating_id_connection.send_message(
+            routing_key=f"average_rating_aggregated_{sinker_id}",
+            msg_body=msg_eof.encode_to_str()
+        )
+                
+        # Limpiar los archivos temporales
+        self.clean_temp_files(client_id)
+        
+        # Eliminar el estado del cliente del diccionario
+        del self.client_state[client_id]
+        
+        logging.info(f"action: process_joined_data | client: {client_id} | result: completed")
+    
+    def process_ratings(self, client_id, lines):
+        movies_ratings = self.client_state[client_id]["movies_with_ratings"]
+        for line in lines:
+            movie_id = line[0]
+            rating = float(line[1])
+            if movie_id in movies_ratings:
+                movies_ratings[movie_id]["ratings_accumulator"] += rating
+                movies_ratings[movie_id]["ratings_amount"] += 1
+
+        self.client_state[client_id]["movies_with_ratings"] = movies_ratings
+
     def join_data(self, movies_file, ratings_file):
         joined_results = []
         # leo el archivo de ratings
@@ -144,19 +166,25 @@ class JoinerByRatingId:
             ratings[rating[0]]["ratings_accumulator"] += float(rating[1])
             ratings[rating[0]]["ratings_amount"] += 1
 
+        movies_per_rating = {}
         for movies in self.read_data(movies_file):
             for movie in movies:
                 movie_str = ast.literal_eval(movie)
                 movie_id = movie_str[0]
-                if movie_id in ratings:
-                # Calculo el promedio
-                    ratings_accumulator = ratings[movie_id]["ratings_accumulator"]
-                    ratings_amount = ratings[movie_id]["ratings_amount"]
-                    average_rating = ratings_accumulator / ratings_amount
-                    # Agrego la info al resultado
-                    joined_results.append([movie_str[1], average_rating])
-        
-        return joined_results
+                if movie_id not in movies_per_rating:
+                    movies_per_rating[movie_id] = {
+                        "title": "",
+                        "ratings_accumulator": 0.0,
+                        "ratings_amount": 0.0,
+                    }
+                movies_per_rating[movie_id]["title"] = movie_str[1]  # Agrego el año y el género
+                             
+        for movie_id, _ in movies_per_rating.items():      
+            if movie_id in ratings:
+                movies_per_rating[movie_id]["ratings_accumulator"] += ratings[movie_id]["ratings_accumulator"]
+                movies_per_rating[movie_id]["ratings_amount"] += ratings[movie_id]["ratings_amount"]
+ 
+        return movies_per_rating
             
     def clean_temp_files(self, client_id):
         """Elimina los archivos temporales creados para un cliente"""
@@ -181,7 +209,10 @@ class JoinerByRatingId:
                 writer.writerow(line)
 
     def read_data(self, file_name):
-        with open (file_name, 'r') as file:
-            reader = csv.reader(file, quoting=csv.QUOTE_MINIMAL)
-            for row in reader:
-                yield row
+        try:
+            with open(file_name, 'r') as file:
+                reader = csv.reader(file, quoting=csv.QUOTE_MINIMAL)
+                for row in reader:
+                    yield row
+        except (FileNotFoundError, IOError):
+            return iter([])  # Retorna un iterador vacío si el archivo no existe o hay un error de I/O

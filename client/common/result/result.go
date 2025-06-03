@@ -101,6 +101,10 @@ func (r *ResultQuery) parseQuery2() map[string]interface{} {
 			continue
 		}
 
+		// Clean line from unwanted characters
+		line = strings.TrimSpace(line)
+		line = strings.Trim(line, "\r")
+
 		parts := strings.Split(line, "\",\"")
 		if len(parts) < 2 {
 			continue
@@ -108,6 +112,9 @@ func (r *ResultQuery) parseQuery2() map[string]interface{} {
 
 		country := strings.Trim(parts[0], "\"")
 		revenueStr := strings.Trim(parts[1], "\"")
+		// Clean the revenue string from unwanted characters
+		revenueStr = strings.TrimSpace(revenueStr)
+		revenueStr = strings.Trim(revenueStr, "\r")
 
 		// Convert revenue to number
 		revenue, err := strconv.ParseFloat(revenueStr, 64)
@@ -134,6 +141,10 @@ func (r *ResultQuery) parseQuery3() map[string]interface{} {
 			continue
 		}
 
+		// Clean line from unwanted characters
+		line = strings.TrimSpace(line)
+		line = strings.Trim(line, "\r")
+
 		parts := strings.Split(line, "\",\"")
 		if len(parts) < 2 {
 			continue
@@ -141,6 +152,9 @@ func (r *ResultQuery) parseQuery3() map[string]interface{} {
 
 		movie := strings.Trim(parts[0], "\"")
 		ratingStr := strings.Trim(parts[1], "\"")
+		// Clean the rating string from unwanted characters
+		ratingStr = strings.TrimSpace(ratingStr)
+		ratingStr = strings.Trim(ratingStr, "\r")
 
 		// Convert rating to float
 		rating, err := strconv.ParseFloat(ratingStr, 64)
@@ -167,6 +181,10 @@ func (r *ResultQuery) parseQuery4() map[string]interface{} {
 			continue
 		}
 
+		// Clean line from unwanted characters
+		line = strings.TrimSpace(line)
+		line = strings.Trim(line, "\r")
+
 		parts := strings.Split(line, "\",\"")
 		if len(parts) < 2 {
 			continue
@@ -174,6 +192,9 @@ func (r *ResultQuery) parseQuery4() map[string]interface{} {
 
 		actor := strings.Trim(parts[0], "\"")
 		countStr := strings.Trim(parts[1], "\"")
+		// Clean the count string from unwanted characters
+		countStr = strings.TrimSpace(countStr)
+		countStr = strings.Trim(countStr, "\r")
 
 		// Convert count to integer
 		count, err := strconv.Atoi(countStr)
@@ -200,6 +221,10 @@ func (r *ResultQuery) parseQuery5() map[string]interface{} {
 			continue
 		}
 
+		// Clean line from unwanted characters
+		line = strings.TrimSpace(line)
+		line = strings.Trim(line, "\r")
+
 		parts := strings.Split(line, "\",\"")
 		if len(parts) < 2 {
 			continue
@@ -207,6 +232,9 @@ func (r *ResultQuery) parseQuery5() map[string]interface{} {
 
 		sentiment := strings.Trim(parts[0], "\"")
 		scoreStr := strings.Trim(parts[1], "\"")
+		// Clean the score string from unwanted characters
+		scoreStr = strings.TrimSpace(scoreStr)
+		scoreStr = strings.Trim(scoreStr, "\r")
 
 		// Convert score to float
 		score, err := strconv.ParseFloat(scoreStr, 64)

@@ -57,7 +57,7 @@ class JoinerByCreditId:
         else:
             # Recibimos EOF de movies para este cliente
             self.client_state[client_id]["movies_eof"] = True
-            self.loading_data(client_id, data.query_number)
+            self.loading_data(client_id)
 
     def credits_callback(self, ch, method, properties, body):
         """Callback para procesar mensajes de la cola de credits"""
@@ -101,8 +101,6 @@ class JoinerByCreditId:
         
         joined_data = self.client_state[client_id]["movies_per_actor"]
         
-        logging.info(f"DATA TO SEND: {joined_data}")
-        
         movies_per_actor = {}
         for _, actors in joined_data.items():
             for actor in actors:
@@ -145,7 +143,7 @@ class JoinerByCreditId:
         # # Eliminar el estado del cliente del diccionario
         del self.client_state[client_id]
 
-    def loading_data(self, client_id, query_number):
+    def loading_data(self, client_id):
         """Verifica si se han recibido ambos EOFs para un cliente y procesa los datos"""
         # Verificar que el cliente exista en el estado
         if client_id not in self.client_state:
@@ -159,8 +157,6 @@ class JoinerByCreditId:
         joined_data = self.join_data(movies_filename, credits_filename)
         
         self.client_state[client_id]["movies_per_actor"] = joined_data
-
-        
                 
     def join_data(self, movies_file, credits_file):     
         movies_with_actors = {}
@@ -171,23 +167,20 @@ class JoinerByCreditId:
             if credit_id not in credits:
                 credits[credit_id] = ""
             credits[credit_id] = actor_names
-
-
+        
         for movies in self.read_data(movies_file):
             for movie in movies:
                 movie_id = movie
-                if movie_id in credits:
-                    actors = credits[movie_id]
-                    actors_list = actors.strip("[]").replace("'", "").split(", ") # separo los actores por comas
-                    # for actor in actors_list:
-                    if movie_id not in movies_with_actors:
-                        movies_with_actors[movie_id] = []   
-                    movies_with_actors[movie_id] += actors_list # actores y cantidad de apariciones
+                if movie_id not in movies_with_actors:
+                    movies_with_actors[movie_id] = [] 
+                    
+        for movie_id, _ in movies_with_actors.items():
+            if movie_id in credits:
+                actors = credits[movie_id]
+                actors_list = actors.strip("[]").replace("'", "").split(", ") # separo los actores por comas
+                # for actor in actors_list:
+                movies_with_actors[movie_id] += actors_list # actores y cantidad de apariciones
 
-        # result = []
-        # #[result.append([actor, len(movies)]) for actor, movies in actors_with_movies.items()]
-        # result = {actor: len(movies) for actor, movies in actors_with_movies.items()}
-        logging.info(f"JOINED DATA: {movies_with_actors}")
         return movies_with_actors
             
     def clean_temp_files(self, client_id):
@@ -213,7 +206,11 @@ class JoinerByCreditId:
                 writer.writerow(line)
 
     def read_data(self, file_name):
-        with open (file_name, 'r') as file:
-            reader = csv.reader(file, quoting=csv.QUOTE_MINIMAL)
-            for row in reader:
-                yield row
+        try:
+            with open(file_name, 'r') as file:
+                reader = csv.reader(file, quoting=csv.QUOTE_MINIMAL)
+                for row in reader:
+                    yield row
+        except (FileNotFoundError, IOError):
+            return iter([])  # Retorna un iterador vacío si el archivo no existe o hay un error de I/O
+
