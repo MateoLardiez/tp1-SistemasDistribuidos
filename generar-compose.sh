@@ -39,7 +39,7 @@ add_gateway() {
     entrypoint: python3 /main.py
     environment:
       - PYTHONUNBUFFERED=1
-      - CLIENTS=3
+      - N_WORKERS=$N_WORKERS
     volumes:
       - ./gateway/config.ini:/config.ini:ro
     networks:
@@ -58,6 +58,8 @@ add_movies_preprocessor() {
     entrypoint: python3 /main.py
     environment:
       - PYTHONUNBUFFERED=1
+      - N_WORKERS=$N_WORKERS
+      - WORKER_ID=$i
     networks:
       - testing_net
     depends_on:
@@ -122,6 +124,9 @@ add_filter_by_country_invesment() {
     container_name: filter_by_country_invesment_$i
     image: filter_by_country_invesment:latest
     entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=$N_WORKERS
+      - WORKER_ID=$i
     networks:
       - testing_net
     depends_on:
@@ -157,6 +162,8 @@ add_group_by_country() {
     entrypoint: python3 /main.py
     environment:
       - N_SINKERS=$N_SINKERS
+      - N_WORKERS=$N_WORKERS
+      - WORKER_ID=$i
     networks:
       - testing_net
     depends_on:
@@ -276,6 +283,7 @@ add_sinker_q2() {
     entrypoint: python3 /main.py
     environment:
       - SINKER_ID=$i
+      - N_WORKERS=$N_WORKERS
     networks:
       - testing_net
     depends_on:
@@ -344,7 +352,7 @@ add_results_tester() {
     image: results_tester:latest
     entrypoint: python3 /main.py
     volumes:
-      - ./.data/results_total.json:/results.json:ro
+      - ./.data/results.json:/results.json:ro
     networks:
       - testing_net
 " >> "$COMPOSE_FILE"
@@ -378,9 +386,9 @@ add_client() {
       - CLI_ID=$((i+1))
     volumes:
       - ./client/config.yaml:/config.yaml:ro
-      - ./.data/movies_metadata.csv:/movies.csv:ro
-      - ./.data/ratings.csv:/ratings.csv:ro
-      - ./.data/credits.csv:/credits.csv:ro
+      - ./.data/movies_metadata_1.csv:/movies.csv:ro
+      - ./.data/ratings_1.csv:/ratings.csv:ro
+      - ./.data/credits_1.csv:/credits.csv:ro
     networks:
       - testing_net
     depends_on:

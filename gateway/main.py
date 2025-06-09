@@ -40,7 +40,7 @@ def initialize_config():
         config_params["port"] = int(os.getenv('SERVER_PORT', config["DEFAULT"]["SERVER_PORT"]))
         config_params["listen_backlog"] = int(os.getenv('SERVER_LISTEN_BACKLOG', config["DEFAULT"]["SERVER_LISTEN_BACKLOG"]))
         config_params["logging_level"] = os.getenv('LOGGING_LEVEL', config["DEFAULT"]["LOGGING_LEVEL"])
-        config_params["clients"] = int(os.getenv('CLIENTS'))
+        # config_params["clients"] = int(os.getenv('CLIENTS'))
     except KeyError as e:
         error_msg = f"Key was not found. Error: {e}. Aborting server"
         raise KeyError(error_msg)
@@ -54,10 +54,10 @@ def initialize_config():
 def main():
     try:
         config_params = initialize_config()
+        n_workers = int(os.getenv("N_WORKERS"))
         logging_level = config_params["logging_level"]
         port = config_params["port"]
         listen_backlog = config_params["listen_backlog"]
-        clients = config_params["clients"]
 
         initialize_log(logging_level)
 
@@ -67,7 +67,7 @@ def main():
                     f"listen_backlog: {listen_backlog} | logging_level: {logging_level}")
 
         # Initialize server and start server loop
-        server = Gateway(port, listen_backlog, clients)
+        server = Gateway(port, listen_backlog, n_workers)
         server.run()
     except Exception as e:
         logging.exception("Uncaught exception")

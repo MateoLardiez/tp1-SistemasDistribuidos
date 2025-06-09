@@ -21,19 +21,23 @@ class MoviesPreprocessor:
     countries: list
     data: object
 
-    def __init__(self):
+    def __init__(self, number_workers, worker_id):
+        self.worker_id = worker_id
+        self.number_workers = number_workers
         self.movies_preprocessor_connection = RabbitMQConnectionHandler(
             producer_exchange_name="movies_preprocessor_exchange",
             producer_queues_to_bind={
                 "cleaned_movies_queue_country": ["cleaned_movies_queue_country" ],
-                "cleaned_movies_queue_country_invesment": ["cleaned_movies_queue_country_invesment"],
                 "cleaned_movies_queue_nlp": ["cleaned_movies_queue_nlp"],
+                **{f"cleaned_movies_queue_country_invesment_{i}": [f"cleaned_movies_queue_country_invesment_{i}"] for i in range(number_workers)},
             },
             consumer_exchange_name="gateway_exchange",
-            consumer_queues_to_recv_from=["movies_queue"]
+            consumer_queues_to_recv_from=[f"movies_queue_{self.worker_id}"],
         )
         # Configurar el callback para la cola específica
-        self.movies_preprocessor_connection.set_message_consumer_callback("movies_queue", self.callback)
+        self.movies_preprocessor_connection.set_message_consumer_callback(f"movies_queue_{self.worker_id}", self.callback)
+        self.local_state = {}  # Diccionario para almacenar el estado local de los clientes
+        self.controller_name = f"movies_preprocessor_{worker_id}"
 
     def start(self):
         logging.info("action: start | result: success | code: movies_preprocessor")
@@ -44,6 +48,17 @@ class MoviesPreprocessor:
         try:
             data = MiddlewareMessage.decode_from_bytes(body)
             if data.type != MiddlewareMessageType.EOF_MOVIES:
+
+                if data.client_id not in self.local_state:
+                    self.local_state[data.client_id] = {
+                        data.controller_name: data.seq_number, # Este es el seq number que recibimos
+                        "last_seq_number": 0 # Este es el último seq number que propagamos
+                    }
+                else:
+                    if data.seq_number <= self.local_state[data.client_id][data.controller_name]:
+                        logging.warning(f"Duplicated Message {data.client_id} in {data.controller_name}. Ignoring.")
+                        return
+                
                 lines = data.get_batch_iter_from_payload()
                 clean_lines = self.clean_csv(lines)
                 # logging.info(f" LINEAS LIMPIASSSS -> {clean_lines}")
@@ -52,12 +67,16 @@ class MoviesPreprocessor:
                     client_id=data.client_id,
                     type=MiddlewareMessageType.MOVIES_BATCH,
                     payload=clean_lines,
-                    seq_number=data.seq_number
+                    seq_number=self.local_state[data.client_id]["last_seq_number"], 
+                    controller_name=self.controller_name
                 )
-
+                    
+                # Round robin para enviar a los workers
+                id_worker = self.local_state[data.client_id]["last_seq_number"] % self.number_workers
+                
                 if data.query_number == QueryNumber.ALL_QUERYS:
                     self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_country", msg_body=msg.encode_to_str())
-                    self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_country_invesment", msg_body=msg.encode_to_str())
+                    self.movies_preprocessor_connection.send_message(routing_key=f"cleaned_movies_queue_country_invesment_{id_worker}", msg_body=msg.encode_to_str())
                     self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_nlp", msg_body=msg.encode_to_str())
                 elif data.query_number == QueryNumber.QUERY_1 or data.query_number == QueryNumber.QUERY_3 or data.query_number == QueryNumber.QUERY_4:
                     self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_country", msg_body=msg.encode_to_str())
@@ -66,13 +85,17 @@ class MoviesPreprocessor:
                 elif data.query_number == QueryNumber.QUERY_5:
                     self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_nlp", msg_body=msg.encode_to_str())
 
+                # Actualizar el estado local del cliente
+                self.local_state[data.client_id]["last_seq_number"] += 1
+
             else:
                 msg = MiddlewareMessage(
                             query_number=data.query_number,
                             client_id=data.client_id,
                             type=MiddlewareMessageType.EOF_MOVIES,
-                            seq_number=data.seq_number,
-                            payload=""
+                            seq_number=self.local_state[data.client_id]["last_seq_number"],
+                            payload="",
+                            controller_name=self.controller_name
                         )
                 if data.query_number == QueryNumber.ALL_QUERYS:
                     self.handler_oef_all_querys(msg)
@@ -90,17 +113,19 @@ class MoviesPreprocessor:
 
     def handler_oef_all_querys(self, msg):
         self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_country", msg_body=msg.encode_to_str())
-        self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_country_invesment", msg_body=msg.encode_to_str())
         self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_nlp", msg_body=msg.encode_to_str())         
-
+        for id_worker in range(self.number_workers):
+            self.movies_preprocessor_connection.send_message(routing_key=f"cleaned_movies_queue_country_invesment_{id_worker}", msg_body=msg.encode_to_str())
+    
     def handler_oef_query_1_3_4(self, msg):
         self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_country", msg_body=msg.encode_to_str())
     
     def handler_oef_query_2(self, msg):
-        self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_country_invesment", msg_body=msg.encode_to_str())
-    
+        for id_worker in range(self.number_workers):
+            self.movies_preprocessor_connection.send_message(routing_key=f"cleaned_movies_queue_country_invesment_{id_worker}", msg_body=msg.encode_to_str())
+     
     def handler_oef_query_5(self, msg):
-        self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_nlp_eof", msg_body=msg.encode_to_str())
+        self.movies_preprocessor_connection.send_message(routing_key="cleaned_movies_queue_nlp", msg_body=msg.encode_to_str())
     
     def clean_csv(self, reader):
         col_indices = {col: i for i, col in enumerate(COLUMNS_MOVIES) if col in COLUMNS}

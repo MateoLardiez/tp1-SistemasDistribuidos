@@ -8,7 +8,8 @@ QUERY_NUMBER = 2
 
 class Query2:
 
-    def __init__(self, id_worker):
+    def __init__(self, id_worker, number_workers):
+        self.number_workers = number_workers
         self.query_2_connection = RabbitMQConnectionHandler(
             producer_exchange_name="reports_exchange",
             producer_queues_to_bind={"reports_queue": ["reports_queue"]},
@@ -16,7 +17,7 @@ class Query2:
             consumer_queues_to_recv_from=[f"group_by_country_queue_{id_worker}"],
         )
         self.query_2_connection.set_message_consumer_callback(f"group_by_country_queue_{id_worker}", self.callback)
-        self.clients_processed = {}
+        self.clients_state ={}
 
     def start(self):
         logging.info("action: start | result: success | code: Sink_query_2 ")
@@ -26,37 +27,43 @@ class Query2:
         # id,title,genres,release_date,overview,production_countries,spoken_languages,budget,revenue
         data = MiddlewareMessage.decode_from_bytes(body)
         if data.type != MiddlewareMessageType.EOF_MOVIES:
-            if data.client_id not in self.clients_processed:
-                self.clients_processed[data.client_id] = {
-                    "eof": False, 
-                    "seq_number": 0, 
-                    "batch_recibidos": 0
-                }
+            # if data.client_id not in self.clients_processed:
+                # self.clients_processed[data.client_id] = {
+                #     "eof": False, 
+                #     "seq_number": 0, 
+                #     "batch_recibidos": 0
+                # }
+            
+            
             lines = data.get_batch_iter_from_payload()
             self.save_data(data.client_id, lines)
-            self.clients_processed[data.client_id]["batch_recibidos"] += 1
-            if data.seq_number > self.clients_processed[data.client_id]["seq_number"]:
-                self.clients_processed[data.client_id]["seq_number"] = data.seq_number
-            if self.clients_processed[data.client_id]["eof"] and self.clients_processed[data.client_id]["seq_number"] - self.clients_processed[data.client_id]["batch_recibidos"] == 0:
-                # Si ya se recibió el EOF, no procesamos más mensajes
-                self.handler_query_2(data.client_id, data.query_number)
+            # self.clients_processed[data.client_id]["batch_recibidos"] += 1
+            # if data.seq_number > self.clients_processed[data.client_id]["seq_number"]:
+            #     self.clients_processed[data.client_id]["seq_number"] = data.seq_number
+            # if self.clients_processed[data.client_id]["eof"] and self.clients_processed[data.client_id]["seq_number"] - self.clients_processed[data.client_id]["batch_recibidos"] == 0:
+            #     # Si ya se recibió el EOF, no procesamos más mensajes
+            #     self.handler_query_2(data.client_id, data.query_number)
 
-                msg = MiddlewareMessage(
-                    query_number=data.query_number,
-                    client_id=data.client_id,
-                    seq_number=0,
-                    type=MiddlewareMessageType.EOF_RESULT_Q2,
-                    payload="EOF"
-                )
-                self.query_2_connection.send_message(
-                    routing_key="reports_queue",
-                    msg_body=msg.encode_to_str()
-                )
-                self.clean_temp_files(data.client_id)
-                del self.clients_processed[data.client_id]
+            #     msg = MiddlewareMessage(
+            #         query_number=data.query_number,
+            #         client_id=data.client_id,
+            #         seq_number=0,
+            #         type=MiddlewareMessageType.EOF_RESULT_Q2,
+            #         payload="EOF"
+            #     )
+            #     self.query_2_connection.send_message(
+            #         routing_key="reports_queue",
+            #         msg_body=msg.encode_to_str()
+            #     )
+            #     self.clean_temp_files(data.client_id)
+            #     del self.clients_processed[data.client_id]
         else:
-            if data.seq_number-1 - self.clients_processed[data.client_id]["batch_recibidos"] == 0:
-                
+            if not data.client_id in self.clients_state:
+                self.clients_state[data.client_id] = {"eof_amount": 0}
+            self.clients_state[data.client_id]["eof_amount"] += 1
+
+            if self.clients_state[data.client_id]["eof_amount"] == self.number_workers:  # Solo un worker para query 2
+
                 self.handler_query_2(data.client_id, data.query_number)
                 msg = MiddlewareMessage(
                     query_number=data.query_number,
@@ -70,12 +77,8 @@ class Query2:
                     msg_body=msg.encode_to_str()
                 )
                 self.clean_temp_files(data.client_id)
-                del self.clients_processed[data.client_id]
+                del self.clients_state[data.client_id]
 
-            else:
-                self.clients_processed[data.client_id]["eof"] = True
-                self.clients_processed[data.client_id]["seq_number"] = data.seq_number
-                self.clients_processed[data.client_id]["batch_recibidos"] += 1
 
     def handler_query_2(self, client_id, query_number):
         report_lines = {}

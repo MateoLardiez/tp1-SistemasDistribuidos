@@ -1,6 +1,5 @@
 import logging
 from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
-from common.defines import QueryNumber
 from common.middleware_connection_handler import RabbitMQConnectionHandler
 
 PROD_COUNTRIES = 5
@@ -10,14 +9,20 @@ class FilterByCountryInvesment:
     countries: list
     data: object
 
-    def __init__(self):
+    def __init__(self, id_worker, number_workers):
+        self.id_worker = id_worker
+        self.number_workers = number_workers
         self.filter_by_country_connection = RabbitMQConnectionHandler(
             producer_exchange_name="filter_by_country_invesment_exchange",
-            producer_queues_to_bind={"filter_by_country_invesment_queue": ["filter_by_country_invesment_queue"]},
+            producer_queues_to_bind={
+                **{f"filter_by_country_invesment_queue_{i}": [f"filter_by_country_invesment_queue_{i}"] for i in range(self.number_workers)}
+            },
             consumer_exchange_name="movies_preprocessor_exchange",
-            consumer_queues_to_recv_from=["cleaned_movies_queue_country_invesment"],
+            consumer_queues_to_recv_from=[f"cleaned_movies_queue_country_invesment_{self.id_worker}"],
         )
-        self.filter_by_country_connection.set_message_consumer_callback("cleaned_movies_queue_country_invesment", self.callback)
+        self.filter_by_country_connection.set_message_consumer_callback(f"cleaned_movies_queue_country_invesment_{self.id_worker}", self.callback)
+        self.local_state = {}  # Dictionary to store local state of clients
+        self.controller_name = f"filter_by_country_invesment_{id_worker}"
 
     def start(self):
         logging.info("action: start | result: success | code: filter_by_country")
@@ -26,20 +31,44 @@ class FilterByCountryInvesment:
     def callback(self, ch, method, properties, body):
         data = MiddlewareMessage.decode_from_bytes(body)
         if data.type != MiddlewareMessageType.EOF_MOVIES:
+            if data.client_id not in self.local_state:
+                self.local_state[data.client_id] = {
+                    data.controller_name: data.seq_number,  # This is the seq number we received
+                    "last_seq_number": 0,  # This is the last seq number we propagated
+                    "eof_amount": 0 # This is the number of EOF messages received, when it reaches the number of workers, we can propagate the EOF message
+                }
+            if data.controller_name not in self.local_state[data.client_id]:
+                self.local_state[data.client_id][data.controller_name] = data.seq_number    
+            
+            else:
+                if data.seq_number <= self.local_state[data.client_id][data.controller_name]:
+                    logging.warning(f"Duplicated Message {data.client_id} in {data.controller_name}. Ignoring.")
+                    return
+                
             lines = data.get_batch_iter_from_payload()
-            self.handler_filter(lines, data.client_id, data.seq_number, data.query_number)
+            seq_number = self.local_state[data.client_id]["last_seq_number"]
+            self.handler_filter(lines, data.client_id, seq_number, data.query_number)
+
+            self.local_state[data.client_id]["last_seq_number"] += 1
         else:
-            msg = MiddlewareMessage(
-                    query_number=data.query_number,
-                    client_id=data.client_id,
-                    seq_number=data.seq_number,
-                    type=MiddlewareMessageType.EOF_MOVIES,
-                    payload=""
-                )
-            self.filter_by_country_connection.send_message(
-                routing_key="filter_by_country_invesment_queue",
-                msg_body=msg.encode_to_str()
-            )
+            seq_number = self.local_state[data.client_id]["last_seq_number"]
+            self.local_state[data.client_id]["eof_amount"] += 1
+            
+            if self.local_state[data.client_id]["eof_amount"] == self.number_workers:
+                msg = MiddlewareMessage(
+                        query_number=data.query_number,
+                        client_id=data.client_id,
+                        seq_number=seq_number,
+                        type=MiddlewareMessageType.EOF_MOVIES,
+                        payload="",
+                        controller_name=self.controller_name
+                    )
+                for id_worker in range(self.number_workers):
+                    # Send EOF message to all workers
+                    self.filter_by_country_connection.send_message(
+                        routing_key=f"filter_by_country_invesment_queue_{id_worker}",
+                        msg_body=msg.encode_to_str()
+                    )
 
     def filter_by_country_invesment(self, movie):
         raw_value = movie[PROD_COUNTRIES].strip()
@@ -61,17 +90,19 @@ class FilterByCountryInvesment:
                 result_data = [line[PROD_COUNTRIES], line[BUDGET]]
                 filtered_lines.append(result_data)
 
-        # if filtered_lines:
         result_csv = MiddlewareMessage.write_csv_batch(filtered_lines)
         msg = MiddlewareMessage(
                 query_number=query_number,
                 client_id=client_id,
                 seq_number=seq_number,
                 type=MiddlewareMessageType.MOVIES_BATCH,
-                payload=result_csv
+                payload=result_csv,
+                controller_name=self.controller_name
             )
         
+        id_worker = seq_number % self.number_workers
         self.filter_by_country_connection.send_message(
-            routing_key="filter_by_country_invesment_queue",
+            routing_key=f"filter_by_country_invesment_queue_{id_worker}",
             msg_body=msg.encode_to_str()
         )
+        

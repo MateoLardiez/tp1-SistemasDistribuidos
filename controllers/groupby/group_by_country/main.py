@@ -20,10 +20,16 @@ def initialize_log(logging_level):
 
 def main():
     number_sinkers = int(os.getenv("N_SINKERS"))
+    id_worker = int(os.getenv("WORKER_ID"))
+    number_workers = int(os.getenv("N_WORKERS"))
     initialize_log("INFO")
 
-    groupby = GroupByCountry(numberSinkers=number_sinkers)
+    groupby = GroupByCountry(
+        numberSinkers=number_sinkers,
+        id_worker=id_worker,
+        number_workers=number_workers
+    )
     groupby.start()
-    
+
 if __name__ == "__main__":
     main()

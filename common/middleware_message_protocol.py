@@ -25,23 +25,24 @@ class MiddlewareMessageType(Enum):
     EOF_RESULT_Q5 = 17
 
 class MiddlewareMessage:
-    def __init__(self, query_number: int, client_id: int, seq_number: int, type: MiddlewareMessageType, payload: str = ""):
+    def __init__(self, query_number: int, client_id: int, seq_number: int, type: MiddlewareMessageType, payload: str = "", controller_name: str = ""):
         self.query_number = QueryNumber(query_number)
         self.client_id = client_id
         self.seq_number = seq_number
         self.type = type
+        self.controller_name = controller_name
         self.payload = payload
 
     def encode_to_str(self) -> str:
-        return f"{self.query_number.value}{SEPARATOR}{self.client_id}{SEPARATOR}{self.seq_number}{SEPARATOR}{self.type.value}{SEPARATOR}{self.payload}"
+        return f"{self.query_number.value}{SEPARATOR}{self.client_id}{SEPARATOR}{self.seq_number}{SEPARATOR}{self.controller_name}{SEPARATOR}{self.type.value}{SEPARATOR}{self.payload}"
     
     @classmethod
     def decode_from_bytes(cls, raw_msg_body: bytes):
         msg = raw_msg_body.decode()
-        query_number, client_id, seq_number, msg_type, payload  = msg.split(f"{SEPARATOR}")
-        
-        return cls(QueryNumber(int(query_number)), int(client_id), int(seq_number), MiddlewareMessageType(int(msg_type)), payload)
-    
+        query_number, client_id, seq_number, controller_name, msg_type, payload  = msg.split(f"{SEPARATOR}")
+
+        return cls(QueryNumber(int(query_number)), int(client_id), int(seq_number), MiddlewareMessageType(int(msg_type)), payload, controller_name)
+
     def get_batch_iter_from_payload(self):
         return csv.reader(io.StringIO(self.payload), delimiter=',', quotechar='"')
         

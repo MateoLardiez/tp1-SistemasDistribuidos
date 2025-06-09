@@ -1,5 +1,6 @@
 from preprocessor import MoviesPreprocessor
 import logging
+import os
 
 def initialize_log(logging_level):
     """
@@ -18,9 +19,14 @@ def initialize_log(logging_level):
     logging.getLogger('pika').setLevel(logging.WARNING)
 
 def main():
+    n_workers = int(os.getenv("N_WORKERS"))
+    worker_id = int(os.getenv("WORKER_ID"))
     initialize_log("INFO")
 
-    preprocessorMovie = MoviesPreprocessor()
+    preprocessorMovie = MoviesPreprocessor(
+        number_workers=n_workers,
+        worker_id=worker_id
+    )
     preprocessorMovie.start()
     
 if __name__ == "__main__":

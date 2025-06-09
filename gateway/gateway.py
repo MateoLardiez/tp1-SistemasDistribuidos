@@ -26,7 +26,7 @@ BATCH_CREDITS = 8
 BATCH_END = 9
 
 class Gateway:
-    def __init__(self, port, listen_backlog, clients):
+    def __init__(self, port, listen_backlog, num_workers):
         # Initialize server socket
         self._socket_handler = SocketHandler(server_mode=True)
         self._socket_handler.create_socket(port=port, listen_backlog=listen_backlog)
@@ -34,7 +34,7 @@ class Gateway:
         self.manager = multiprocessing.Manager()
         self.clients = self.manager.dict()
         self.clients_lock = multiprocessing.Lock()
-        
+
         self.consumer_exchange_name = "reports_exchange"
         self.consumer_queue = "reports_queue"
         self.producer_exchange_name = "gateway_exchange"
@@ -43,6 +43,7 @@ class Gateway:
         self.producer_queue_of_credits = "credits_queue"
         self.publisher_connection = None
         self.clients_batch_received = {}
+        self.n_workers = num_workers
 
     def set_signals(self):
         signal.signal(signal.SIGTERM, self.__signal_handler)
@@ -141,7 +142,6 @@ class Gateway:
         lines = data.get_batch_iter_from_payload()
         result_query = []
         if data.type == MiddlewareMessageType.RESULT_Q1:
-            #logging.info(f"action: receive_response_query_1 | result: success | code: {data.type}")
             for line in lines:
                 logging.info(f"action: response_query_1 | client: {data.client_id} | line: {line}")
                 result_query.append(line)
@@ -186,7 +186,7 @@ class Gateway:
         self.publisher_connection = RabbitMQConnectionHandler(
             producer_exchange_name=self.producer_exchange_name,
             producer_queues_to_bind={
-                self.producer_queue_of_movies: [self.producer_queue_of_movies],
+                **{self.producer_queue_of_movies + f"_{i}": [self.producer_queue_of_movies + f"_{i}"] for i in range(self.n_workers)},
                 self.producer_queue_of_ratings: [self.producer_queue_of_ratings],
                 self.producer_queue_of_credits: [self.producer_queue_of_credits]
             },
@@ -310,8 +310,9 @@ class Gateway:
     def send_batch_to_preprocessor(self, batch, type_batch, seq_number, query_number, client_id):
         batch_type = None
         producer_queue = None
+        id_worker = seq_number % self.n_workers  # Assuming 3 workers for movies
         if type_batch == ClientCommunication.BATCH_MOVIES:
-            producer_queue = self.producer_queue_of_movies
+            producer_queue = self.producer_queue_of_movies + f"_{id_worker}"
             batch_type = MiddlewareMessageType.MOVIES_BATCH
         elif type_batch == ClientCommunication.BATCH_RATINGS:
             producer_queue = self.producer_queue_of_ratings
@@ -340,26 +341,37 @@ class Gateway:
         if type_batch == ClientCommunication.EOF_MOVIES:
             typeEof = MiddlewareMessageType.EOF_MOVIES
             eof_number = self.clients_batch_received[client_id][ClientCommunication.BATCH_MOVIES] + 1 
-            producer_queue = self.producer_queue_of_movies
-        elif type_batch == ClientCommunication.EOF_RATINGS:
-            typeEof = MiddlewareMessageType.EOF_RATINGS
-            eof_number = self.clients_batch_received[client_id][ClientCommunication.BATCH_RATINGS] + 1 
-            producer_queue = self.producer_queue_of_ratings
-        elif type_batch == ClientCommunication.EOF_CREDITS:
-            typeEof = MiddlewareMessageType.EOF_CREDITS
-            eof_number = self.clients_batch_received[client_id][ClientCommunication.BATCH_CREDITS] + 1
-            producer_queue = self.producer_queue_of_credits
+            for i in range(self.n_workers):
+                self.publisher_connection.send_message(
+                    routing_key=self.producer_queue_of_movies + f"_{i}",
+                    msg_body=MiddlewareMessage(
+                        query_number=query_number,
+                        client_id=client_id,
+                        seq_number=eof_number,
+                        type=typeEof,
+                        payload=""
+                    ).encode_to_str()
+                )
+        else: 
+            if type_batch == ClientCommunication.EOF_RATINGS:
+                typeEof = MiddlewareMessageType.EOF_RATINGS
+                eof_number = self.clients_batch_received[client_id][ClientCommunication.BATCH_RATINGS] + 1
+                producer_queue = self.producer_queue_of_ratings
+            elif type_batch == ClientCommunication.EOF_CREDITS:
+                typeEof = MiddlewareMessageType.EOF_CREDITS
+                eof_number = self.clients_batch_received[client_id][ClientCommunication.BATCH_CREDITS] + 1
+                producer_queue = self.producer_queue_of_credits
 
-        self.publisher_connection.send_message(
-            routing_key=producer_queue,
-            msg_body=MiddlewareMessage(
-                query_number=query_number,
-                client_id=client_id,
-                seq_number=eof_number,
-                type=typeEof,
-                payload=""
-            ).encode_to_str()
-        )
+            self.publisher_connection.send_message(
+                    routing_key=producer_queue,
+                    msg_body=MiddlewareMessage(
+                        query_number=query_number,
+                        client_id=client_id,
+                        seq_number=eof_number,
+                        type=typeEof,
+                        payload=""
+                    ).encode_to_str()
+                )
 
     def send_result_query(self, result_query, type_query, client_id):
         """

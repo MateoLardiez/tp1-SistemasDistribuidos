@@ -19,11 +19,11 @@ def initialize_log(logging_level):
     logging.getLogger('pika').setLevel(logging.WARNING)
 
 def main():
-
+    n_workers = int(os.getenv("N_WORKERS"))
     id_sinker = int(os.getenv("SINKER_ID"))
     initialize_log("INFO")
 
-    sinker = Query2(id_sinker)
+    sinker = Query2(id_sinker, n_workers)
     sinker.start()
     
 if __name__ == "__main__":
