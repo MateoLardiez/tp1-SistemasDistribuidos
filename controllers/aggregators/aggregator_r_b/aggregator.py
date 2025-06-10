@@ -11,15 +11,21 @@ REVENUE = 2
 
 class AggregatorRB:
     data: object
-    def __init__(self):
+    def __init__(self, number_workers, worker_id):
+        self.worker_id = worker_id
+        self.number_workers = number_workers
+        self.controller_name = f"aggregator_r_b_{worker_id}"
         self.data = ""
         self.aggregator_r_b_connection = RabbitMQConnectionHandler(
             producer_exchange_name="aggregator_r_b_exchange",
-            producer_queues_to_bind={ "aggregated_r_b_data_queue": ["aggregated_r_b_data_queue"]},
+            producer_queues_to_bind={
+                **{f"aggregated_r_b_data_queue_{i}": [f"aggregated_r_b_data_queue_{i}"] for i in range(self.number_workers)}
+            },
             consumer_exchange_name="aggregator_nlp_exchange",
-            consumer_queues_to_recv_from=["aggregated_nlp_data_queue"]
+            consumer_queues_to_recv_from=[f"aggregated_nlp_data_queue_{self.worker_id}"],
         )
-        self.aggregator_r_b_connection.set_message_consumer_callback("aggregated_nlp_data_queue", self.callback)
+        self.aggregator_r_b_connection.set_message_consumer_callback(f"aggregated_nlp_data_queue_{self.worker_id}", self.callback)
+        self.local_state = {}  # Dictionary to store local state of clients
 
     def start(self):
         logging.info("action: start | result: success | code: aggregator_r_b")
@@ -28,21 +34,39 @@ class AggregatorRB:
     def callback(self, ch, method, properties, body):
 
         data = MiddlewareMessage.decode_from_bytes(body)
-        lines = data.get_batch_iter_from_payload()
         if data.type != MiddlewareMessageType.EOF_MOVIES:
-            self.handler_aggregator_query_5(lines, data.client_id, data.seq_number, data.query_number)
+            if data.client_id not in self.local_state:
+                self.local_state[data.client_id] = {
+                    "last_seq_number": 0,  # This is the last seq number we propagated
+                    "eof_amount": 0  # This is the number of EOF messages received, when it reaches the number of workers, we can propagate the EOF message
+                }
+            if data.controller_name not in self.local_state[data.client_id]:
+                self.local_state[data.client_id][data.controller_name] = data.seq_number
+            elif data.seq_number <= self.local_state[data.client_id][data.controller_name]:
+                logging.warning(f"Duplicated Message {data.client_id} in {data.controller_name} with seq_number {data.seq_number}. Ignoring.")
+                return
+            lines = data.get_batch_iter_from_payload()
+            seq_number = self.local_state[data.client_id]["last_seq_number"]
+            self.handler_aggregator_query_5(lines, data.client_id, seq_number, data.query_number)
+
+            self.local_state[data.client_id]["last_seq_number"] += 1
         else:
-            msg = MiddlewareMessage(
-                query_number=data.query_number,
-                client_id=data.client_id,
-                seq_number=data.seq_number,
-                type=MiddlewareMessageType.EOF_MOVIES,
-                payload=""
-            )
-            self.aggregator_r_b_connection.send_message(
-                routing_key="aggregated_r_b_data_queue",
-                msg_body=msg.encode_to_str()
-            )
+            seq_number = self.local_state[data.client_id]["last_seq_number"]
+            self.local_state[data.client_id]["eof_amount"] += 1
+            if self.local_state[data.client_id]["eof_amount"] == self.number_workers:
+                msg = MiddlewareMessage(
+                    query_number=data.query_number,
+                    client_id=data.client_id,
+                    seq_number=data.seq_number,
+                    type=MiddlewareMessageType.EOF_MOVIES,
+                    payload="",
+                    controller_name=self.controller_name
+                )
+                for id_worker in range(self.number_workers):
+                    self.aggregator_r_b_connection.send_message(
+                        routing_key=f"aggregated_r_b_data_queue_{id_worker}",
+                        msg_body=msg.encode_to_str()
+                    )
         
     def aggregator_r_b(self, movie):
         try:
@@ -74,10 +98,12 @@ class AggregatorRB:
             client_id=client_id,
             seq_number=seq_number,
             type=MiddlewareMessageType.MOVIES_BATCH,
-            payload=result_csv
+            payload=result_csv, 
+            controller_name=self.controller_name
         )
+        id_worker = seq_number % self.number_workers
         self.aggregator_r_b_connection.send_message(
-            routing_key="aggregated_r_b_data_queue",
+            routing_key=f"aggregated_r_b_data_queue_{id_worker}",
             msg_body=msg.encode_to_str()
         )
         

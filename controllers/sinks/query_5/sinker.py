@@ -10,7 +10,7 @@ AMOUNT_POS = 2
 
 class Query5:
 
-    def __init__(self, id_sinker):
+    def __init__(self, id_sinker, number_workers):
         self.query_5_connection = RabbitMQConnectionHandler(
             producer_exchange_name="reports_exchange",
             producer_queues_to_bind={"reports_queue": ["reports_queue"]},
@@ -18,6 +18,7 @@ class Query5:
             consumer_queues_to_recv_from=[f"group_by_sentiment_queue_{id_sinker}"]
         )
         self.query_5_connection.set_message_consumer_callback(f"group_by_sentiment_queue_{id_sinker}", self.callback)
+        self.number_workers = number_workers
         self.clients_processed = {}
 
     def start(self):
@@ -29,38 +30,42 @@ class Query5:
         data = MiddlewareMessage.decode_from_bytes(body)
 
         if data.type != MiddlewareMessageType.EOF_MOVIES:
-            if data.client_id not in self.clients_processed:
-                self.clients_processed[data.client_id] = {
-                    "eof": False, 
-                    "seq_number": 0, 
-                    "batch_recibidos": 0
-                }
+            # if data.client_id not in self.clients_processed:
+            #     self.clients_processed[data.client_id] = {
+            #         "eof": False, 
+            #         "seq_number": 0, 
+            #         "batch_recibidos": 0
+            #     }
             lines = data.get_batch_iter_from_payload()
             self.save_data(data.client_id, lines)
-            self.clients_processed[data.client_id]["batch_recibidos"] += 1
-            if data.seq_number > self.clients_processed[data.client_id]["seq_number"]:
-                self.clients_processed[data.client_id]["seq_number"] = data.seq_number
-            if self.clients_processed[data.client_id]["eof"] and self.clients_processed[data.client_id]["seq_number"] - self.clients_processed[data.client_id]["batch_recibidos"] == 0:
-                # Si ya se recibió el EOF, no procesamos más mensajes
-                self.handler_query_5(data.client_id, data.query_number)
+            # self.clients_processed[data.client_id]["batch_recibidos"] += 1
+            # if data.seq_number > self.clients_processed[data.client_id]["seq_number"]:
+            #     self.clients_processed[data.client_id]["seq_number"] = data.seq_number
+            # if self.clients_processed[data.client_id]["eof"] and self.clients_processed[data.client_id]["seq_number"] - self.clients_processed[data.client_id]["batch_recibidos"] == 0:
+            #     # Si ya se recibió el EOF, no procesamos más mensajes
+            #     self.handler_query_5(data.client_id, data.query_number)
 
-                msg = MiddlewareMessage(
-                    query_number=data.query_number,
-                    client_id=data.client_id,
-                    seq_number=0,
-                    type=MiddlewareMessageType.EOF_RESULT_Q5,
-                    payload="EOF"
-                )
-                self.query_5_connection.send_message(
-                    routing_key="reports_queue",
-                    msg_body=msg.encode_to_str()
-                )
-                self.clean_temp_files(data.client_id)
-                del self.clients_processed[data.client_id]
+            #     msg = MiddlewareMessage(
+            #         query_number=data.query_number,
+            #         client_id=data.client_id,
+            #         seq_number=0,
+            #         type=MiddlewareMessageType.EOF_RESULT_Q5,
+            #         payload="EOF"
+            #     )
+            #     self.query_5_connection.send_message(
+            #         routing_key="reports_queue",
+            #         msg_body=msg.encode_to_str()
+            #     )
+            #     self.clean_temp_files(data.client_id)
+            #     del self.clients_processed[data.client_id]
             # nos quedamos con el seq number mas grande
         else:
-            if data.seq_number-1 - self.clients_processed[data.client_id]["batch_recibidos"] == 0:
-                
+            # if data.seq_number-1 - self.clients_processed[data.client_id]["batch_recibidos"] == 0:
+            if not data.client_id in self.clients_processed:
+                self.clients_processed[data.client_id] = {"eof_amount": 0}
+            self.clients_processed[data.client_id]["eof_amount"] += 1
+
+            if self.clients_processed[data.client_id]["eof_amount"] == self.number_workers:  # Solo un worker para query 5
                 self.handler_query_5(data.client_id, data.query_number)
                 msg = MiddlewareMessage(
                     query_number=data.query_number,
@@ -75,10 +80,10 @@ class Query5:
                 )
                 self.clean_temp_files(data.client_id)
                 del self.clients_processed[data.client_id]
-            else:
-                self.clients_processed[data.client_id]["eof"] = True
-                self.clients_processed[data.client_id]["seq_number"] = data.seq_number
-                self.clients_processed[data.client_id]["batch_recibidos"] += 1
+            # else:
+            #     self.clients_processed[data.client_id]["eof"] = True
+            #     self.clients_processed[data.client_id]["seq_number"] = data.seq_number
+            #     self.clients_processed[data.client_id]["batch_recibidos"] += 1
 
 
     def handler_query_5(self, client_id, query_number):

@@ -25,7 +25,7 @@ def main():
     initialize_log("INFO")
 
     groupby = GroupByCountry(
-        numberSinkers=number_sinkers,
+        number_sinkers=number_sinkers,
         id_worker=id_worker,
         number_workers=number_workers
     )

@@ -11,7 +11,7 @@ class FilterByYear:
     year: int
     data: object
 
-    def __init__(self, numberWorkers, numberSinkers):
+    def __init__(self, numberWorkers, number_sinkers):
         self.year_range_query_1 = (2000, 2009)
         self.year_range_query_3 = (2000, None)
         self.year_range_query_4 = (2000, None)
@@ -20,7 +20,7 @@ class FilterByYear:
         self.filter_by_year_connection = RabbitMQConnectionHandler(
             producer_exchange_name="filter_by_year_exchange",
             producer_queues_to_bind={
-                **{f"sink_query_1_queue_{i}": [f"sink_query_1_queue_{i}"] for i in range(numberSinkers)},
+                **{f"sink_query_1_queue_{i}": [f"sink_query_1_queue_{i}"] for i in range(number_sinkers)},
                 **{f"joiner_by_ratings_movies_queue_{i}": [f"joiner_by_ratings_movies_queue_{i}"] for i in range(numberWorkers)},
                 **{f"joiner_by_credits_movies_queue_{i}": [f"joiner_by_credits_movies_queue_{i}"] for i in range(numberWorkers)},
             },
@@ -29,7 +29,7 @@ class FilterByYear:
         )
         self.filter_by_year_connection.set_message_consumer_callback("country_queue", self.callback)
         self.numberWorkers = numberWorkers
-        self.numberSinkers = numberSinkers
+        self.number_sinkers = number_sinkers
 
     def start(self):
         logging.info("action: start | result: success | code: filter_by_year")
@@ -54,7 +54,7 @@ class FilterByYear:
                 payload=""
             )
             if data.query_number == QueryNumber.QUERY_1:
-               sinker_id = data.client_id % self.numberSinkers
+               sinker_id = data.client_id % self.number_sinkers
                self.filter_by_year_connection.send_message(
                     routing_key=f"sink_query_1_queue_{sinker_id}",
                     msg_body=msg.encode_to_str()
@@ -129,7 +129,7 @@ class FilterByYear:
         if query_number == QueryNumber.QUERY_1:
             for line in filtered_lines:
                 query_result.append([line[0], line[1]])
-            sinker_id = client_id % self.numberSinkers
+            sinker_id = client_id % self.number_sinkers
             result_csv = MiddlewareMessage.write_csv_batch(query_result) 
             self.send_message_queue(
                 routing_key=f"sink_query_1_queue_{sinker_id}",

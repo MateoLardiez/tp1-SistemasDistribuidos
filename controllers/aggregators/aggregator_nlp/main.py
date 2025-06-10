@@ -1,5 +1,6 @@
 from aggregator import AggregatorNlp
 import logging
+import os
 
 def initialize_log(logging_level):
     """
@@ -18,9 +19,11 @@ def initialize_log(logging_level):
     logging.getLogger('pika').setLevel(logging.WARNING)
 
 def main():
+    number_workers = int(os.getenv("N_WORKERS"))
+    id_worker = int(os.getenv("WORKER_ID"))
     initialize_log("INFO")
 
-    aggregator = AggregatorNlp()
+    aggregator = AggregatorNlp(number_workers, id_worker)
     aggregator.start()
     
 if __name__ == "__main__":

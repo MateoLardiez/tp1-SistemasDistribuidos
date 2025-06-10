@@ -60,6 +60,7 @@ add_movies_preprocessor() {
       - PYTHONUNBUFFERED=1
       - N_WORKERS=$N_WORKERS
       - WORKER_ID=$i
+      - NLP_WORKERS=$N_NLP
     networks:
       - testing_net
     depends_on:
@@ -181,6 +182,7 @@ add_group_by_sentiment() {
     entrypoint: python3 /main.py
     environment:
       - N_SINKERS=$N_SINKERS
+      - WORKER_ID=$i
     networks:
       - testing_net
     depends_on:
@@ -233,6 +235,9 @@ add_aggregator_nlp() {
     container_name: aggregator_nlp_$i
     image: aggregator_nlp:latest
     entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=$N_WORKERS
+      - WORKER_ID=$i
     networks:
       - testing_net
     depends_on:
@@ -248,6 +253,9 @@ add_aggregator_r_b() {
     container_name: aggregator_r_b_$i
     image: aggregator_r_b:latest
     entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=$N_WORKERS
+      - WORKER_ID=$i
     networks:
       - testing_net
     depends_on:
@@ -266,6 +274,7 @@ add_sinker_q1() {
     entrypoint: python3 /main.py
     environment:
       - SINKER_ID=$i
+      - N_WORKERS=$N_WORKERS
     networks:
       - testing_net
     depends_on:
@@ -337,6 +346,7 @@ add_sinker_q5() {
     entrypoint: python3 /main.py
     environment:
       - SINKER_ID=$i
+      - N_WORKERS=$N_WORKERS
     networks:
       - testing_net
     depends_on:
@@ -352,7 +362,7 @@ add_results_tester() {
     image: results_tester:latest
     entrypoint: python3 /main.py
     volumes:
-      - ./.data/results.json:/results.json:ro
+      - ./.data/results_total.json:/results.json:ro
     networks:
       - testing_net
 " >> "$COMPOSE_FILE"
@@ -386,9 +396,9 @@ add_client() {
       - CLI_ID=$((i+1))
     volumes:
       - ./client/config.yaml:/config.yaml:ro
-      - ./.data/movies_metadata_1.csv:/movies.csv:ro
-      - ./.data/ratings_1.csv:/ratings.csv:ro
-      - ./.data/credits_1.csv:/credits.csv:ro
+      - ./.data/movies_metadata.csv:/movies.csv:ro
+      - ./.data/ratings.csv:/ratings.csv:ro
+      - ./.data/credits.csv:/credits.csv:ro
     networks:
       - testing_net
     depends_on:

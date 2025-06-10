@@ -20,9 +20,10 @@ def initialize_log(logging_level):
 
 def main():
     number_sinkers = int(os.getenv("N_SINKERS"))
+    id_worker = int(os.getenv("WORKER_ID"))
     initialize_log("INFO")
 
-    groupby = GroupBySentiment(numberSinkers=number_sinkers)
+    groupby = GroupBySentiment(number_sinkers=number_sinkers, id_worker=id_worker)
     groupby.start()
     
 if __name__ == "__main__":

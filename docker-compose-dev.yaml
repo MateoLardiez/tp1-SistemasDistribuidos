@@ -40,6 +40,7 @@ services:
       - PYTHONUNBUFFERED=1
       - N_WORKERS=2
       - WORKER_ID=0
+      - NLP_WORKERS=2
     networks:
       - testing_net
     depends_on:
@@ -54,6 +55,7 @@ services:
       - PYTHONUNBUFFERED=1
       - N_WORKERS=2
       - WORKER_ID=1
+      - NLP_WORKERS=2
     networks:
       - testing_net
     depends_on:
@@ -214,6 +216,7 @@ services:
     entrypoint: python3 /main.py
     environment:
       - N_SINKERS=2
+      - WORKER_ID=0
     networks:
       - testing_net
     depends_on:
@@ -226,6 +229,7 @@ services:
     entrypoint: python3 /main.py
     environment:
       - N_SINKERS=2
+      - WORKER_ID=1
     networks:
       - testing_net
     depends_on:
@@ -288,6 +292,9 @@ services:
     container_name: aggregator_nlp_0
     image: aggregator_nlp:latest
     entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=2
+      - WORKER_ID=0
     networks:
       - testing_net
     depends_on:
@@ -298,6 +305,9 @@ services:
     container_name: aggregator_nlp_1
     image: aggregator_nlp:latest
     entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=2
+      - WORKER_ID=1
     networks:
       - testing_net
     depends_on:
@@ -308,6 +318,9 @@ services:
     container_name: aggregator_r_b_0
     image: aggregator_r_b:latest
     entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=2
+      - WORKER_ID=0
     networks:
       - testing_net
     depends_on:
@@ -318,6 +331,9 @@ services:
     container_name: aggregator_r_b_1
     image: aggregator_r_b:latest
     entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=2
+      - WORKER_ID=1
     networks:
       - testing_net
     depends_on:
@@ -330,6 +346,7 @@ services:
     entrypoint: python3 /main.py
     environment:
       - SINKER_ID=0
+      - N_WORKERS=2
     networks:
       - testing_net
     depends_on:
@@ -342,6 +359,7 @@ services:
     entrypoint: python3 /main.py
     environment:
       - SINKER_ID=1
+      - N_WORKERS=2
     networks:
       - testing_net
     depends_on:
@@ -432,6 +450,7 @@ services:
     entrypoint: python3 /main.py
     environment:
       - SINKER_ID=0
+      - N_WORKERS=2
     networks:
       - testing_net
     depends_on:
@@ -444,6 +463,7 @@ services:
     entrypoint: python3 /main.py
     environment:
       - SINKER_ID=1
+      - N_WORKERS=2
     networks:
       - testing_net
     depends_on:
@@ -455,7 +475,7 @@ services:
     image: results_tester:latest
     entrypoint: python3 /main.py
     volumes:
-      - ./.data/results.json:/results.json:ro
+      - ./.data/results_total.json:/results.json:ro
     networks:
       - testing_net
 
@@ -482,9 +502,9 @@ services:
       - CLI_ID=1
     volumes:
       - ./client/config.yaml:/config.yaml:ro
-      - ./.data/movies_metadata_1.csv:/movies.csv:ro
-      - ./.data/ratings_1.csv:/ratings.csv:ro
-      - ./.data/credits_1.csv:/credits.csv:ro
+      - ./.data/movies_metadata.csv:/movies.csv:ro
+      - ./.data/ratings.csv:/ratings.csv:ro
+      - ./.data/credits.csv:/credits.csv:ro
     networks:
       - testing_net
     depends_on:

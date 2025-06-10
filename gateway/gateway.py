@@ -326,7 +326,8 @@ class Gateway:
             client_id=client_id,
             seq_number=seq_number,
             type=batch_type,
-            payload=batch
+            payload=batch,
+            controller_name="gateway"
         )
 
         self.publisher_connection.send_message(
@@ -349,7 +350,8 @@ class Gateway:
                         client_id=client_id,
                         seq_number=eof_number,
                         type=typeEof,
-                        payload=""
+                        payload="",
+                        controller_name="gateway"
                     ).encode_to_str()
                 )
         else: 
@@ -369,7 +371,8 @@ class Gateway:
                         client_id=client_id,
                         seq_number=eof_number,
                         type=typeEof,
-                        payload=""
+                        payload="",
+                        controller_name="gateway"
                     ).encode_to_str()
                 )
 

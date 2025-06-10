@@ -21,11 +21,13 @@ def initialize_log(logging_level):
 def main():
     n_workers = int(os.getenv("N_WORKERS"))
     worker_id = int(os.getenv("WORKER_ID"))
+    nlp_workers = int(os.getenv("NLP_WORKERS"))
     initialize_log("INFO")
 
     preprocessorMovie = MoviesPreprocessor(
         number_workers=n_workers,
-        worker_id=worker_id
+        worker_id=worker_id,
+        nlp_workers=nlp_workers,
     )
     preprocessorMovie.start()
     

@@ -21,9 +21,10 @@ def initialize_log(logging_level):
 
 def main():
     id_sinker = int(os.getenv("SINKER_ID"))
+    n_workers = int(os.getenv("N_WORKERS"))
     initialize_log("INFO")
 
-    sinker = Query1(id_sinker)
+    sinker = Query1(id_sinker, n_workers)
     sinker.start()
     
 if __name__ == "__main__":

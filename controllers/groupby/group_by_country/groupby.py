@@ -14,20 +14,20 @@ class GroupByCountry:
     countries: list
     data: object
 
-    def __init__(self, numberSinkers, id_worker, number_workers):
+    def __init__(self, number_sinkers, id_worker, number_workers):
         self.id_worker = id_worker
         self.number_workers = number_workers
         self.group_by_country_connection = RabbitMQConnectionHandler(
             producer_exchange_name="group_by_country_exchange",
             producer_queues_to_bind={
-                **{f"group_by_country_queue_{i}": [f"group_by_country_queue_{i}"] for i in range(numberSinkers)}
+                **{f"group_by_country_queue_{i}": [f"group_by_country_queue_{i}"] for i in range(number_sinkers)}
             },
             consumer_exchange_name="filter_by_country_invesment_exchange",
             consumer_queues_to_recv_from=[f"filter_by_country_invesment_queue_{self.id_worker}"],
         )
         # Configurar el callback para la cola específica
         self.group_by_country_connection.set_message_consumer_callback(f"filter_by_country_invesment_queue_{self.id_worker}", self.callback)
-        self.numberSinkers = numberSinkers
+        self.number_sinkers = number_sinkers
         self.local_state = {}  # Diccionario para almacenar el estado local de los clientes
         self.controller_name = f"group_by_country_{id_worker}"
 
@@ -40,19 +40,18 @@ class GroupByCountry:
         if data.type != MiddlewareMessageType.EOF_MOVIES:
             if data.client_id not in self.local_state:
                     self.local_state[data.client_id] = {
-                        data.controller_name: data.seq_number, # Este es el seq number que recibimos
                         "last_seq_number": 0, # Este es el último seq number que propagamos
                         "eof_amount": 0 # This is the number of EOF messages received, when it reaches the number of workers, we can propagate the EOF message
                     }
             if data.controller_name not in self.local_state[data.client_id]:
-                self.local_state[data.client_id][data.controller_name] = data.seq_number
-            else:
-                if data.seq_number <= self.local_state[data.client_id][data.controller_name]:
-                    logging.warning(f"Duplicated Message {data.client_id} in {data.controller_name}. Ignoring.")
-                    return
+                self.local_state[data.client_id][data.controller_name] = data.seq_number # Este es el seq number que recibimos
+            elif data.seq_number <= self.local_state[data.client_id][data.controller_name]:
+                logging.warning(f"Duplicated Message {data.client_id} in {data.controller_name} with seq_number {data.seq_number}. Ignoring.")
+                return
                 
             lines = data.get_batch_iter_from_payload()
-            self.handler_country_group_by(lines, data.client_id, data.query_number, data.seq_number)
+            seq_number = self.local_state[data.client_id]["last_seq_number"]
+            self.handler_country_group_by(lines, data.client_id, data.query_number, seq_number)
 
             self.local_state[data.client_id]["last_seq_number"] += 1
 
@@ -61,7 +60,7 @@ class GroupByCountry:
             self.local_state[data.client_id]["eof_amount"] += 1
             
             if self.local_state[data.client_id]["eof_amount"] == self.number_workers:
-                sinker_number = data.client_id % self.numberSinkers
+                sinker_number = data.client_id % self.number_sinkers
                 msg = MiddlewareMessage(
                     query_number=data.query_number,
                     client_id=data.client_id,
@@ -95,7 +94,7 @@ class GroupByCountry:
             controller_name=self.controller_name
         )
        
-        sinker_number = id_client % self.numberSinkers
+        sinker_number = id_client % self.number_sinkers
         self.group_by_country_connection.send_message(
             routing_key=f"group_by_country_queue_{sinker_number}",
             msg_body=msg.encode_to_str()
