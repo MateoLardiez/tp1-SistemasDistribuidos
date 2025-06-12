@@ -11,7 +11,7 @@ class JoinerByCreditId:
     year: int
     data: object
 
-    def __init__(self, id_worker, number_sinkers):
+    def __init__(self, id_worker, number_sinkers, number_workers):
         self.joiner_by_credit_id_connection = RabbitMQConnectionHandler(
             producer_exchange_name="joiner_by_credit_id_exchange",
             producer_queues_to_bind={
@@ -23,8 +23,10 @@ class JoinerByCreditId:
         )
         
         # Diccionario para almacenar el estado por cliente
-        self.client_state = {}  # {client_id: {"movies_eof": bool, "credits_eof": bool}}     
-        self.number_sinkers = number_sinkers   
+        self.clients_state = {}  # {client_id: {"movies_eof": bool, "credits_eof": bool}}     
+        self.number_sinkers = number_sinkers
+        self.number_workers = number_workers  # Asumiendo que id_worker empieza en 0   
+        self.controller_name = f"joiner_by_credit_id_{id_worker}"
         # Configurar callbacks para ambas colas
         self.joiner_by_credit_id_connection.set_message_consumer_callback(f"joiner_by_credits_movies_queue_{id_worker}", self.movies_callback)
         self.joiner_by_credit_id_connection.set_message_consumer_callback(f"joiner_credits_by_id_queue_{id_worker}", self.credits_callback)
@@ -33,12 +35,13 @@ class JoinerByCreditId:
         logging.info("action: start | result: success | code: joiner_credit_by_id")
         self.joiner_by_credit_id_connection.start_consuming()
         
-    def create_client_state(self, client_id):
+    def create_clients_state(self, client_id):
         """Obtiene o crea el estado del cliente en el diccionario"""
-        if client_id not in self.client_state:
-            self.client_state[client_id] = {
-                "movies_eof": False,
-                "credits_eof": False,
+        if client_id not in self.clients_state:
+            self.clients_state[client_id] = {
+                "movies_eof": 0,
+                "credits_eof": 0,
+                "last_seq_number": 0,  # Último seq_number procesado
                 "movies_per_actor": {},
             }
 
@@ -48,41 +51,56 @@ class JoinerByCreditId:
         data = MiddlewareMessage.decode_from_bytes(body)
         client_id = data.client_id
         
-        if client_id not in self.client_state:
-            self.create_client_state(client_id)
+        
+        if client_id not in self.clients_state:
+            self.create_clients_state(client_id)
+        if data.controller_name not in self.clients_state[client_id]:
+            self.clients_state[client_id][data.controller_name] = data.seq_number
+        elif data.seq_number <= self.clients_state[client_id][data.controller_name]:
+            logging.warning(f"Duplicated Message {client_id} in {data.controller_name} with seq_number {data.seq_number}. Ignoring.")
+            return
         
         if data.type != MiddlewareMessageType.EOF_MOVIES:
             lines = list(data.get_batch_iter_from_payload())
             self.save_data(client_id, lines, "movies")
         else:
             # Recibimos EOF de movies para este cliente
-            self.client_state[client_id]["movies_eof"] = True
-            self.loading_data(client_id)
+            self.clients_state[client_id]["movies_eof"] += 1
+            if self.clients_state[client_id]["movies_eof"] == self.number_workers:
+                self.loading_data(client_id)
 
     def credits_callback(self, ch, method, properties, body):
         """Callback para procesar mensajes de la cola de credits"""
         data = MiddlewareMessage.decode_from_bytes(body)
         client_id = data.client_id
         
-        if client_id not in self.client_state:
-            self.create_client_state(client_id)
+        if client_id not in self.clients_state:
+            self.create_clients_state(client_id)
+
+        if data.controller_name not in self.clients_state[client_id]:
+            self.clients_state[client_id][data.controller_name] = data.seq_number
+        elif data.seq_number <= self.clients_state[client_id][data.controller_name]:
+            logging.warning(f"Duplicated Message {client_id} in {data.controller_name} with seq_number {data.seq_number}. Ignoring.")
+            return
          
         if data.type != MiddlewareMessageType.EOF_CREDITS:
+
             lines = list(data.get_batch_iter_from_payload())
-            if not self.client_state[client_id]["movies_eof"]:    
+            if self.clients_state[client_id]["movies_eof"] < self.number_workers:    
                 self.save_data(client_id, lines, "credits")
             else:
                 self.process_credits(lines, client_id)
         else:
             # Recibimos EOF de credits para este cliente
-            self.client_state[client_id]["credits_eof"] = True
-            # Depuración: Mostrar estado actual
-            self.send_results(client_id, data.query_number) 
+            self.clients_state[client_id]["credits_eof"] += 1
+            if self.clients_state[client_id]["credits_eof"] == self.number_workers:
+                # Depuración: Mostrar estado actual
+                self.send_results(client_id, data.query_number) 
 
 
     def process_credits(self, lines, client_id):
         """Process the credit data for a client"""
-        movies_per_actor = self.client_state[client_id]["movies_per_actor"]
+        movies_per_actor = self.clients_state[client_id]["movies_per_actor"]
         for line in lines:
             # Assuming line is a list with the structure [credit_id, actor_names]
             movie_id = line[0]  # credit_id
@@ -92,14 +110,14 @@ class JoinerByCreditId:
                             
             #logging.info(f"Processing credit data for client {client_id}: {line}")
 
-        self.client_state[client_id]["movies_per_actor"] = movies_per_actor
+        self.clients_state[client_id]["movies_per_actor"] = movies_per_actor
 
     def send_results(self, client_id, query_number):
         """Send the results to the appropriate sinker"""
         
         # Enviar resultados procesados
         
-        joined_data = self.client_state[client_id]["movies_per_actor"]
+        joined_data = self.clients_state[client_id]["movies_per_actor"]
         
         movies_per_actor = {}
         for _, actors in joined_data.items():
@@ -112,12 +130,14 @@ class JoinerByCreditId:
         [result.append([actor, count]) for actor, count in movies_per_actor.items()]
 
         result_csv = MiddlewareMessage.write_csv_batch(result) # TODO: Enviar en batches
+        seq_number = self.clients_state[client_id]["last_seq_number"]
         msg = MiddlewareMessage(
             query_number=query_number,
             client_id=client_id,
             type=MiddlewareMessageType.MOVIES_BATCH,
-            seq_number=1,
-            payload=result_csv
+            seq_number=seq_number,
+            payload=result_csv,
+            controller_name=self.controller_name
         )
         sinker_id = client_id % self.number_sinkers
         self.joiner_by_credit_id_connection.send_message(
@@ -129,8 +149,9 @@ class JoinerByCreditId:
             query_number=query_number,
             client_id=client_id,
             type=MiddlewareMessageType.EOF_JOINER,
-            seq_number=2,
-            payload="" 
+            seq_number=seq_number + 1,
+            payload="",
+            controller_name=self.controller_name
         )
         self.joiner_by_credit_id_connection.send_message(
             routing_key=f"average_credit_aggregated_{sinker_id}",
@@ -141,12 +162,12 @@ class JoinerByCreditId:
         self.clean_temp_files(client_id)
         
         # # Eliminar el estado del cliente del diccionario
-        del self.client_state[client_id]
+        del self.clients_state[client_id]
 
     def loading_data(self, client_id):
         """Verifica si se han recibido ambos EOFs para un cliente y procesa los datos"""
         # Verificar que el cliente exista en el estado
-        if client_id not in self.client_state:
+        if client_id not in self.clients_state:
             logging.warning(f"Cliente {client_id} no encontrado en el diccionario de estado")
             return
         
@@ -156,7 +177,7 @@ class JoinerByCreditId:
         
         joined_data = self.join_data(movies_filename, credits_filename)
         
-        self.client_state[client_id]["movies_per_actor"] = joined_data
+        self.clients_state[client_id]["movies_per_actor"] = joined_data
                 
     def join_data(self, movies_file, credits_file):     
         movies_with_actors = {}

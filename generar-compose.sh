@@ -78,6 +78,7 @@ add_ratings_preprocessor() {
     entrypoint: python3 /main.py
     environment:
       - N_WORKERS=$N_WORKERS
+      - WORKER_ID=$i
     networks:
       - testing_net
     depends_on:
@@ -95,6 +96,7 @@ add_credits_preprocessor() {
     entrypoint: python3 /main.py
     environment:
       - N_WORKERS=$N_WORKERS
+      - WORKER_ID=$i
     networks:
       - testing_net
     depends_on:
@@ -110,6 +112,9 @@ add_filter_by_country() {
     container_name: filter_by_country_$i
     image: filter_by_country:latest
     entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=$N_WORKERS
+      - WORKER_ID=$i
     networks:
       - testing_net
     depends_on:
@@ -146,6 +151,7 @@ add_filter_by_year() {
     environment:
       - N_WORKERS=$N_WORKERS
       - N_SINKERS=$N_SINKERS
+      - WORKER_ID=$i
     networks:
       - testing_net
     depends_on:
@@ -201,6 +207,7 @@ add_joiner_rating_by_id() {
     environment:
       - N_SINKERS=$N_SINKERS
       - WORKER_ID=$i
+      - N_WORKERS=$N_WORKERS
     networks:
       - testing_net
     depends_on:
@@ -219,6 +226,7 @@ add_joiner_credit_by_id() {
     environment:
       - N_SINKERS=$N_SINKERS
       - WORKER_ID=$i
+      - N_WORKERS=$N_WORKERS
     networks:
       - testing_net
     depends_on:

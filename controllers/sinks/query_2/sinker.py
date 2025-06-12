@@ -18,6 +18,7 @@ class Query2:
         )
         self.query_2_connection.set_message_consumer_callback(f"group_by_country_queue_{id_worker}", self.callback)
         self.clients_state ={}
+        self.controller_name = f"sink_query_2_{id_worker}"
 
     def start(self):
         logging.info("action: start | result: success | code: Sink_query_2 ")
@@ -26,51 +27,33 @@ class Query2:
     def callback(self, ch, method, properties, body):
         # id,title,genres,release_date,overview,production_countries,spoken_languages,budget,revenue
         data = MiddlewareMessage.decode_from_bytes(body)
+        if data.client_id not in self.clients_state:
+            self.clients_state[data.client_id] = {
+                "eof_amount": 0,
+                "last_seq_number": 0
+            }
+        if data.controller_name not in self.clients_state[data.client_id]:
+            self.clients_state[data.client_id][data.controller_name] = data.seq_number
+        elif data.seq_number <= self.clients_state[data.client_id][data.controller_name]:
+            logging.warning(f"Duplicated Message {data.client_id} in {data.controller_name} with seq_number {data.seq_number}. Ignoring.")
+            return
+        
         if data.type != MiddlewareMessageType.EOF_MOVIES:
-            # if data.client_id not in self.clients_processed:
-                # self.clients_processed[data.client_id] = {
-                #     "eof": False, 
-                #     "seq_number": 0, 
-                #     "batch_recibidos": 0
-                # }
-            
             
             lines = data.get_batch_iter_from_payload()
             self.save_data(data.client_id, lines)
-            # self.clients_processed[data.client_id]["batch_recibidos"] += 1
-            # if data.seq_number > self.clients_processed[data.client_id]["seq_number"]:
-            #     self.clients_processed[data.client_id]["seq_number"] = data.seq_number
-            # if self.clients_processed[data.client_id]["eof"] and self.clients_processed[data.client_id]["seq_number"] - self.clients_processed[data.client_id]["batch_recibidos"] == 0:
-            #     # Si ya se recibió el EOF, no procesamos más mensajes
-            #     self.handler_query_2(data.client_id, data.query_number)
-
-            #     msg = MiddlewareMessage(
-            #         query_number=data.query_number,
-            #         client_id=data.client_id,
-            #         seq_number=0,
-            #         type=MiddlewareMessageType.EOF_RESULT_Q2,
-            #         payload="EOF"
-            #     )
-            #     self.query_2_connection.send_message(
-            #         routing_key="reports_queue",
-            #         msg_body=msg.encode_to_str()
-            #     )
-            #     self.clean_temp_files(data.client_id)
-            #     del self.clients_processed[data.client_id]
         else:
-            if not data.client_id in self.clients_state:
-                self.clients_state[data.client_id] = {"eof_amount": 0}
             self.clients_state[data.client_id]["eof_amount"] += 1
 
             if self.clients_state[data.client_id]["eof_amount"] == self.number_workers:  # Solo un worker para query 2
-
                 self.handler_query_2(data.client_id, data.query_number)
                 msg = MiddlewareMessage(
                     query_number=data.query_number,
                     client_id=data.client_id,
                     seq_number=0,
                     type=MiddlewareMessageType.EOF_RESULT_Q2,
-                    payload="EOF"
+                    payload="EOF",
+                    controller_name=self.controller_name
                 )
                 self.query_2_connection.send_message(
                     routing_key="reports_queue",
@@ -78,7 +61,6 @@ class Query2:
                 )
                 self.clean_temp_files(data.client_id)
                 del self.clients_state[data.client_id]
-
 
     def handler_query_2(self, client_id, query_number):
         report_lines = {}
@@ -89,8 +71,7 @@ class Query2:
                 report_lines[country] = 0
             report_lines[country] += int(line[1])
 
-        # if report_lines:
-            # Sort the dictionary by descending value and get the top 5
+        # Sort the dictionary by descending value and get the top 5
         sorted_report_lines = sorted(report_lines.items(), key=lambda x: x[1], reverse=True)[:5]
         sorted_report_lines = [[country, revenue] for country, revenue in sorted_report_lines]
         result_csv = MiddlewareMessage.write_csv_batch(sorted_report_lines)
@@ -98,9 +79,10 @@ class Query2:
         msg = MiddlewareMessage(
             query_number=query_number,
             client_id=client_id,
-            seq_number=0,
+            seq_number=self.clients_state[client_id]["last_seq_number"],
             type=MiddlewareMessageType.RESULT_Q2,
-            payload=result_csv
+            payload=result_csv,
+            controller_name=self.controller_name
         )
 
         # Send all filtered results in a single message

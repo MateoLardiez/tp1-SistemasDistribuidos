@@ -187,8 +187,8 @@ class Gateway:
             producer_exchange_name=self.producer_exchange_name,
             producer_queues_to_bind={
                 **{self.producer_queue_of_movies + f"_{i}": [self.producer_queue_of_movies + f"_{i}"] for i in range(self.n_workers)},
-                self.producer_queue_of_ratings: [self.producer_queue_of_ratings],
-                self.producer_queue_of_credits: [self.producer_queue_of_credits]
+                **{self.producer_queue_of_ratings + f"_{i}": [self.producer_queue_of_ratings + f"_{i}"] for i in range(self.n_workers)},
+                **{self.producer_queue_of_credits + f"_{i}": [self.producer_queue_of_credits + f"_{i}"] for i in range(self.n_workers)}
             },
             consumer_exchange_name=None,
             consumer_queues_to_recv_from=None
@@ -315,10 +315,10 @@ class Gateway:
             producer_queue = self.producer_queue_of_movies + f"_{id_worker}"
             batch_type = MiddlewareMessageType.MOVIES_BATCH
         elif type_batch == ClientCommunication.BATCH_RATINGS:
-            producer_queue = self.producer_queue_of_ratings
+            producer_queue = self.producer_queue_of_ratings + f"_{id_worker}"
             batch_type = MiddlewareMessageType.RATINGS_BATCH
         elif type_batch == ClientCommunication.BATCH_CREDITS:
-            producer_queue = self.producer_queue_of_credits
+            producer_queue = self.producer_queue_of_credits + f"_{id_worker}"
             batch_type = MiddlewareMessageType.CREDITS_BATCH
 
         msg = MiddlewareMessage(
@@ -342,39 +342,29 @@ class Gateway:
         if type_batch == ClientCommunication.EOF_MOVIES:
             typeEof = MiddlewareMessageType.EOF_MOVIES
             eof_number = self.clients_batch_received[client_id][ClientCommunication.BATCH_MOVIES] + 1 
-            for i in range(self.n_workers):
-                self.publisher_connection.send_message(
-                    routing_key=self.producer_queue_of_movies + f"_{i}",
-                    msg_body=MiddlewareMessage(
-                        query_number=query_number,
-                        client_id=client_id,
-                        seq_number=eof_number,
-                        type=typeEof,
-                        payload="",
-                        controller_name="gateway"
-                    ).encode_to_str()
-                )
-        else: 
-            if type_batch == ClientCommunication.EOF_RATINGS:
-                typeEof = MiddlewareMessageType.EOF_RATINGS
-                eof_number = self.clients_batch_received[client_id][ClientCommunication.BATCH_RATINGS] + 1
-                producer_queue = self.producer_queue_of_ratings
-            elif type_batch == ClientCommunication.EOF_CREDITS:
-                typeEof = MiddlewareMessageType.EOF_CREDITS
-                eof_number = self.clients_batch_received[client_id][ClientCommunication.BATCH_CREDITS] + 1
-                producer_queue = self.producer_queue_of_credits
+            producer_queue = self.producer_queue_of_movies
+        elif type_batch == ClientCommunication.EOF_RATINGS:
+            typeEof = MiddlewareMessageType.EOF_RATINGS
+            eof_number = self.clients_batch_received[client_id][ClientCommunication.BATCH_RATINGS] + 1
+            producer_queue = self.producer_queue_of_ratings
+        elif type_batch == ClientCommunication.EOF_CREDITS:
+            typeEof = MiddlewareMessageType.EOF_CREDITS
+            eof_number = self.clients_batch_received[client_id][ClientCommunication.BATCH_CREDITS] + 1
+            producer_queue = self.producer_queue_of_credits
 
+        for i in range(self.n_workers):
             self.publisher_connection.send_message(
-                    routing_key=producer_queue,
-                    msg_body=MiddlewareMessage(
-                        query_number=query_number,
-                        client_id=client_id,
-                        seq_number=eof_number,
-                        type=typeEof,
-                        payload="",
-                        controller_name="gateway"
-                    ).encode_to_str()
-                )
+                routing_key=producer_queue + f"_{i}",
+                msg_body=MiddlewareMessage(
+                    query_number=query_number,
+                    client_id=client_id,
+                    seq_number=eof_number,
+                    type=typeEof,
+                    payload="",
+                    controller_name="gateway"
+                ).encode_to_str()
+            )
+
 
     def send_result_query(self, result_query, type_query, client_id):
         """

@@ -68,6 +68,7 @@ services:
     entrypoint: python3 /main.py
     environment:
       - N_WORKERS=2
+      - WORKER_ID=0
     networks:
       - testing_net
     depends_on:
@@ -80,6 +81,7 @@ services:
     entrypoint: python3 /main.py
     environment:
       - N_WORKERS=2
+      - WORKER_ID=1
     networks:
       - testing_net
     depends_on:
@@ -92,6 +94,7 @@ services:
     entrypoint: python3 /main.py
     environment:
       - N_WORKERS=2
+      - WORKER_ID=0
     networks:
       - testing_net
     depends_on:
@@ -104,6 +107,7 @@ services:
     entrypoint: python3 /main.py
     environment:
       - N_WORKERS=2
+      - WORKER_ID=1
     networks:
       - testing_net
     depends_on:
@@ -114,6 +118,9 @@ services:
     container_name: filter_by_country_0
     image: filter_by_country:latest
     entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=2
+      - WORKER_ID=0
     networks:
       - testing_net
     depends_on:
@@ -124,6 +131,9 @@ services:
     container_name: filter_by_country_1
     image: filter_by_country:latest
     entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=2
+      - WORKER_ID=1
     networks:
       - testing_net
     depends_on:
@@ -163,6 +173,7 @@ services:
     environment:
       - N_WORKERS=2
       - N_SINKERS=2
+      - WORKER_ID=0
     networks:
       - testing_net
     depends_on:
@@ -176,6 +187,7 @@ services:
     environment:
       - N_WORKERS=2
       - N_SINKERS=2
+      - WORKER_ID=1
     networks:
       - testing_net
     depends_on:
@@ -243,6 +255,7 @@ services:
     environment:
       - N_SINKERS=2
       - WORKER_ID=0
+      - N_WORKERS=2
     networks:
       - testing_net
     depends_on:
@@ -256,6 +269,7 @@ services:
     environment:
       - N_SINKERS=2
       - WORKER_ID=1
+      - N_WORKERS=2
     networks:
       - testing_net
     depends_on:
@@ -269,6 +283,7 @@ services:
     environment:
       - N_SINKERS=2
       - WORKER_ID=0
+      - N_WORKERS=2
     networks:
       - testing_net
     depends_on:
@@ -282,6 +297,7 @@ services:
     environment:
       - N_SINKERS=2
       - WORKER_ID=1
+      - N_WORKERS=2
     networks:
       - testing_net
     depends_on:

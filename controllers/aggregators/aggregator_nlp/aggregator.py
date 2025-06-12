@@ -40,17 +40,18 @@ class AggregatorNlp:
 
     def callback(self, ch, method, properties, body):
         data = MiddlewareMessage.decode_from_bytes(body)
+        if data.client_id not in self.local_state:
+            self.local_state[data.client_id] = {
+                "last_seq_number": 0,  # This is the last seq number we propagated
+                "eof_amount": 0  # This is the number of EOF messages received, when it reaches the number of workers, we can propagate the EOF message
+            }
+        if data.controller_name not in self.local_state[data.client_id]:
+            self.local_state[data.client_id][data.controller_name] = data.seq_number
+        elif data.seq_number <= self.local_state[data.client_id][data.controller_name]:
+            logging.warning(f"Duplicated Message {data.client_id} in {data.controller_name} with seq_number {data.seq_number}. Ignoring.")
+            return
+            
         if data.type != MiddlewareMessageType.EOF_MOVIES:
-            if data.client_id not in self.local_state:
-                self.local_state[data.client_id] = {
-                    "last_seq_number": 0,  # This is the last seq number we propagated
-                    "eof_amount": 0  # This is the number of EOF messages received, when it reaches the number of workers, we can propagate the EOF message
-                }
-            if data.controller_name not in self.local_state[data.client_id]:
-                self.local_state[data.client_id][data.controller_name] = data.seq_number
-            elif data.seq_number <= self.local_state[data.client_id][data.controller_name]:
-                logging.warning(f"Duplicated Message {data.client_id} in {data.controller_name} with seq_number {data.seq_number}. Ignoring.")
-                return
 
             lines = data.get_batch_iter_from_payload()
             seq_number = self.local_state[data.client_id]["last_seq_number"]

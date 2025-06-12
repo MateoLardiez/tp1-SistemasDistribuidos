@@ -21,9 +21,10 @@ def initialize_log(logging_level):
 def main():
     number_workers = int(os.getenv("N_WORKERS"))
     number_sinkers = int(os.getenv("N_SINKERS"))
+    id_worker = int(os.getenv("WORKER_ID"))
     initialize_log("INFO")
 
-    filter = FilterByYear(number_workers, number_sinkers)
+    filter = FilterByYear(number_workers, number_sinkers, id_worker)
     filter.start()
     
 if __name__ == "__main__":

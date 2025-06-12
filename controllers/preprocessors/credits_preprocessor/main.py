@@ -19,10 +19,11 @@ def initialize_log(logging_level):
     logging.getLogger('pika').setLevel(logging.WARNING)
 
 def main():
-    n_workers = int(os.getenv("N_WORKERS", 1))
+    n_workers = int(os.getenv("N_WORKERS"))
+    id_worker = int(os.getenv("WORKER_ID"))
     initialize_log("INFO")
 
-    preprocessorCredits = CreditsPreprocessor(n_workers)
+    preprocessorCredits = CreditsPreprocessor(n_workers, id_worker)
     preprocessorCredits.start()
     
 if __name__ == "__main__":

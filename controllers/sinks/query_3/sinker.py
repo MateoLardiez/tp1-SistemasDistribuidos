@@ -15,7 +15,8 @@ class Query3:
         )
         self.query_3_connection.set_message_consumer_callback(f"average_rating_aggregated_{id_sinker}", self.callback)
         self.number_workers = number_workers
-        self.client_state = {}  # {client_id: {"eof_amount": int}}
+        self.clients_state = {}  # {client_id: {"eof_amount": int}}
+        self.controller_name = f"sink_query_3_{id_sinker}"
 
     def start(self):
         logging.info("action: start | result: success | code: Sink_query_3 ")
@@ -25,16 +26,24 @@ class Query3:
         # id,title,genres,release_date,overview,production_countries,spoken_languages,budget,revenue
         data = MiddlewareMessage.decode_from_bytes(body)
 
-        if data.type != MiddlewareMessageType.EOF_JOINER:
+        if data.client_id not in self.clients_state:
+            self.clients_state[data.client_id] = {
+                "eof_amount": 0, 
+                "last_seq_number": 0, 
+            }
+        if data.controller_name not in self.clients_state[data.client_id]:
+            self.clients_state[data.client_id][data.controller_name] = data.seq_number
+        elif data.seq_number <= self.clients_state[data.client_id][data.controller_name]:
+            logging.warning(f"Duplicated Message {data.client_id} in {data.controller_name} with seq_number {data.seq_number}. Ignoring.")
+            return
+        
+        if data.type != MiddlewareMessageType.EOF_JOINER:    
             lines = data.get_batch_iter_from_payload()
             self.save_data(data.client_id, lines)
         else:
-            if not data.client_id in self.client_state:
-                # If we don't have the client_id in the state, we need to initialize it
-                self.client_state[data.client_id] = {"eof_amount": 0}
-            self.client_state[data.client_id]["eof_amount"] += 1
+            self.clients_state[data.client_id]["eof_amount"] += 1
             # Check if we have received all EOF messages
-            if self.client_state[data.client_id]["eof_amount"] == self.number_workers:
+            if self.clients_state[data.client_id]["eof_amount"] == self.number_workers:
                 self.handler_query_3(data.client_id, data.query_number)
                 # Handle EOF message
                 msg = MiddlewareMessage(
@@ -42,14 +51,15 @@ class Query3:
                     client_id=data.client_id,
                     seq_number=0,
                     type=MiddlewareMessageType.EOF_RESULT_Q3,
-                    payload="EOF"
+                    payload="EOF",
+                    controller_name=self.controller_name
                 )
                 self.query_3_connection.send_message(
                     routing_key="reports_queue",
                     msg_body=msg.encode_to_str()
                 )
                 self.clean_temp_files(data.client_id)
-                del self.client_state[data.client_id]
+                del self.clients_state[data.client_id]
         
 
 
@@ -75,7 +85,8 @@ class Query3:
             client_id=client_id,
             seq_number=0,
             type=MiddlewareMessageType.RESULT_Q3,
-            payload=result_csv
+            payload=result_csv,
+            controller_name=self.controller_name
         )
 
         # Send all filtered results in a single message

@@ -7,16 +7,17 @@ GENRES = 1
 
 class Query1:
 
-    def __init__(self, id_worker, number_workers):
+    def __init__(self, id_sinker, number_workers):
         self.number_workers = number_workers
         self.query_1_connection = RabbitMQConnectionHandler(
             producer_exchange_name="reports_exchange",
             producer_queues_to_bind={"reports_queue": ["reports_queue"]},
             consumer_exchange_name="filter_by_year_exchange",
-            consumer_queues_to_recv_from=[f"sink_query_1_queue_{id_worker}"],
+            consumer_queues_to_recv_from=[f"sink_query_1_queue_{id_sinker}"],
         )
-        self.query_1_connection.set_message_consumer_callback(f"sink_query_1_queue_{id_worker}", self.callback)
-        self.clients_processed = {}
+        self.query_1_connection.set_message_consumer_callback(f"sink_query_1_queue_{id_sinker}", self.callback)
+        self.clients_state = {}
+        self.controller_name = f"sink_query_1_{id_sinker}"
 
     def start(self):
         logging.info("action: start | result: success | code: Sink_query_1 ")
@@ -25,60 +26,39 @@ class Query1:
     def callback(self, ch, method, properties, body):
         # id,title,genres,release_date,overview,production_countries,spoken_languages,budget,revenue
         data = MiddlewareMessage.decode_from_bytes(body)
-        if data.type != MiddlewareMessageType.EOF_MOVIES:
-            # if data.client_id not in self.clients_processed:
-            #     self.clients_processed[data.client_id] = {
-            #         "eof": False, 
-            #         "seq_number": 0, 
-            #         "batch_recibidos": 0
-            #     }
+        if data.client_id not in self.clients_state:
+            self.clients_state[data.client_id] = {
+                "eof_amount": 0, 
+                "last_seq_number": 0, 
+            }
+        if data.controller_name not in self.clients_state[data.client_id]:
+            self.clients_state[data.client_id][data.controller_name] = data.seq_number
+        elif data.seq_number <= self.clients_state[data.client_id][data.controller_name]:
+            logging.warning(f"Duplicated Message {data.client_id} in {data.controller_name} with seq_number {data.seq_number}. Ignoring.")
+            return
+        
+        if data.type != MiddlewareMessageType.EOF_MOVIES:    
             lines = data.get_batch_iter_from_payload()
-            # self.clients_processed[data.client_id]["batch_recibidos"] += 1
-            # if data.seq_number > self.clients_processed[data.client_id]["seq_number"]:
-            #     self.clients_processed[data.client_id]["seq_number"] = data.seq_number
-            # if self.clients_processed[data.client_id]["eof"] and self.clients_processed[data.client_id]["seq_number"] - self.clients_processed[data.client_id]["batch_recibidos"] == 0:
-            #     self.handler_query_1(lines, data.client_id, data.query_number)
-
-            #     msg = MiddlewareMessage(
-            #         query_number=data.query_number,
-            #         client_id=data.client_id,
-            #         seq_number=0,
-            #         type=MiddlewareMessageType.EOF_RESULT_Q1,
-            #         payload="EOF"
-            #     )
-            #     self.query_1_connection.send_message(
-            #         routing_key="reports_queue",
-            #         msg_body=msg.encode_to_str()
-            #     )
-
-            # else:
-            self.handler_query_1(lines, data.client_id, data.query_number)
+            seq_number = self.clients_state[data.client_id]["last_seq_number"]
+            self.handler_query_1(lines, data.client_id, data.query_number, seq_number)
+            self.clients_state[data.client_id]["last_seq_number"] += 1
         else:
-            # if data.seq_number-1 - self.clients_processed[data.client_id]["batch_recibidos"] == 0:
-            if not data.client_id in self.clients_processed:
-                self.clients_processed[data.client_id] = {"eof_amount": 0}
-            self.clients_processed[data.client_id]["eof_amount"] += 1
-
-            if self.clients_processed[data.client_id]["eof_amount"] == self.number_workers:
+            self.clients_state[data.client_id]["eof_amount"] += 1
+            if self.clients_state[data.client_id]["eof_amount"] == self.number_workers:
                 msg = MiddlewareMessage(
                     query_number=data.query_number,
                     client_id=data.client_id,
                     seq_number=0,
                     type=MiddlewareMessageType.EOF_RESULT_Q1,
-                    payload="EOF"
+                    payload="EOF",
+                    controller_name=self.controller_name
                 )
                 self.query_1_connection.send_message(
                     routing_key="reports_queue",
                     msg_body=msg.encode_to_str()
                 )
-            # else:
-            #     logging.info(f"EOF message received for client {data.client_id} with seq_number {data.seq_number}")
-            #     self.clients_processed[data.client_id]["eof"] = True
-            #     self.clients_processed[data.client_id]["seq_number"] = data.seq_number
-            #     self.clients_processed[data.client_id]["batch_recibidos"] += 1
 
-
-    def handler_query_1(self, lines, client_id, query_number):
+    def handler_query_1(self, lines, client_id, query_number, seq_number):
         filtered_lines = []
         for line in lines:
             filtered_lines.append([line[TITLE], line[GENRES]])
@@ -90,9 +70,10 @@ class Query1:
             msg = MiddlewareMessage(
                 query_number=query_number,
                 client_id=client_id,
-                seq_number=0,
+                seq_number=seq_number,
                 type=MiddlewareMessageType.RESULT_Q1,
-                payload=result_csv
+                payload=result_csv,
+                controller_name=self.controller_name
             )
 
             # Send all filtered results in a single message

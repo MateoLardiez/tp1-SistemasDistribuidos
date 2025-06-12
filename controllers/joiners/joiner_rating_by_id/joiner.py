@@ -12,7 +12,7 @@ class JoinerByRatingId:
     year: int
     data: object
 
-    def __init__(self, id_worker, number_sinkers):
+    def __init__(self, id_worker, number_sinkers, number_workers):
         self.joiner_by_rating_id_connection = RabbitMQConnectionHandler(
             producer_exchange_name="joiner_by_rating_id_exchange",
             producer_queues_to_bind={
@@ -24,8 +24,10 @@ class JoinerByRatingId:
         )
         
         # Diccionario para almacenar el estado por cliente
-        self.client_state = {}  # {client_id: {"movies_eof": bool, "ratings_eof": bool}}
+        self.clients_state = {}  # {client_id: {"movies_eof": bool, "ratings_eof": bool}}
         self.number_sinkers = number_sinkers
+        self.number_workers = number_workers  # Asumiendo que id_worker empieza en 0
+        self.controller_name = f"joiner_rating_by_id_{id_worker}"
         # Configurar callbacks para ambas colas
         self.joiner_by_rating_id_connection.set_message_consumer_callback(f"joiner_by_ratings_movies_queue_{id_worker}", self.movies_callback)
         self.joiner_by_rating_id_connection.set_message_consumer_callback(f"joiner_ratings_by_id_queue_{id_worker}", self.ratings_callback)
@@ -35,13 +37,14 @@ class JoinerByRatingId:
         logging.info("action: start | result: success | code: joiner_rating_by_id")
         self.joiner_by_rating_id_connection.start_consuming()
         
-    def create_client_state(self, client_id):
+    def create_clients_state(self, client_id):
         """Obtiene o crea el estado del cliente en el diccionario"""
-        if client_id not in self.client_state:
-            self.client_state[client_id] = {
-                "movies_eof": False,
-                "ratings_eof": False,
+        if client_id not in self.clients_state:
+            self.clients_state[client_id] = {
+                "movies_eof": 0,
+                "ratings_eof": 0,
                 "movies_with_ratings": {},
+                "last_seq_number": 0,  # Este es el último seq number que propagamos
             }
 
     def movies_callback(self, ch, method, properties, body):
@@ -49,39 +52,53 @@ class JoinerByRatingId:
         data = MiddlewareMessage.decode_from_bytes(body)
         client_id = data.client_id
         
-        if client_id not in self.client_state:
-            self.create_client_state(client_id)
+        if client_id not in self.clients_state:
+            self.create_clients_state(client_id)
+        if data.controller_name not in self.clients_state[client_id]:
+            self.clients_state[client_id][data.controller_name] = data.seq_number
+        elif data.seq_number <= self.clients_state[client_id][data.controller_name]:
+            logging.warning(f"Duplicated Message {client_id} in {data.controller_name} with seq_number {data.seq_number}. Ignoring.")
+            return
         
         if data.type != MiddlewareMessageType.EOF_MOVIES:
+            # Procesamos el mensaje de movies
             lines = list(data.get_batch_iter_from_payload())
             self.save_data(client_id, lines, "movies")
         else:
             # Recibimos EOF de movies para este cliente
-            self.client_state[client_id]["movies_eof"] = True
-            self.loading_data(client_id)
+            self.clients_state[client_id]["movies_eof"] += 1
+            if self.clients_state[client_id]["movies_eof"] == self.number_workers:
+                # Si hemos recibido EOF de movies de todos los workers, procedemos a cargar los datos
+                self.loading_data(client_id)
 
     def ratings_callback(self, ch, method, properties, body):
         """Callback para procesar mensajes de la cola de ratings"""
         data = MiddlewareMessage.decode_from_bytes(body)
         client_id = data.client_id
         
-        if client_id not in self.client_state:
-            self.create_client_state(client_id)
+        if client_id not in self.clients_state:
+            self.create_clients_state(client_id)
+        if data.controller_name not in self.clients_state[client_id]:
+            self.clients_state[client_id][data.controller_name] = data.seq_number
+        elif data.seq_number <= self.clients_state[client_id][data.controller_name]:
+            logging.warning(f"Duplicated Message {client_id} in {data.controller_name} with seq_number {data.seq_number}. Ignoring.")
+            return
          
         if data.type != MiddlewareMessageType.EOF_RATINGS:
             lines = list(data.get_batch_iter_from_payload())
-            if not self.client_state[client_id]["movies_eof"]:
+            if self.clients_state[client_id]["movies_eof"] < self.number_workers:
                 self.save_data(client_id, lines, "ratings")
             else:
                 self.process_ratings(client_id, lines)
         else:
             # Recibimos EOF de ratings para este cliente
-            self.client_state[client_id]["ratings_eof"] = True
-            # Depuración: Mostrar estado actual
-            self.send_results(client_id, data.query_number)
+            self.clients_state[client_id]["ratings_eof"] += 1
+            if self.clients_state[client_id]["ratings_eof"] == self.number_workers:
+                # Depuración: Mostrar estado actual
+                self.send_results(client_id, data.query_number)
 
     def loading_data(self, client_id):
-        if client_id not in self.client_state:
+        if client_id not in self.clients_state:
             logging.warning(f"Cliente {client_id} no encontrado en el diccionario de estado")
             return
         
@@ -90,14 +107,14 @@ class JoinerByRatingId:
             
         joined_data = self.join_data(movies_filename, ratings_filename)
 
-        self.client_state[client_id]["movies_with_ratings"] = joined_data
+        self.clients_state[client_id]["movies_with_ratings"] = joined_data
 
 
     def send_results(self, client_id, query_number):
         """Verifica si se han recibido ambos EOFs para un cliente y procesa los datos"""
         # Verificar que el cliente exista en el estado
         
-        data = self.client_state[client_id]["movies_with_ratings"]
+        data = self.clients_state[client_id]["movies_with_ratings"]
 
         joined_data = {}
         for _, movie_info in data.items():
@@ -110,12 +127,14 @@ class JoinerByRatingId:
         [result.append([title, rating]) for title, rating in joined_data.items()]
 
         result_csv = MiddlewareMessage.write_csv_batch(result) # TODO: Enviar en batches
+        seq_number = self.clients_state[client_id]["last_seq_number"]
         msg = MiddlewareMessage(
             query_number=query_number,
             client_id=client_id,
-            seq_number=1,
+            seq_number=seq_number,
             type=MiddlewareMessageType.MOVIES_BATCH,
-            payload=result_csv
+            payload=result_csv,
+            controller_name=self.controller_name
         )
         sinker_id = client_id % self.number_sinkers
         self.joiner_by_rating_id_connection.send_message(
@@ -126,8 +145,10 @@ class JoinerByRatingId:
         msg_eof = MiddlewareMessage(
             query_number=query_number,
             client_id=client_id,
-            seq_number=2,
-            type=MiddlewareMessageType.EOF_JOINER
+            seq_number=seq_number + 1,
+            type=MiddlewareMessageType.EOF_JOINER,
+            payload="EOF",
+            controller_name=self.controller_name
         )
         self.joiner_by_rating_id_connection.send_message(
             routing_key=f"average_rating_aggregated_{sinker_id}",
@@ -138,12 +159,12 @@ class JoinerByRatingId:
         self.clean_temp_files(client_id)
         
         # Eliminar el estado del cliente del diccionario
-        del self.client_state[client_id]
+        del self.clients_state[client_id]
         
         logging.info(f"action: process_joined_data | client: {client_id} | result: completed")
     
     def process_ratings(self, client_id, lines):
-        movies_ratings = self.client_state[client_id]["movies_with_ratings"]
+        movies_ratings = self.clients_state[client_id]["movies_with_ratings"]
         for line in lines:
             movie_id = line[0]
             rating = float(line[1])
@@ -151,7 +172,7 @@ class JoinerByRatingId:
                 movies_ratings[movie_id]["ratings_accumulator"] += rating
                 movies_ratings[movie_id]["ratings_amount"] += 1
 
-        self.client_state[client_id]["movies_with_ratings"] = movies_ratings
+        self.clients_state[client_id]["movies_with_ratings"] = movies_ratings
 
     def join_data(self, movies_file, ratings_file):
         joined_results = []

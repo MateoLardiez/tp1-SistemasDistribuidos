@@ -20,10 +20,11 @@ def initialize_log(logging_level):
 
 def main():
     n_sinkers = int(os.getenv("N_SINKERS"))
+    n_workers = int(os.getenv("N_WORKERS"))
     id_worker = int(os.getenv("WORKER_ID"))
     initialize_log("INFO")
 
-    joinerCredit = JoinerByCreditId(id_worker, n_sinkers)
+    joinerCredit = JoinerByCreditId(id_worker, n_sinkers, n_workers)
     joinerCredit.start()
     
 if __name__ == "__main__":
