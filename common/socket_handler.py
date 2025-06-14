@@ -19,8 +19,9 @@ class SocketHandler:
         self._socket = None
         self._server_mode = server_mode
         self._connected = False
+        self.timeout = None
         
-    def create_socket(self, port: int = 0, ip: str = '', listen_backlog: int = 5) -> bool:
+    def create_socket(self, port: int = 0, ip: str = '', listen_backlog: int = 5, timeout=None) -> bool:
         """
         Crea un socket y lo configura según el modo (servidor o cliente)
         
@@ -35,7 +36,9 @@ class SocketHandler:
         try:
             self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            
+            if timeout:
+                self._socket.settimeout(timeout)
+                self.timeout = timeout
             if self._server_mode:
                 self._socket.bind((ip, port))
                 self._socket.listen(listen_backlog)
@@ -101,7 +104,7 @@ class SocketHandler:
         if self._socket and self._connected:
             self._socket.close()
             self._connected = False
-            logging.info("action: close_socket | result: success")
+            # logging.info("action: close_socket | result: success")
     
     def receive_message(self) -> Optional[MessageProtocol]:
         """
@@ -284,3 +287,5 @@ class SocketHandler:
                 logging.error(f"action: send_message | result: fail | error: {e}")
                 return False
         return True
+
+    

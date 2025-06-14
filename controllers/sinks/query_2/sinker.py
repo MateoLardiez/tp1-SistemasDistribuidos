@@ -38,13 +38,11 @@ class Query2:
             logging.warning(f"Duplicated Message {data.client_id} in {data.controller_name} with seq_number {data.seq_number}. Ignoring.")
             return
         
-        if data.type != MiddlewareMessageType.EOF_MOVIES:
-            
+        if data.type != MiddlewareMessageType.EOF_MOVIES:  
             lines = data.get_batch_iter_from_payload()
             self.save_data(data.client_id, lines)
         else:
             self.clients_state[data.client_id]["eof_amount"] += 1
-
             if self.clients_state[data.client_id]["eof_amount"] == self.number_workers:  # Solo un worker para query 2
                 self.handler_query_2(data.client_id, data.query_number)
                 msg = MiddlewareMessage(

@@ -4,6 +4,8 @@ N_CLIENTS=$1
 N_WORKERS=$2
 N_SINKERS=$3
 N_NLP=$4
+N_HEALTHCHECKERS=$5
+FILE_CONTROLLER="./.data/monitorable_process.txt"
 
 readonly COMPOSE_FILE="docker-compose-dev.yaml"
 
@@ -52,6 +54,7 @@ add_gateway() {
 
 add_movies_preprocessor() {
   for ((i=0; i<=N_WORKERS-1; i++)); do
+    echo "movies_preprocessor_$i" >> "$FILE_CONTROLLER"
     echo "  movies_preprocessor_$i:
     container_name: movies_preprocessor_$i
     image: movies_preprocessor:latest
@@ -72,6 +75,7 @@ add_movies_preprocessor() {
 
 add_ratings_preprocessor() {
   for ((i=0; i<=N_WORKERS-1; i++)); do
+    echo "ratings_preprocessor_$i" >> "$FILE_CONTROLLER"
     echo "  ratings_preprocessor_$i:
     container_name: ratings_preprocessor_$i
     image: ratings_preprocessor:latest
@@ -90,6 +94,7 @@ add_ratings_preprocessor() {
 
 add_credits_preprocessor() {
   for ((i=0; i<=N_WORKERS-1; i++)); do
+    echo "credits_preprocessor_$i" >> "$FILE_CONTROLLER"
     echo "  credits_preprocessor_$i:
     container_name: credits_preprocessor_$i
     image: credits_preprocessor:latest
@@ -108,6 +113,7 @@ add_credits_preprocessor() {
 
 add_filter_by_country() {
   for ((i=0; i<=N_WORKERS-1; i++)); do
+    echo "filter_by_country_$i" >> "$FILE_CONTROLLER"
     echo "  filter_by_country_$i:
     container_name: filter_by_country_$i
     image: filter_by_country:latest
@@ -126,6 +132,7 @@ add_filter_by_country() {
 
 add_filter_by_country_invesment() {
   for ((i=0; i<=N_WORKERS-1; i++)); do
+    echo "filter_by_country_invesment_$i" >> "$FILE_CONTROLLER"
     echo "  filter_by_country_invesment_$i:
     container_name: filter_by_country_invesment_$i
     image: filter_by_country_invesment:latest
@@ -144,6 +151,7 @@ add_filter_by_country_invesment() {
 
 add_filter_by_year() {
   for ((i=0; i<=N_WORKERS-1; i++)); do
+    echo "filter_by_year_$i" >> "$FILE_CONTROLLER"
     echo "  filter_by_year_$i:
     container_name: filter_by_year_$i
     image: filter_by_year:latest
@@ -163,6 +171,7 @@ add_filter_by_year() {
 
 add_group_by_country() {
   for ((i=0; i<=N_WORKERS-1; i++)); do
+    echo "group_by_country_$i" >> "$FILE_CONTROLLER"
     echo "  group_by_country_$i:
     container_name: group_by_country_$i
     image: group_by_country:latest
@@ -182,6 +191,7 @@ add_group_by_country() {
 
 add_group_by_sentiment() {
   for ((i=0; i<=N_WORKERS-1; i++)); do
+    echo "group_by_sentiment_$i" >> "$FILE_CONTROLLER"
     echo "  group_by_sentiment_$i:
     container_name: group_by_sentiment_$i
     image: group_by_sentiment:latest
@@ -200,6 +210,7 @@ add_group_by_sentiment() {
 
 add_joiner_rating_by_id() {
   for ((i=0; i<=N_WORKERS-1; i++)); do
+    echo "joiner_rating_by_id_$i" >> "$FILE_CONTROLLER"
     echo "  joiner_rating_by_id_$i:
     container_name: joiner_rating_by_id_$i
     image: joiner_rating_by_id:latest
@@ -219,6 +230,7 @@ add_joiner_rating_by_id() {
 
 add_joiner_credit_by_id() {
   for ((i=0; i<=N_WORKERS-1; i++)); do
+    echo "joiner_credit_by_id_$i" >> "$FILE_CONTROLLER"
     echo "  joiner_credit_by_id_$i:
     container_name: joiner_credit_by_id_$i
     image: joiner_credit_by_id:latest
@@ -239,6 +251,7 @@ add_joiner_credit_by_id() {
 
 add_aggregator_nlp() {
   for ((i=0; i<=N_NLP-1; i++)); do
+    echo "aggregator_nlp_$i" >> "$FILE_CONTROLLER"
     echo "  aggregator_nlp_$i:
     container_name: aggregator_nlp_$i
     image: aggregator_nlp:latest
@@ -257,6 +270,7 @@ add_aggregator_nlp() {
 
 add_aggregator_r_b() {
   for ((i=0; i<=N_WORKERS-1; i++)); do
+    echo "aggregator_r_b_$i" >> "$FILE_CONTROLLER"
     echo "  aggregator_r_b_$i:
     container_name: aggregator_r_b_$i
     image: aggregator_r_b:latest
@@ -276,6 +290,7 @@ add_aggregator_r_b() {
 
 add_sinker_q1() {
   for ((i=0; i<=N_SINKERS-1; i++)); do
+    echo "query_1_sinker_$i" >> "$FILE_CONTROLLER"
     echo "  query_1_sinker_$i:
     container_name: query_1_sinker_$i
     image: query_1:latest
@@ -294,6 +309,7 @@ add_sinker_q1() {
 
 add_sinker_q2() {
   for ((i=0; i<=N_SINKERS-1; i++)); do
+    echo "query_2_sinker_$i" >> "$FILE_CONTROLLER"
     echo "  query_2_sinker_$i:
     container_name: query_2_sinker_$i
     image: query_2:latest
@@ -312,6 +328,7 @@ add_sinker_q2() {
 
 add_sinker_q3() {
   for ((i=0; i<=N_SINKERS-1; i++)); do
+    echo "query_3_sinker_$i" >> "$FILE_CONTROLLER"
     echo "  query_3_sinker_$i:
     container_name: query_3_sinker_$i
     image: query_3:latest
@@ -330,6 +347,7 @@ add_sinker_q3() {
 
 add_sinker_q4() {
   for ((i=0; i<=N_SINKERS-1; i++)); do
+    echo "query_4_sinker_$i" >> "$FILE_CONTROLLER"
     echo "  query_4_sinker_$i:
     container_name: query_4_sinker_$i
     image: query_4:latest
@@ -348,6 +366,7 @@ add_sinker_q4() {
 
 add_sinker_q5() {
   for ((i=0; i<=N_SINKERS-1; i++)); do
+    echo "query_5_sinker_$i" >> "$FILE_CONTROLLER"
     echo "  query_5_sinker_$i:
     container_name: query_5_sinker_$i
     image: query_5:latest
@@ -392,6 +411,32 @@ add_killer() {
     # Para matar un contenedor específico:
     # docker exec killer python main.py --kill <container_name>
 " >> "$COMPOSE_FILE"
+}
+
+add_health_checkers(){
+  for ((i=0; i<=$N_HEALTHCHECKERS-1; i++)); do
+    echo "health_checker_$i" >> "$FILE_CONTROLLER"
+    echo "  health_checker_$i:
+    container_name: health_checker_$i
+    image: health_checker:latest
+    entrypoint: python3 /main.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - HEALTH_CHECKER_ID=$i
+      - N_HEALTHCHECKERS=$N_HEALTHCHECKERS
+      - HEALTH_CHECK_INTERVAL=10
+      - HEALTH_CHECK_TIMEOUT=5
+    networks:
+      - testing_net
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./.data/monitorable_process.txt:/monitorable_process.txt
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started" >> "$COMPOSE_FILE"
+  done
 }
 
 add_client() {
@@ -462,6 +507,11 @@ check_params() {
         exit 1
     fi
 
+    if ! [[ "$N_HEALTHCHECKERS" =~ ^[0-9]+$ ]]; then
+        echo "Error: <number_of_healthcheckers> must be a positive integer."
+        exit 1
+    fi
+
     if [ "$N_SINKERS" -lt 1 ]; then
         echo "Error: <number_of_sinkers> must be at least 1."
         exit 1
@@ -481,11 +531,24 @@ check_params() {
         echo "Error: <number_of_nlp> must be at least 1."
         exit 1
     fi
+
+    if [ "$N_HEALTHCHECKERS" -lt 3 ]; then
+      echo "Error: <number_of_healthcheckers> must be at least 3."
+      exit 1
+    fi
+}
+
+reset_file_controller() {
+    if [ -f "$FILE_CONTROLLER" ]; then
+        rm "$FILE_CONTROLLER"
+    fi
+    touch "$FILE_CONTROLLER"
 }
 
 # ---------------------------------------- #
 
 check_params
+reset_file_controller
 add_compose_header
 add_rabbit_mq
 add_gateway
@@ -508,5 +571,6 @@ add_sinker_q4
 add_sinker_q5
 add_results_tester
 add_killer
+add_health_checkers
 add_client
 add_networks

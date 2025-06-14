@@ -510,6 +510,66 @@ services:
     # Para matar un contenedor específico:
     # docker exec killer python main.py --kill <container_name>
 
+  health_checker_0:
+    container_name: health_checker_0
+    image: health_checker:latest
+    entrypoint: python3 /main.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - HEALTH_CHECKER_ID=0
+      - N_HEALTHCHECKERS=3
+      - HEALTH_CHECK_INTERVAL=10
+      - HEALTH_CHECK_TIMEOUT=5
+    networks:
+      - testing_net
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./.data/monitorable_process.txt:/monitorable_process.txt
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+  health_checker_1:
+    container_name: health_checker_1
+    image: health_checker:latest
+    entrypoint: python3 /main.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - HEALTH_CHECKER_ID=1
+      - N_HEALTHCHECKERS=3
+      - HEALTH_CHECK_INTERVAL=10
+      - HEALTH_CHECK_TIMEOUT=5
+    networks:
+      - testing_net
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./.data/monitorable_process.txt:/monitorable_process.txt
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+  health_checker_2:
+    container_name: health_checker_2
+    image: health_checker:latest
+    entrypoint: python3 /main.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - HEALTH_CHECKER_ID=2
+      - N_HEALTHCHECKERS=3
+      - HEALTH_CHECK_INTERVAL=10
+      - HEALTH_CHECK_TIMEOUT=5
+    networks:
+      - testing_net
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./.data/monitorable_process.txt:/monitorable_process.txt
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
   client0:
     container_name: client0
     image: client:latest

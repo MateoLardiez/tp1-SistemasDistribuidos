@@ -50,3 +50,7 @@ class ClientCommunication(Enum):
     # Results testing
     CLIENT_RESULTS = 21
     RESULTS_VALIDATION = 22
+
+class HealthCheckMessage(Enum):
+    HEALTH_CHECK = 0
+    HEALTH_CHECK_ALIVE = 1

@@ -40,6 +40,12 @@ make docker-compose-up
 # 3. Usar killer en modo interactivo
 make killer-interactive
 ```
+Indicacion de valores que recibe el compose:
+1) cantidad de clientes
+2) cantidad de workers
+3) cantidad de sinkers
+4) cantidad de aggregators
+5) cantidad de healthcheckers
 
 ## Comandos más usados:
 
