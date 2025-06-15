@@ -42,7 +42,7 @@ class SocketHandler:
             if self._server_mode:
                 self._socket.bind((ip, port))
                 self._socket.listen(listen_backlog)
-                logging.info(f"action: create_socket | result: success | mode: server | ip: {ip} | port: {port}")
+                # logging.info(f"action: create_socket | result: success | mode: server | ip: {ip} | port: {port}")
                 self._connected = True
                 return True
             return True
@@ -56,23 +56,11 @@ class SocketHandler:
         
         Args:
             ip: Dirección IP del servidor
-            port: Puerto del servidor
-            
-        Returns:
-            True si la conexión fue establecida exitosamente, False en caso contrario
+            port: Puerto del servidor 
         """
-        if self._server_mode:
-            logging.error("action: connect | result: fail | error: Cannot connect in server mode")
-            return False
-        
-        try:
-            self._socket.connect((ip, port))
-            logging.info(f"action: connect | result: success | ip: {ip} | port: {port}")
-            self._connected = True
-            return True
-        except Exception as e:
-            logging.error(f"action: connect | result: fail | error: {e}")
-            return False
+        self._socket.connect((ip, port))
+        # logging.info(f"action: connect | result: success | ip: {ip} | port: {port}")
+        self._connected = True
     
     def accept_connection(self) -> Tuple[Optional['SocketHandler'], Optional[Tuple[str, int]]]:
         """
@@ -83,7 +71,7 @@ class SocketHandler:
             o (None, None) si ocurrió un error
         """
         if not self._server_mode:
-            logging.error("action: accept_connection | result: fail | error: Cannot accept connections in client mode")
+            # logging.error("action: accept_connection | result: fail | error: Cannot accept connections in client mode")
             return None, None
         
         try:
@@ -91,10 +79,10 @@ class SocketHandler:
             client_handler = SocketHandler()
             client_handler._socket = client_sock
             client_handler._connected = True
-            logging.info(f"action: accept_connection | result: success | client: {client_addr}")
+            # logging.info(f"action: accept_connection | result: success | client: {client_addr}")
             return client_handler, client_addr
         except Exception as e:
-            logging.error(f"action: accept_connection | result: fail | error: {e}")
+            # logging.error(f"action: accept_connection | result: fail | error: {e}")
             return None, None
     
     def close(self):
@@ -142,7 +130,6 @@ class SocketHandler:
             return None
 
         messageSize = int.from_bytes(header, byteorder='big')
-        #logging.info(f"action: receive_message | result: success | size: {messageSize}")  
         data = SocketHandler.__recv_all(sock, messageSize)
         if not data:
             return None
@@ -287,5 +274,3 @@ class SocketHandler:
                 logging.error(f"action: send_message | result: fail | error: {e}")
                 return False
         return True
-
-    

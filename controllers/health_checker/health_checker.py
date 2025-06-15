@@ -3,11 +3,10 @@ from common.socket_handler import SocketHandler
 from common.health_check_message import MessageHealthCheck
 from common.defines import HealthCheckMessage
 import logging
-from multiprocessing import Process, Manager, Value
+from multiprocessing import Process, Value
 import time
 import signal
-import os
-# from shared.monitorable_process import MonitorableProcess
+import hashlib
 
 # Not an env var due to docker pathing within image
 CONTROLLERS_NAMES_PATH = '/monitorable_process.txt'
@@ -35,36 +34,26 @@ class HealthChecker():
     def start(self):
         # Inicializar servidor de health check en un proceso separado
         self.set_signals()
-        health_server_process = Process(target=self.__start_health_server)
+        health_server_process = Process(target=self.__start_health_check)
         health_server_process.start()
-        self.joinable_processes.append(health_server_process)
-        
-        try:
-            self.__start_health_check()
-        finally:
-            self.stop()
+        self.__start_health_server()        
+        health_server_process.join()  # Esperar a que el proceso de health check termine
 
     def __start_health_check(self):
         controllers = []
         with open(CONTROLLERS_NAMES_PATH, 'r') as file:
             controllers = file.read().splitlines()
         controllers_to_check = self.__get_controllers_to_check(controllers)
-        for controller in controllers_to_check:
-            if controller == self.controller_id: 
-                continue
-            p = Process(target=self.__check_controllers_health, args=(controller,))
-            self.joinable_processes.append(p)
-            p.start()
-        
-        # Esperar mientras el servidor esté vivo
-        try:
-            while self.serverIsAlive.value:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            logging.info("Received KeyboardInterrupt in health check loop")
-            self.serverIsAlive.value = False
+        while self.serverIsAlive.value:
+            for controller in controllers_to_check:
+                if controller == self.controller_id:
+                    continue
+                self.__check_controllers_health(controller)
     
-    def __get_controllers_to_check(self, controllers: list[str]):        
+    def deterministic_hash(self, value: str) -> int:
+        return int(hashlib.md5(value.encode()).hexdigest(), 16)
+
+    def __get_controllers_to_check(self, controllers: list[str]):
         controllers_to_check = []
         for controller in controllers:
             if controller == self.controller_id:
@@ -72,12 +61,12 @@ class HealthChecker():
             if controller.startswith("health_checker") and controller == self.__get_health_checker_to_monitor():
                 controllers_to_check.append(controller)
             elif not controller.startswith("health_checker"):
-                hash_val = hash(controller) % self.num_of_healthcheckers
-                selected_id = hash_val + 1
+                hash_val = self.deterministic_hash(controller) % self.num_of_healthcheckers
+                selected_id = hash_val
                 if selected_id == self.health_checker_id:
                     logging.info(f"[HEALTH_CHECKER_{self.health_checker_id}] Controller {controller} is assigned to this health checker")
                     # controllers_to_check.append(controller)
-        logging.info(f"[HEALTH_CHECKER_{self.health_checker_id}] Controllers to check: {controllers_to_check} (total: {len(controllers_to_check)})")  
+        logging.info(f"[HEALTH_CHECKER_{self.health_checker_id}] Controllers to check: {controllers_to_check} (total: {len(controllers_to_check)})")
         return controllers_to_check    
             
     def __get_health_checker_to_monitor(self):
@@ -88,35 +77,28 @@ class HealthChecker():
     def __check_controllers_health(self, controller: str):
         while self.serverIsAlive.value:
             try:
-                # logging.debug(f"Connecting to controller {controller}")
                 # Crear nueva instancia de socket handler para cada chequeo
                 socket_handler = SocketHandler(server_mode=False)
                 socket_handler.create_socket(timeout=self.health_check_timeout)
                 
                 # Conectar al controlador en el puerto de health check
-                if not socket_handler.connect(controller, HEALTH_CHECK_PORT):
-                    # logging.error(f"Failed to connect to controller {controller}")
-                    self.__revive_controller(controller)
-                    time.sleep(self.health_check_interval)
-                    continue
+                socket_handler.connect(controller, HEALTH_CHECK_PORT)
                 
                 # Crear y enviar mensaje de health check usando bytes directos
-                msg_bytes = bytes([HealthCheckMessage.HEALTH_CHECK.value])
+                msg_bytes = MessageHealthCheck(HealthCheckMessage.HEALTH_CHECK).encodeMessageBytes()
                 sock = socket_handler.get_socket()
                 
-                # Enviar mensaje directamente al socket
                 sock.send(msg_bytes)
                 
                 # Recibir respuesta directamente del socket
-                response_bytes = sock.recv(1)  # Solo necesitamos 1 byte para el tipo
+                response_bytes = MessageHealthCheck.decode_message_bytes(sock.recv(1))  # Solo necesitamos 1 byte para el tipo
                 socket_handler.close()
                 
-                if not response_bytes or response_bytes[0] != HealthCheckMessage.HEALTH_CHECK_ALIVE.value:
+                if not response_bytes or response_bytes.health_check_type != HealthCheckMessage.HEALTH_CHECK_ALIVE:
                     # logging.error(f"Controller {controller} is not healthy")
-                    self.__revive_controller(controller)
+                    raise RuntimeError()
                     
             except Exception as e:
-                logging.error(f"Failed to connect to controller {controller}: {str(e)}")
                 self.__revive_controller(controller)
             
             time.sleep(self.health_check_interval)
@@ -138,56 +120,19 @@ class HealthChecker():
             logging.error("Failed to create health check server")
             return
         
-        # logging.info(f"[HEALTH_CHECKER_{self.health_checker_id}] Health check server started on port {HEALTH_CHECK_PORT}")
-        
         while self.serverIsAlive.value:
             try:
-                client_handler, client_addr = server_handler.accept_connection()
+                client_handler, _ = server_handler.accept_connection()
                 if client_handler:
-                    # Recibir mensaje de health check
                     client_sock = client_handler.get_socket()
-                    msg_bytes = client_sock.recv(1)
-                    
-                    if msg_bytes and msg_bytes[0] == HealthCheckMessage.HEALTH_CHECK.value:
+                    msg_bytes = MessageHealthCheck.decode_message_bytes(client_sock.recv(1))
+
+                    if msg_bytes and msg_bytes.health_check_type == HealthCheckMessage.HEALTH_CHECK:
                         # Responder con HEALTH_CHECK_ALIVE
-                        response_bytes = bytes([HealthCheckMessage.HEALTH_CHECK_ALIVE.value])
+                        response_bytes = MessageHealthCheck(HealthCheckMessage.HEALTH_CHECK_ALIVE).encodeMessageBytes()
                         client_sock.send(response_bytes)
-                        # logging.debug(f"Responded to health check from {client_addr}")
                     
                     client_handler.close()
             except Exception as e:
                 logging.error(f"Error in health server: {e}")
                 time.sleep(1)
-    
-    def stop(self):
-        """
-        Detiene todos los procesos de health checking
-        """
-        logging.info(f"[HEALTH_CHECKER_{self.health_checker_id}] Stopping health checker")
-        self.serverIsAlive.value = False
-        
-        current_pid = os.getpid()
-        for process in self.joinable_processes:
-            try:
-                # Solo intentar terminar procesos que no sean el proceso actual
-                if hasattr(process, 'pid') and process.pid != current_pid:
-                    if process.is_alive():
-                        process.terminate()
-                        process.join(timeout=2)
-                        if process.is_alive():
-                            process.kill()
-                            process.join(timeout=1)
-            except (AssertionError, AttributeError) as e:
-                # Manejar el caso donde no podemos verificar is_alive() desde un proceso hijo
-                logging.debug(f"Could not check process status: {e}")
-                try:
-                    process.terminate()
-                    process.join(timeout=2)
-                except:
-                    pass
-            except Exception as e:
-                logging.error(f"Error stopping process: {e}")
-        
-        self.joinable_processes.clear()
-
-
