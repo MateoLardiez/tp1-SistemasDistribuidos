@@ -1,5 +1,6 @@
 from typing import Callable
 import pika
+import logging
 
 class RabbitMQConnectionHandler:
     def __init__(self, 
@@ -72,7 +73,22 @@ class RabbitMQConnectionHandler:
     def send_message(self, routing_key: str, msg_body: str):
         self.channel.basic_publish(exchange=self.producer_exchange_name, routing_key=routing_key, body=msg_body, properties=pika.BasicProperties(delivery_mode=pika.DeliveryMode.Persistent), mandatory=True)
 
-
     def close_connection(self):
-        self.channel.stop_consuming()
-        self.connection.close()
+        try:
+            if self.channel and not self.channel.is_closed:
+                self.channel.stop_consuming()
+        except Exception as e:
+            logging.warning(f"Error stopping consuming during close: {e}")
+        
+        try:
+            if self.connection and not self.connection.is_closed:
+                self.connection.close()
+        except Exception as e:
+            logging.warning(f"Error closing connection: {e}")
+
+    def stop_consuming(self):
+        try:
+            if self.channel and not self.channel.is_closed:
+                self.channel.stop_consuming()
+        except Exception as e:
+            logging.warning(f"Error stopping consuming: {e}")

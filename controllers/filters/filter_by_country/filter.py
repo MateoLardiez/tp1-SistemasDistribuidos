@@ -18,7 +18,7 @@ class FilterByCountry:
     def __init__(self, id_worker, number_workers):
         self.id_worker = id_worker
         self.number_workers = number_workers
-        self.filter_by_country_connection = RabbitMQConnectionHandler(
+        self.rabbitmq_connection_handler = RabbitMQConnectionHandler(
             producer_exchange_name="filter_by_country_exchange",
             # producer_queues_to_bind={"country_queue": ["country_queue"]},
             producer_queues_to_bind={
@@ -28,7 +28,7 @@ class FilterByCountry:
             consumer_queues_to_recv_from=[f"cleaned_movies_queue_country_{self.id_worker}"]
         )        
         # Configurar el callback para la cola específica
-        self.filter_by_country_connection.set_message_consumer_callback(f"cleaned_movies_queue_country_{self.id_worker}", self.callback)
+        self.rabbitmq_connection_handler.set_message_consumer_callback(f"cleaned_movies_queue_country_{self.id_worker}", self.callback)
         self.countries_query_1 = ["Argentina", "Spain"] 
         self.countries_query_3 = ["Argentina"] 
         self.countries_query_4 = ["Argentina"]
@@ -37,7 +37,7 @@ class FilterByCountry:
 
     def start(self):
         logging.info("action: start | result: success | code: filter_by_country")
-        self.filter_by_country_connection.start_consuming()
+        self.rabbitmq_connection_handler.start_consuming()
     
     def callback(self, ch, method, properties, body):
         data = MiddlewareMessage.decode_from_bytes(body)
@@ -79,7 +79,7 @@ class FilterByCountry:
                         payload="",
                         controller_name=self.controller_name
                     )
-                    self.filter_by_country_connection.send_message(
+                    self.rabbitmq_connection_handler.send_message(
                         routing_key=f"country_queue_{self.id_worker}",
                         msg_body=msg.encode_to_str()
                     )       
@@ -156,7 +156,7 @@ class FilterByCountry:
             )
         
         id_worker = seq_number % self.number_workers
-        self.filter_by_country_connection.send_message(
+        self.rabbitmq_connection_handler.send_message(
             routing_key=f"country_queue_{id_worker}",
             msg_body=msg.encode_to_str()
         )
@@ -174,7 +174,7 @@ class FilterByCountry:
                     controller_name=self.controller_name
                 )
                 # Send EOF message to all workers
-                self.filter_by_country_connection.send_message(
+                self.rabbitmq_connection_handler.send_message(
                     routing_key=f"country_queue_{id_worker}",
                     msg_body=msg.encode_to_str()
                 )

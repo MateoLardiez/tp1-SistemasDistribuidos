@@ -1,5 +1,5 @@
 import logging
-
+from common.resilient_node import ResilientNode
 from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
 from common.defines import QueryNumber
 from common.middleware_connection_handler import RabbitMQConnectionHandler
@@ -7,18 +7,19 @@ from common.middleware_connection_handler import RabbitMQConnectionHandler
 YEAR_Q1 = 2 # release_date position
 YEAR_Q3 = 2 # release_date position for query 3
 YEAR_Q4 = 1 # release_date position for query 4
-class FilterByYear:
+class FilterByYear(ResilientNode):
     year: int
     data: object
 
     def __init__(self, number_workers, number_sinkers, id_worker):
+        super().__init__()  # Call parent constructor
         self.id_worker = id_worker
         self.year_range_query_1 = (2000, 2009)
         self.year_range_query_3 = (2000, None)
         self.year_range_query_4 = (2000, None)
         
-        self.data = ""
-        self.filter_by_year_connection = RabbitMQConnectionHandler(
+        # self.data = ""
+        self.rabbitmq_connection_handler = RabbitMQConnectionHandler(
             producer_exchange_name="filter_by_year_exchange",
             producer_queues_to_bind={
                 **{f"sink_query_1_queue_{i}": [f"sink_query_1_queue_{i}"] for i in range(number_sinkers)},
@@ -28,7 +29,7 @@ class FilterByYear:
             consumer_exchange_name="filter_by_country_exchange",
             consumer_queues_to_recv_from=[f"country_queue_{id_worker}"],
         )
-        self.filter_by_year_connection.set_message_consumer_callback(f"country_queue_{id_worker}", self.callback)
+        self.rabbitmq_connection_handler.set_message_consumer_callback(f"country_queue_{id_worker}", self.callback)
         self.number_workers = number_workers
         self.number_sinkers = number_sinkers
         self.local_state = {}  # Dictionary to store local state of clients
@@ -36,7 +37,7 @@ class FilterByYear:
 
     def start(self):
         logging.info("action: start | result: success | code: filter_by_year")
-        self.filter_by_year_connection.start_consuming()
+        self.rabbitmq_connection_handler.start_consuming()
 
     def callback(self, ch, method, properties, body):
         data = MiddlewareMessage.decode_from_bytes(body)
@@ -80,7 +81,7 @@ class FilterByYear:
                 )
                 if data.query_number == QueryNumber.QUERY_1:
                     sinker_id = data.client_id % self.number_sinkers
-                    self.filter_by_year_connection.send_message(
+                    self.rabbitmq_connection_handler.send_message(
                             routing_key=f"sink_query_1_queue_{sinker_id}",
                             msg_body=msg.encode_to_str()
                     )
@@ -95,7 +96,7 @@ class FilterByYear:
                             payload="",
                             controller_name=self.controller_name
                         )
-                        self.filter_by_year_connection.send_message(
+                        self.rabbitmq_connection_handler.send_message(
                             routing_key=f"joiner_by_ratings_movies_queue_{i}",
                             msg_body=msg.encode_to_str()
                         )
@@ -109,7 +110,7 @@ class FilterByYear:
                             payload="",
                             controller_name=self.controller_name
                         )
-                        self.filter_by_year_connection.send_message(
+                        self.rabbitmq_connection_handler.send_message(
                             routing_key=f"joiner_by_credits_movies_queue_{i}",
                             msg_body=msg.encode_to_str()
                         )
@@ -211,7 +212,7 @@ class FilterByYear:
             payload=data,
             controller_name=self.controller_name
         )
-        self.filter_by_year_connection.send_message(
+        self.rabbitmq_connection_handler.send_message(
             routing_key=routing_key,
             msg_body=msg.encode_to_str()
         )

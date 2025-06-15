@@ -17,7 +17,7 @@ class GroupByCountry:
     def __init__(self, number_sinkers, id_worker, number_workers):
         self.id_worker = id_worker
         self.number_workers = number_workers
-        self.group_by_country_connection = RabbitMQConnectionHandler(
+        self.rabbitmq_connection_handler = RabbitMQConnectionHandler(
             producer_exchange_name="group_by_country_exchange",
             producer_queues_to_bind={
                 **{f"group_by_country_queue_{i}": [f"group_by_country_queue_{i}"] for i in range(number_sinkers)}
@@ -26,14 +26,14 @@ class GroupByCountry:
             consumer_queues_to_recv_from=[f"filter_by_country_invesment_queue_{self.id_worker}"],
         )
         # Configurar el callback para la cola específica
-        self.group_by_country_connection.set_message_consumer_callback(f"filter_by_country_invesment_queue_{self.id_worker}", self.callback)
+        self.rabbitmq_connection_handler.set_message_consumer_callback(f"filter_by_country_invesment_queue_{self.id_worker}", self.callback)
         self.number_sinkers = number_sinkers
         self.local_state = {}  # Diccionario para almacenar el estado local de los clientes
         self.controller_name = f"group_by_country_{id_worker}"
 
     def start(self):
         logging.info("action: start | result: success | code: filter_by_country")
-        self.group_by_country_connection.start_consuming()
+        self.rabbitmq_connection_handler.start_consuming()
     
     def callback(self, ch, method, properties, body):
         data = MiddlewareMessage.decode_from_bytes(body)
@@ -70,7 +70,7 @@ class GroupByCountry:
                     payload="",
                     controller_name=self.controller_name
                 )
-                self.group_by_country_connection.send_message(
+                self.rabbitmq_connection_handler.send_message(
                     routing_key=f"group_by_country_queue_{sinker_number}",
                     msg_body=msg.encode_to_str()
                 )
@@ -96,7 +96,7 @@ class GroupByCountry:
         )
        
         sinker_number = id_client % self.number_sinkers
-        self.group_by_country_connection.send_message(
+        self.rabbitmq_connection_handler.send_message(
             routing_key=f"group_by_country_queue_{sinker_number}",
             msg_body=msg.encode_to_str()
         )

@@ -16,7 +16,7 @@ class AggregatorRB:
         self.number_workers = number_workers
         self.controller_name = f"aggregator_r_b_{worker_id}"
         self.data = ""
-        self.aggregator_r_b_connection = RabbitMQConnectionHandler(
+        self.rabbitmq_connection_handler = RabbitMQConnectionHandler(
             producer_exchange_name="aggregator_r_b_exchange",
             producer_queues_to_bind={
                 **{f"aggregated_r_b_data_queue_{i}": [f"aggregated_r_b_data_queue_{i}"] for i in range(self.number_workers)}
@@ -24,12 +24,12 @@ class AggregatorRB:
             consumer_exchange_name="aggregator_nlp_exchange",
             consumer_queues_to_recv_from=[f"aggregated_nlp_data_queue_{self.worker_id}"],
         )
-        self.aggregator_r_b_connection.set_message_consumer_callback(f"aggregated_nlp_data_queue_{self.worker_id}", self.callback)
+        self.rabbitmq_connection_handler.set_message_consumer_callback(f"aggregated_nlp_data_queue_{self.worker_id}", self.callback)
         self.local_state = {}  # Dictionary to store local state of clients
 
     def start(self):
         logging.info("action: start | result: success | code: aggregator_r_b")
-        self.aggregator_r_b_connection.start_consuming()
+        self.rabbitmq_connection_handler.start_consuming()
 
     def callback(self, ch, method, properties, body):
 
@@ -64,7 +64,7 @@ class AggregatorRB:
                     controller_name=self.controller_name
                 )
                 for id_worker in range(self.number_workers):
-                    self.aggregator_r_b_connection.send_message(
+                    self.rabbitmq_connection_handler.send_message(
                         routing_key=f"aggregated_r_b_data_queue_{id_worker}",
                         msg_body=msg.encode_to_str()
                     )
@@ -103,7 +103,7 @@ class AggregatorRB:
             controller_name=self.controller_name
         )
         id_worker = seq_number % self.number_workers
-        self.aggregator_r_b_connection.send_message(
+        self.rabbitmq_connection_handler.send_message(
             routing_key=f"aggregated_r_b_data_queue_{id_worker}",
             msg_body=msg.encode_to_str()
         )

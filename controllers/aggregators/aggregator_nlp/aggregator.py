@@ -21,7 +21,7 @@ class AggregatorNlp:
         self.worker_id = worker_id
         self.number_workers = number_workers
         self.data = ""
-        self.aggregator_nlp_connection = RabbitMQConnectionHandler(
+        self.rabbitmq_connection_handler = RabbitMQConnectionHandler(
             producer_exchange_name="aggregator_nlp_exchange",
             producer_queues_to_bind={
                 **{f"aggregated_nlp_data_queue_{i}": [f"aggregated_nlp_data_queue_{i}"] for i in range(self.number_workers)}
@@ -29,14 +29,14 @@ class AggregatorNlp:
             consumer_exchange_name="movies_preprocessor_exchange",
             consumer_queues_to_recv_from=[f"cleaned_movies_queue_nlp_{self.worker_id}"],
         )
-        self.aggregator_nlp_connection.set_message_consumer_callback(f"cleaned_movies_queue_nlp_{self.worker_id}", self.callback)
+        self.rabbitmq_connection_handler.set_message_consumer_callback(f"cleaned_movies_queue_nlp_{self.worker_id}", self.callback)
         self.sentiment_analyzer = pipeline('sentiment-analysis', model='distilbert-base-uncased-finetuned-sst-2-english')
         self.local_state = {}  # Dictionary to store local state of clients
         self.controller_name = f"aggregator_nlp_{worker_id}"
     
     def start(self):
         logging.info("action: start | result: success | code: aggregator_nlp")
-        self.aggregator_nlp_connection.start_consuming()
+        self.rabbitmq_connection_handler.start_consuming()
 
     def callback(self, ch, method, properties, body):
         data = MiddlewareMessage.decode_from_bytes(body)
@@ -72,7 +72,7 @@ class AggregatorNlp:
                 )
                 for id_worker in range(self.number_workers):
                     # Send the EOF message to all workers
-                    self.aggregator_nlp_connection.send_message(
+                    self.rabbitmq_connection_handler.send_message(
                         routing_key=f"aggregated_nlp_data_queue_{id_worker}",
                         msg_body=msg.encode_to_str()
                     )
@@ -122,7 +122,7 @@ class AggregatorNlp:
             controller_name=self.controller_name
         )
         id_worker = seq_number % self.number_workers
-        self.aggregator_nlp_connection.send_message(
+        self.rabbitmq_connection_handler.send_message(
             routing_key=f"aggregated_nlp_data_queue_{id_worker}",
             msg_body=msg.encode_to_str()
         )

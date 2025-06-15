@@ -12,7 +12,7 @@ class FilterByCountryInvesment:
     def __init__(self, id_worker, number_workers):
         self.id_worker = id_worker
         self.number_workers = number_workers
-        self.filter_by_country_connection = RabbitMQConnectionHandler(
+        self.rabbitmq_connection_handler = RabbitMQConnectionHandler(
             producer_exchange_name="filter_by_country_invesment_exchange",
             producer_queues_to_bind={
                 **{f"filter_by_country_invesment_queue_{i}": [f"filter_by_country_invesment_queue_{i}"] for i in range(self.number_workers)}
@@ -20,13 +20,13 @@ class FilterByCountryInvesment:
             consumer_exchange_name="movies_preprocessor_exchange",
             consumer_queues_to_recv_from=[f"cleaned_movies_queue_country_invesment_{self.id_worker}"],
         )
-        self.filter_by_country_connection.set_message_consumer_callback(f"cleaned_movies_queue_country_invesment_{self.id_worker}", self.callback)
+        self.rabbitmq_connection_handler.set_message_consumer_callback(f"cleaned_movies_queue_country_invesment_{self.id_worker}", self.callback)
         self.local_state = {}  # Dictionary to store local state of clients
         self.controller_name = f"filter_by_country_invesment_{id_worker}"
 
     def start(self):
         logging.info("action: start | result: success | code: filter_by_country")
-        self.filter_by_country_connection.start_consuming()
+        self.rabbitmq_connection_handler.start_consuming()
     
     def callback(self, ch, method, properties, body):
         data = MiddlewareMessage.decode_from_bytes(body)
@@ -62,7 +62,7 @@ class FilterByCountryInvesment:
                     )
                 for id_worker in range(self.number_workers):
                     # Send EOF message to all workers
-                    self.filter_by_country_connection.send_message(
+                    self.rabbitmq_connection_handler.send_message(
                         routing_key=f"filter_by_country_invesment_queue_{id_worker}",
                         msg_body=msg.encode_to_str()
                     )
@@ -98,7 +98,7 @@ class FilterByCountryInvesment:
             )
         
         id_worker = seq_number % self.number_workers
-        self.filter_by_country_connection.send_message(
+        self.rabbitmq_connection_handler.send_message(
             routing_key=f"filter_by_country_invesment_queue_{id_worker}",
             msg_body=msg.encode_to_str()
         )

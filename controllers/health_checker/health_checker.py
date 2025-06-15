@@ -61,11 +61,13 @@ class HealthChecker():
             if controller.startswith("health_checker") and controller == self.__get_health_checker_to_monitor():
                 controllers_to_check.append(controller)
             elif not controller.startswith("health_checker"):
-                hash_val = self.deterministic_hash(controller) % self.num_of_healthcheckers
-                selected_id = hash_val
-                if selected_id == self.health_checker_id:
-                    logging.info(f"[HEALTH_CHECKER_{self.health_checker_id}] Controller {controller} is assigned to this health checker")
-                    # controllers_to_check.append(controller)
+                if controller == "filter_by_year_0":
+                # controllers_to_check.append(f"filter_by_year_0") # TODO: SACAR ESTO!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                    hash_val = self.deterministic_hash(controller) % self.num_of_healthcheckers
+                    selected_id = hash_val
+                    if selected_id == self.health_checker_id:
+                        logging.info(f"[HEALTH_CHECKER_{self.health_checker_id}] Controller {controller} is assigned to this health checker")
+                        controllers_to_check.append(controller)
         logging.info(f"[HEALTH_CHECKER_{self.health_checker_id}] Controllers to check: {controllers_to_check} (total: {len(controllers_to_check)})")
         return controllers_to_check    
             
