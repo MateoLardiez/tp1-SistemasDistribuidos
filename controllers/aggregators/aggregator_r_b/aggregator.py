@@ -3,15 +3,17 @@ import logging
 from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
 from common.defines import QueryNumber
 from common.middleware_connection_handler import RabbitMQConnectionHandler
+from common.resilient_node import ResilientNode
 
 BUDGET = 1
 REVENUE = 2
 
 # Columns needed: ["id", "title", "overview", "budget", "revenue"]
 
-class AggregatorRB:
+class AggregatorRB(ResilientNode):
     data: object
     def __init__(self, number_workers, worker_id):
+        super().__init__()  # Call parent constructor
         self.worker_id = worker_id
         self.number_workers = number_workers
         self.controller_name = f"aggregator_r_b_{worker_id}"
@@ -29,7 +31,10 @@ class AggregatorRB:
 
     def start(self):
         logging.info("action: start | result: success | code: aggregator_r_b")
-        self.rabbitmq_connection_handler.start_consuming()
+        try:
+            self.rabbitmq_connection_handler.start_consuming()
+        except Exception as e:
+            logging.info("Consuming stopped")
 
     def callback(self, ch, method, properties, body):
 

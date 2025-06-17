@@ -3,16 +3,18 @@ import logging
 from common.defines import QueryNumber
 from common.middleware_connection_handler import RabbitMQConnectionHandler
 from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
+from common.resilient_node import ResilientNode
 
 ID = 0
 COLUMNS = ["movieId", "rating"]
 COLUMNS_RATINGS =["userId", "movieId", "rating", "timestamp"]
 
-class RatingsPreprocessor:
+class RatingsPreprocessor(ResilientNode):
 
     def __init__(self, number_workers, id_worker):
+        super().__init__()  # Call parent constructor
         self.id_worker = id_worker
-        self.ratings_preprocessor_connection = RabbitMQConnectionHandler(
+        self.rabbitmq_connection_handler = RabbitMQConnectionHandler(
             producer_exchange_name="ratings_preprocessor_exchange",
             producer_queues_to_bind={
                 **{f"joiner_ratings_by_id_queue_{i}": [f"joiner_ratings_by_id_queue_{i}"] for i in range(number_workers)},
@@ -21,15 +23,18 @@ class RatingsPreprocessor:
             consumer_queues_to_recv_from=[f"ratings_queue_{id_worker}"]
         )        
         # Configurar el callback para la cola específica
-        self.ratings_preprocessor_connection.set_message_consumer_callback(f"ratings_queue_{id_worker}", self.callback)
+        self.rabbitmq_connection_handler.set_message_consumer_callback(f"ratings_queue_{id_worker}", self.callback)
         self.number_workers = number_workers
         self.controller_name = f"ratings_preprocessor_{id_worker}"
         self.local_state = {}  # Diccionario para almacenar el estado local de los clientes
 
     def start(self):
         logging.info("action: start | result: success | code: ratings_preprocessor")
-        self.ratings_preprocessor_connection.start_consuming()
-    
+        try:
+            self.rabbitmq_connection_handler.start_consuming()
+        except Exception as e:
+            logging.info("Consuming stopped")
+
     def callback(self, ch, method, properties, body):
         try:
             data = MiddlewareMessage.decode_from_bytes(body)
@@ -55,7 +60,7 @@ class RatingsPreprocessor:
                         payload=data_csv,
                         controller_name=self.controller_name
                     )
-                    self.ratings_preprocessor_connection.send_message(
+                    self.rabbitmq_connection_handler.send_message(
                         routing_key=f"joiner_ratings_by_id_queue_{sharding_id}",
                         msg_body=msg.encode_to_str()
                     )
@@ -69,7 +74,7 @@ class RatingsPreprocessor:
                         payload="",
                         controller_name=self.controller_name
                     )
-                    self.ratings_preprocessor_connection.send_message(
+                    self.rabbitmq_connection_handler.send_message(
                         routing_key=f"joiner_ratings_by_id_queue_{i}",
                         msg_body=msg.encode_to_str()
                     )

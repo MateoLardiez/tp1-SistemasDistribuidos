@@ -2,6 +2,7 @@ import logging
 from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
 from common.defines import QueryNumber
 from common.middleware_connection_handler import RabbitMQConnectionHandler
+from common.resilient_node import ResilientNode
 import ast
 
 PROD_COUNTRIES = 5
@@ -11,16 +12,16 @@ GENRES = 2
 YEAR = 3
 
 
-class FilterByCountry:
+class FilterByCountry(ResilientNode):
     countries: list
     data: object
 
     def __init__(self, id_worker, number_workers):
+        super().__init__()  # Call parent constructor
         self.id_worker = id_worker
         self.number_workers = number_workers
         self.rabbitmq_connection_handler = RabbitMQConnectionHandler(
             producer_exchange_name="filter_by_country_exchange",
-            # producer_queues_to_bind={"country_queue": ["country_queue"]},
             producer_queues_to_bind={
                 **{f"country_queue_{i}": [f"country_queue_{i}"] for i in range(self.number_workers)}
             },
@@ -37,8 +38,11 @@ class FilterByCountry:
 
     def start(self):
         logging.info("action: start | result: success | code: filter_by_country")
-        self.rabbitmq_connection_handler.start_consuming()
-    
+        try:
+            self.rabbitmq_connection_handler.start_consuming()
+        except Exception as e:
+            logging.info("Consuming stopped")
+
     def callback(self, ch, method, properties, body):
         data = MiddlewareMessage.decode_from_bytes(body)
         if data.client_id not in self.local_state:

@@ -74,21 +74,5 @@ class RabbitMQConnectionHandler:
         self.channel.basic_publish(exchange=self.producer_exchange_name, routing_key=routing_key, body=msg_body, properties=pika.BasicProperties(delivery_mode=pika.DeliveryMode.Persistent), mandatory=True)
 
     def close_connection(self):
-        try:
-            if self.channel and not self.channel.is_closed:
-                self.channel.stop_consuming()
-        except Exception as e:
-            logging.warning(f"Error stopping consuming during close: {e}")
-        
-        try:
-            if self.connection and not self.connection.is_closed:
-                self.connection.close()
-        except Exception as e:
-            logging.warning(f"Error closing connection: {e}")
-
-    def stop_consuming(self):
-        try:
-            if self.channel and not self.channel.is_closed:
-                self.channel.stop_consuming()
-        except Exception as e:
-            logging.warning(f"Error stopping consuming: {e}")
+        self.channel.stop_consuming()
+        self.connection.close()

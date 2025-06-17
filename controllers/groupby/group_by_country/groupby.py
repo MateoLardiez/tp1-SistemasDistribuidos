@@ -2,6 +2,7 @@ import logging
 from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
 from common.defines import QueryNumber
 from common.middleware_connection_handler import RabbitMQConnectionHandler
+from common.resilient_node import ResilientNode
 
 PROD_COUNTRIES = 5
 ID = 0
@@ -10,11 +11,12 @@ GENRES = 2
 YEAR = 3
 
 
-class GroupByCountry:
+class GroupByCountry(ResilientNode):
     countries: list
     data: object
 
     def __init__(self, number_sinkers, id_worker, number_workers):
+        super().__init__()
         self.id_worker = id_worker
         self.number_workers = number_workers
         self.rabbitmq_connection_handler = RabbitMQConnectionHandler(
@@ -33,7 +35,10 @@ class GroupByCountry:
 
     def start(self):
         logging.info("action: start | result: success | code: filter_by_country")
-        self.rabbitmq_connection_handler.start_consuming()
+        try:
+            self.rabbitmq_connection_handler.start_consuming()
+        except Exception as e:
+            logging.info("Consuming stopped")
     
     def callback(self, ch, method, properties, body):
         data = MiddlewareMessage.decode_from_bytes(body)

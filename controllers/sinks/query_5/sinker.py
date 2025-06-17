@@ -1,6 +1,7 @@
 import logging
 from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
 from common.middleware_connection_handler import RabbitMQConnectionHandler
+from common.resilient_node import ResilientNode
 import csv
 import os
 
@@ -8,23 +9,27 @@ SENTIMENT_POS = 0
 RATE_POS = 1
 AMOUNT_POS = 2
 
-class Query5:
+class Query5(ResilientNode):
 
     def __init__(self, id_sinker, number_workers):
-        self.query_5_connection = RabbitMQConnectionHandler(
+        super().__init__()  # Call parent constructor
+        self.rabbitmq_connection_handler = RabbitMQConnectionHandler(
             producer_exchange_name="reports_exchange",
             producer_queues_to_bind={"reports_queue": ["reports_queue"]},
             consumer_exchange_name="group_by_sentiment_exchange",
             consumer_queues_to_recv_from=[f"group_by_sentiment_queue_{id_sinker}"]
         )
-        self.query_5_connection.set_message_consumer_callback(f"group_by_sentiment_queue_{id_sinker}", self.callback)
+        self.rabbitmq_connection_handler.set_message_consumer_callback(f"group_by_sentiment_queue_{id_sinker}", self.callback)
         self.number_workers = number_workers
         self.clients_state = {}
         self.controller_name = f"sinker_query_5_{id_sinker}"
 
     def start(self):
         logging.info("action: start | result: success | code: Sink_query_5 ")
-        self.query_5_connection.start_consuming()
+        try:
+            self.rabbitmq_connection_handler.start_consuming()
+        except Exception as e:
+            logging.info("Consuming stopped")
 
     def callback(self, ch, method, properties, body):
         # id,title,genres,release_date,overview,production_countries,spoken_languages,budget,revenue
@@ -56,7 +61,7 @@ class Query5:
                     payload="EOF",
                     controller_name=self.controller_name
                 )
-                self.query_5_connection.send_message(
+                self.rabbitmq_connection_handler.send_message(
                     routing_key="reports_queue",
                     msg_body=msg.encode_to_str()
                 )
@@ -110,7 +115,7 @@ class Query5:
         )
 
         # Send all filtered results in a single message
-        self.query_5_connection.send_message(
+        self.rabbitmq_connection_handler.send_message(
             routing_key="reports_queue",
             msg_body=msg.encode_to_str()
         )

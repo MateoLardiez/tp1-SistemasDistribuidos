@@ -424,8 +424,8 @@ add_health_checkers(){
       - PYTHONUNBUFFERED=1
       - HEALTH_CHECKER_ID=$i
       - N_HEALTHCHECKERS=$N_HEALTHCHECKERS
-      - HEALTH_CHECK_INTERVAL=10
-      - HEALTH_CHECK_TIMEOUT=5
+      - HEALTH_CHECK_INTERVAL=5
+      - HEALTH_CHECK_TIMEOUT=2
     networks:
       - testing_net
     volumes:

@@ -5,15 +5,17 @@ import os
 from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
 from common.defines import QueryNumber
 from common.middleware_connection_handler import RabbitMQConnectionHandler
+from common.resilient_node import ResilientNode
 import ast
 
 YEAR = 3  # release_date position
-class JoinerByRatingId:
+class JoinerByRatingId(ResilientNode):
     year: int
     data: object
 
     def __init__(self, id_worker, number_sinkers, number_workers):
-        self.joiner_by_rating_id_connection = RabbitMQConnectionHandler(
+        super().__init__()  # Call parent constructor
+        self.rabbitmq_connection_handler = RabbitMQConnectionHandler(
             producer_exchange_name="joiner_by_rating_id_exchange",
             producer_queues_to_bind={
                 **{f"average_rating_aggregated_{i}": [f"average_rating_aggregated_{i}"] for i in range(number_sinkers)},
@@ -29,13 +31,16 @@ class JoinerByRatingId:
         self.number_workers = number_workers  # Asumiendo que id_worker empieza en 0
         self.controller_name = f"joiner_rating_by_id_{id_worker}"
         # Configurar callbacks para ambas colas
-        self.joiner_by_rating_id_connection.set_message_consumer_callback(f"joiner_by_ratings_movies_queue_{id_worker}", self.movies_callback)
-        self.joiner_by_rating_id_connection.set_message_consumer_callback(f"joiner_ratings_by_id_queue_{id_worker}", self.ratings_callback)
+        self.rabbitmq_connection_handler.set_message_consumer_callback(f"joiner_by_ratings_movies_queue_{id_worker}", self.movies_callback)
+        self.rabbitmq_connection_handler.set_message_consumer_callback(f"joiner_ratings_by_id_queue_{id_worker}", self.ratings_callback)
 
 
     def start(self):
         logging.info("action: start | result: success | code: joiner_rating_by_id")
-        self.joiner_by_rating_id_connection.start_consuming()
+        try:
+            self.rabbitmq_connection_handler.start_consuming()
+        except Exception as e:
+            logging.info("Consuming stopped")
         
     def create_clients_state(self, client_id):
         """Obtiene o crea el estado del cliente en el diccionario"""
@@ -137,7 +142,7 @@ class JoinerByRatingId:
             controller_name=self.controller_name
         )
         sinker_id = client_id % self.number_sinkers
-        self.joiner_by_rating_id_connection.send_message(
+        self.rabbitmq_connection_handler.send_message(
             routing_key=f"average_rating_aggregated_{sinker_id}",
             msg_body=msg.encode_to_str()
         )
@@ -150,7 +155,7 @@ class JoinerByRatingId:
             payload="EOF",
             controller_name=self.controller_name
         )
-        self.joiner_by_rating_id_connection.send_message(
+        self.rabbitmq_connection_handler.send_message(
             routing_key=f"average_rating_aggregated_{sinker_id}",
             msg_body=msg_eof.encode_to_str()
         )

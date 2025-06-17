@@ -1,11 +1,9 @@
-import logging
-
 from transformers import pipeline
-
 from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
 from common.defines import QueryNumber
 from common.middleware_connection_handler import RabbitMQConnectionHandler
-
+from common.resilient_node import ResilientNode
+import logging
 import torch
 
 torch.set_num_threads(1)  
@@ -15,9 +13,10 @@ OVERVIEW = 4
 BUDGET = 7
 REVENUE = 8
 
-class AggregatorNlp:
+class AggregatorNlp(ResilientNode):
     data: object
     def __init__(self, number_workers, worker_id):
+        super().__init__()
         self.worker_id = worker_id
         self.number_workers = number_workers
         self.data = ""
@@ -36,7 +35,10 @@ class AggregatorNlp:
     
     def start(self):
         logging.info("action: start | result: success | code: aggregator_nlp")
-        self.rabbitmq_connection_handler.start_consuming()
+        try:
+            self.rabbitmq_connection_handler.start_consuming()
+        except Exception as e:
+            logging.info("Consuming stopped")
 
     def callback(self, ch, method, properties, body):
         data = MiddlewareMessage.decode_from_bytes(body)

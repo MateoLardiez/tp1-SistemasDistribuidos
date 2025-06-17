@@ -518,8 +518,8 @@ services:
       - PYTHONUNBUFFERED=1
       - HEALTH_CHECKER_ID=0
       - N_HEALTHCHECKERS=3
-      - HEALTH_CHECK_INTERVAL=10
-      - HEALTH_CHECK_TIMEOUT=5
+      - HEALTH_CHECK_INTERVAL=5
+      - HEALTH_CHECK_TIMEOUT=2
     networks:
       - testing_net
     volumes:
@@ -538,8 +538,8 @@ services:
       - PYTHONUNBUFFERED=1
       - HEALTH_CHECKER_ID=1
       - N_HEALTHCHECKERS=3
-      - HEALTH_CHECK_INTERVAL=10
-      - HEALTH_CHECK_TIMEOUT=5
+      - HEALTH_CHECK_INTERVAL=5
+      - HEALTH_CHECK_TIMEOUT=2
     networks:
       - testing_net
     volumes:
@@ -558,8 +558,8 @@ services:
       - PYTHONUNBUFFERED=1
       - HEALTH_CHECKER_ID=2
       - N_HEALTHCHECKERS=3
-      - HEALTH_CHECK_INTERVAL=10
-      - HEALTH_CHECK_TIMEOUT=5
+      - HEALTH_CHECK_INTERVAL=5
+      - HEALTH_CHECK_TIMEOUT=2
     networks:
       - testing_net
     volumes:

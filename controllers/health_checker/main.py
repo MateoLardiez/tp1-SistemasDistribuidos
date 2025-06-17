@@ -19,7 +19,7 @@ def main():
     interval = int(os.getenv("HEALTH_CHECK_INTERVAL"))
     timeout = int(os.getenv("HEALTH_CHECK_TIMEOUT"))
     num_healthcheck = int(os.getenv("N_HEALTHCHECKERS"))
-    id_healthchecker = os.getenv("HEALTH_CHECKER_ID")
+    id_healthchecker = int(os.getenv("HEALTH_CHECKER_ID"))
     initialize_log("INFO")
 
     healtchecker = HealthChecker(

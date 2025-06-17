@@ -5,14 +5,16 @@ import os
 from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
 from common.defines import QueryNumber
 from common.middleware_connection_handler import RabbitMQConnectionHandler
+from common.resilient_node import ResilientNode
 
 YEAR = 3  # release_date position
-class JoinerByCreditId:
+class JoinerByCreditId(ResilientNode):
     year: int
     data: object
 
     def __init__(self, id_worker, number_sinkers, number_workers):
-        self.joiner_by_credit_id_connection = RabbitMQConnectionHandler(
+        super().__init__()  # Call parent constructor
+        self.rabbitmq_connection_handler = RabbitMQConnectionHandler(
             producer_exchange_name="joiner_by_credit_id_exchange",
             producer_queues_to_bind={
                 **{f"average_credit_aggregated_{i}": [f"average_credit_aggregated_{i}"] for i in range(number_sinkers)}
@@ -28,13 +30,16 @@ class JoinerByCreditId:
         self.number_workers = number_workers  # Asumiendo que id_worker empieza en 0   
         self.controller_name = f"joiner_by_credit_id_{id_worker}"
         # Configurar callbacks para ambas colas
-        self.joiner_by_credit_id_connection.set_message_consumer_callback(f"joiner_by_credits_movies_queue_{id_worker}", self.movies_callback)
-        self.joiner_by_credit_id_connection.set_message_consumer_callback(f"joiner_credits_by_id_queue_{id_worker}", self.credits_callback)
+        self.rabbitmq_connection_handler.set_message_consumer_callback(f"joiner_by_credits_movies_queue_{id_worker}", self.movies_callback)
+        self.rabbitmq_connection_handler.set_message_consumer_callback(f"joiner_credits_by_id_queue_{id_worker}", self.credits_callback)
 
     def start(self):
         logging.info("action: start | result: success | code: joiner_credit_by_id")
-        self.joiner_by_credit_id_connection.start_consuming()
-        
+        try:
+            self.rabbitmq_connection_handler.start_consuming()
+        except Exception as e:
+            logging.error(f"Consuming stopped")
+
     def create_clients_state(self, client_id):
         """Obtiene o crea el estado del cliente en el diccionario"""
         if client_id not in self.clients_state:
@@ -44,8 +49,7 @@ class JoinerByCreditId:
                 "last_seq_number": 0,  # Último seq_number procesado
                 "movies_per_actor": {},
             }
-
-                       
+         
     def movies_callback(self, ch, method, properties, body):
         """Callback para procesar mensajes de la cola de movies"""
         data = MiddlewareMessage.decode_from_bytes(body)
@@ -140,7 +144,7 @@ class JoinerByCreditId:
             controller_name=self.controller_name
         )
         sinker_id = client_id % self.number_sinkers
-        self.joiner_by_credit_id_connection.send_message(
+        self.rabbitmq_connection_handler.send_message(
             routing_key=f"average_credit_aggregated_{sinker_id}",
             msg_body=msg.encode_to_str()
         )
@@ -153,7 +157,7 @@ class JoinerByCreditId:
             payload="",
             controller_name=self.controller_name
         )
-        self.joiner_by_credit_id_connection.send_message(
+        self.rabbitmq_connection_handler.send_message(
             routing_key=f"average_credit_aggregated_{sinker_id}",
             msg_body=msg_eof.encode_to_str()
         )

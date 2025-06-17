@@ -1,15 +1,17 @@
 import logging
 from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
 from common.middleware_connection_handler import RabbitMQConnectionHandler
+from common.resilient_node import ResilientNode
 
 PROD_COUNTRIES = 5
 BUDGET = 7
 
-class FilterByCountryInvesment:
+class FilterByCountryInvesment(ResilientNode):
     countries: list
     data: object
 
     def __init__(self, id_worker, number_workers):
+        super().__init__()  # Call parent constructor
         self.id_worker = id_worker
         self.number_workers = number_workers
         self.rabbitmq_connection_handler = RabbitMQConnectionHandler(
@@ -26,8 +28,11 @@ class FilterByCountryInvesment:
 
     def start(self):
         logging.info("action: start | result: success | code: filter_by_country")
-        self.rabbitmq_connection_handler.start_consuming()
-    
+        try:
+            self.rabbitmq_connection_handler.start_consuming()
+        except Exception as e:
+            logging.info("Consuming stopped")
+
     def callback(self, ch, method, properties, body):
         data = MiddlewareMessage.decode_from_bytes(body)
         if data.client_id not in self.local_state:

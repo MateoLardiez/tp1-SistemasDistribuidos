@@ -10,6 +10,7 @@ class Killer:
         # self.interval = interval
         # self.kill_percentage = kill_percentage
         # self.max_health_checkers_to_kill = num_of_healthcheckers - 1
+        self.safe_nodes = ["health_checker_1", "rabbit", "gateway", "client", "resutester", ""]
         try:
             self.docker_client = docker.APIClient()
             # Verificar que Docker está disponible
@@ -89,6 +90,21 @@ class Killer:
                     continue
 
                 logging.warning("Unknown command. Use 'kill <container_name>', 'list', or 'exit'.")
+
+
+                excluded_nodes = ['health_checker', 'rabbit', 'gateway', 'client', 'results_tester', 'killer']
+                if command.lower() == 'fatality':
+                    containers = self.list_running_containers()
+                    if not containers:
+                        logging.warning("No running containers to kill.")
+                        continue
+                    
+                    for name, _ in containers:
+                        # Verificar si el nombre NO empieza con ninguno de los prefijos excluidos
+                        if not any(name.startswith(prefix) for prefix in excluded_nodes):
+                            self.kill_container_by_name(name)
+
+                    logging.info("All running containers have been killed.")
                     
             except KeyboardInterrupt:
                 logging.info("Interrupted by user")

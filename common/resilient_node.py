@@ -30,8 +30,7 @@ class ResilientNode:
         logging.info(f"action: exit | result: success | signal: {signame}")
         self.node_is_alive.value = False
         if self.rabbitmq_connection_handler:
-            self.rabbitmq_connection_handler.stop_consuming()
-        if self.rabbitmq_connection_handler:
+            logging.info("Closing RabbitMQ connection")
             self.rabbitmq_connection_handler.close_connection()
         for process in self.joinable_processes:
             process.terminate()

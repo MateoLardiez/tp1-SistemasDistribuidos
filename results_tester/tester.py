@@ -323,7 +323,7 @@ class Tester:
                 
                 # Special handling for floats (allow small differences)
                 if isinstance(expected_value, float) and isinstance(client_value, (float, int)):
-                    if abs(expected_value - client_value) > 0.001:
+                    if abs(expected_value - client_value) > 0.000000001:
                         value_mismatches.append({
                             "key": key,
                             "expected": expected_value,
