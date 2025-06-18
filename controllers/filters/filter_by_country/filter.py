@@ -33,8 +33,9 @@ class FilterByCountry(ResilientNode):
         self.countries_query_1 = ["Argentina", "Spain"] 
         self.countries_query_3 = ["Argentina"] 
         self.countries_query_4 = ["Argentina"]
-        self.local_state = {}  # Dictionary to store local state of clients
+        self.clients_state = {}  # Dictionary to store local state of clients
         self.controller_name = f"filter_by_country_{id_worker}"
+        self.load_state()
 
     def start(self):
         logging.info("action: start | result: success | code: filter_by_country")
@@ -45,20 +46,20 @@ class FilterByCountry(ResilientNode):
 
     def callback(self, ch, method, properties, body):
         data = MiddlewareMessage.decode_from_bytes(body)
-        if data.client_id not in self.local_state:
-            self.local_state[data.client_id] = {
+        if data.client_id not in self.clients_state:
+            self.clients_state[data.client_id] = {
                 "last_seq_number": 0,  # This is the last seq number we propagated
                 "eof_amount": 0  # This is the number of EOF messages received, when it reaches the number of workers, we can propagate the EOF message
             }
-        if data.controller_name not in self.local_state[data.client_id]:
-            self.local_state[data.client_id][data.controller_name] = data.seq_number
-        elif data.seq_number <= self.local_state[data.client_id][data.controller_name]:
+        if data.controller_name not in self.clients_state[data.client_id]:
+            self.clients_state[data.client_id][data.controller_name] = data.seq_number
+        elif data.seq_number <= self.clients_state[data.client_id][data.controller_name]:
             logging.warning(f"Duplicated Message {data.client_id} in {data.controller_name} with seq_number {data.seq_number}. Ignoring.")
             return
         
         if data.type != MiddlewareMessageType.EOF_MOVIES:
             lines = data.get_batch_iter_from_payload()
-            seq_number = self.local_state[data.client_id]["last_seq_number"]
+            seq_number = self.clients_state[data.client_id]["last_seq_number"]
             if data.query_number == QueryNumber.ALL_QUERYS:
                 self.handler_all_query(lines, data.client_id, seq_number)
             elif data.query_number == QueryNumber.QUERY_1:
@@ -67,11 +68,11 @@ class FilterByCountry(ResilientNode):
                 self.handler_country_filter(lines, self.countries_query_3, data.client_id, data.query_number, seq_number)
             elif data.query_number == QueryNumber.QUERY_4:
                 self.handler_country_filter(lines, self.countries_query_4, data.client_id, data.query_number, seq_number)
-            self.local_state[data.client_id]["last_seq_number"] += 1
+            self.clients_state[data.client_id]["last_seq_number"] += 1
         else:
-            seq_number = self.local_state[data.client_id]["last_seq_number"]
-            self.local_state[data.client_id]["eof_amount"] += 1
-            if self.local_state[data.client_id]["eof_amount"] == self.number_workers:
+            seq_number = self.clients_state[data.client_id]["last_seq_number"]
+            self.clients_state[data.client_id]["eof_amount"] += 1
+            if self.clients_state[data.client_id]["eof_amount"] == self.number_workers:
                 if data.query_number == QueryNumber.ALL_QUERYS:
                     self.handler_eof_all_querys(data, seq_number)
                 else:
@@ -86,8 +87,10 @@ class FilterByCountry(ResilientNode):
                     self.rabbitmq_connection_handler.send_message(
                         routing_key=f"country_queue_{self.id_worker}",
                         msg_body=msg.encode_to_str()
-                    )       
-            
+                    )
+                del self.clients_state[data.client_id]
+        self.save_state()
+
     def filter_by_country(self, movie, country_filter):
         countries_of_movie = ast.literal_eval(movie[PROD_COUNTRIES])#<- es un string
         has_countries = all(country in countries_of_movie for country in country_filter)
@@ -99,11 +102,11 @@ class FilterByCountry(ResilientNode):
             lines_to_filter.append(line)
 
         self.handler_country_filter(lines_to_filter, self.countries_query_1, id_client, QueryNumber.QUERY_1, seq_number)
-        self.local_state[id_client]["last_seq_number"] += 1
-        seq_number = self.local_state[id_client]["last_seq_number"]
+        self.clients_state[id_client]["last_seq_number"] += 1
+        seq_number = self.clients_state[id_client]["last_seq_number"]
         self.handler_country_filter(lines_to_filter, self.countries_query_3, id_client, QueryNumber.QUERY_3, seq_number)
-        self.local_state[id_client]["last_seq_number"] += 1
-        seq_number = self.local_state[id_client]["last_seq_number"]
+        self.clients_state[id_client]["last_seq_number"] += 1
+        seq_number = self.clients_state[id_client]["last_seq_number"]
         self.handler_country_filter(lines_to_filter, self.countries_query_4, id_client, QueryNumber.QUERY_4, seq_number)
         
 

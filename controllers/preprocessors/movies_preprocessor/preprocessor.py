@@ -40,8 +40,9 @@ class MoviesPreprocessor(ResilientNode):
         )
         # Configurar el callback para la cola específica
         self.rabbitmq_connection_handler.set_message_consumer_callback(f"movies_queue_{self.worker_id}", self.callback)
-        self.local_state = {}  # Diccionario para almacenar el estado local de los clientes
+        self.clients_state = {}  # Diccionario para almacenar el estado local de los clientes
         self.controller_name = f"movies_preprocessor_{worker_id}"
+        self.load_state()
 
     def start(self):
         logging.info("action: start | result: success | code: movies_preprocessor")
@@ -51,68 +52,68 @@ class MoviesPreprocessor(ResilientNode):
             logging.info("Consuming stopped")
 
     def callback(self, ch, method, properties, body):
+        data = MiddlewareMessage.decode_from_bytes(body)
+        if data.client_id not in self.clients_state:
+            self.clients_state[data.client_id] = {
+                data.controller_name: data.seq_number, # Este es el seq number que recibimos
+                "last_seq_number": 0 # Este es el último seq number que propagamos
+            }
+        elif data.seq_number <= self.clients_state[data.client_id][data.controller_name]:
+            logging.warning(f"Duplicated Message {data.client_id} in {data.controller_name} with  seq_number{data.seq_number}. Ignoring.")
+            return
         
-        try:
-            data = MiddlewareMessage.decode_from_bytes(body)
-            if data.client_id not in self.local_state:
-                self.local_state[data.client_id] = {
-                    data.controller_name: data.seq_number, # Este es el seq number que recibimos
-                    "last_seq_number": 0 # Este es el último seq number que propagamos
-                }
-            elif data.seq_number <= self.local_state[data.client_id][data.controller_name]:
-                logging.warning(f"Duplicated Message {data.client_id} in {data.controller_name} with  seq_number{data.seq_number}. Ignoring.")
-                return
-            
-            
-            if data.type != MiddlewareMessageType.EOF_MOVIES:    
-                lines = data.get_batch_iter_from_payload()
-                clean_lines = self.clean_csv(lines)
-                # logging.info(f" LINEAS LIMPIASSSS -> {clean_lines}")
-                msg = MiddlewareMessage(
-                    query_number=data.query_number,
-                    client_id=data.client_id,
-                    type=MiddlewareMessageType.MOVIES_BATCH,
-                    payload=clean_lines,
-                    seq_number=self.local_state[data.client_id]["last_seq_number"], 
-                    controller_name=self.controller_name
-                )
-                    
-                # Round robin para enviar a los workers
-                id_worker = self.local_state[data.client_id]["last_seq_number"] % self.number_workers
-                nlp_id = self.local_state[data.client_id]["last_seq_number"] % self.nlp_workers
-                if data.query_number == QueryNumber.ALL_QUERYS:
-                    self.rabbitmq_connection_handler.send_message(routing_key=f"cleaned_movies_queue_country_{id_worker}", msg_body=msg.encode_to_str())
-                    self.rabbitmq_connection_handler.send_message(routing_key=f"cleaned_movies_queue_country_invesment_{id_worker}", msg_body=msg.encode_to_str())
-                    self.rabbitmq_connection_handler.send_message(routing_key=f"cleaned_movies_queue_nlp_{nlp_id}", msg_body=msg.encode_to_str())
-                elif data.query_number == QueryNumber.QUERY_1 or data.query_number == QueryNumber.QUERY_3 or data.query_number == QueryNumber.QUERY_4:
-                    self.rabbitmq_connection_handler.send_message(routing_key=f"cleaned_movies_queue_country_{id_worker}", msg_body=msg.encode_to_str())
-                elif data.query_number == QueryNumber.QUERY_2:
-                    self.rabbitmq_connection_handler.send_message(routing_key=f"cleaned_movies_queue_country_invesment_{id_worker}", msg_body=msg.encode_to_str())
-                elif data.query_number == QueryNumber.QUERY_5:
-                    self.rabbitmq_connection_handler.send_message(routing_key=f"cleaned_movies_queue_nlp_{nlp_id}", msg_body=msg.encode_to_str())
+        
+        if data.type != MiddlewareMessageType.EOF_MOVIES:    
+            lines = data.get_batch_iter_from_payload()
+            clean_lines = self.clean_csv(lines)
+            # logging.info(f" LINEAS LIMPIASSSS -> {clean_lines}")
+            msg = MiddlewareMessage(
+                query_number=data.query_number,
+                client_id=data.client_id,
+                type=MiddlewareMessageType.MOVIES_BATCH,
+                payload=clean_lines,
+                seq_number=self.clients_state[data.client_id]["last_seq_number"], 
+                controller_name=self.controller_name
+            )
+                
+            # Round robin para enviar a los workers
+            id_worker = self.clients_state[data.client_id]["last_seq_number"] % self.number_workers
+            nlp_id = self.clients_state[data.client_id]["last_seq_number"] % self.nlp_workers
+            if data.query_number == QueryNumber.ALL_QUERYS:
+                self.rabbitmq_connection_handler.send_message(routing_key=f"cleaned_movies_queue_country_{id_worker}", msg_body=msg.encode_to_str())
+                self.rabbitmq_connection_handler.send_message(routing_key=f"cleaned_movies_queue_country_invesment_{id_worker}", msg_body=msg.encode_to_str())
+                self.rabbitmq_connection_handler.send_message(routing_key=f"cleaned_movies_queue_nlp_{nlp_id}", msg_body=msg.encode_to_str())
+            elif data.query_number == QueryNumber.QUERY_1 or data.query_number == QueryNumber.QUERY_3 or data.query_number == QueryNumber.QUERY_4:
+                self.rabbitmq_connection_handler.send_message(routing_key=f"cleaned_movies_queue_country_{id_worker}", msg_body=msg.encode_to_str())
+            elif data.query_number == QueryNumber.QUERY_2:
+                self.rabbitmq_connection_handler.send_message(routing_key=f"cleaned_movies_queue_country_invesment_{id_worker}", msg_body=msg.encode_to_str())
+            elif data.query_number == QueryNumber.QUERY_5:
+                self.rabbitmq_connection_handler.send_message(routing_key=f"cleaned_movies_queue_nlp_{nlp_id}", msg_body=msg.encode_to_str())
 
-                # Actualizar el estado local del cliente
-                self.local_state[data.client_id]["last_seq_number"] += 1
+            # Actualizar el estado local del cliente
+            self.clients_state[data.client_id]["last_seq_number"] += 1
 
-            else:
-                msg = MiddlewareMessage(
-                            query_number=data.query_number,
-                            client_id=data.client_id,
-                            type=MiddlewareMessageType.EOF_MOVIES,
-                            seq_number=self.local_state[data.client_id]["last_seq_number"],
-                            payload="",
-                            controller_name=self.controller_name
-                        )
-                if data.query_number == QueryNumber.ALL_QUERYS:
-                    self.handler_oef_all_querys(msg)
-                elif data.query_number == QueryNumber.QUERY_1 or data.query_number == QueryNumber.QUERY_3 or data.query_number == QueryNumber.QUERY_4:
-                    self.handler_oef_query_1_3_4(msg)
-                elif data.query_number == QueryNumber.QUERY_2:
-                    self.handler_oef_query_2(msg)
-                elif data.query_number == QueryNumber.QUERY_5:
-                    self.handler_oef_query_5(msg)
-        except Exception as e:
-            logging.error(f"Error en el callback: {e}")
+        else:
+            msg = MiddlewareMessage(
+                        query_number=data.query_number,
+                        client_id=data.client_id,
+                        type=MiddlewareMessageType.EOF_MOVIES,
+                        seq_number=self.clients_state[data.client_id]["last_seq_number"],
+                        payload="",
+                        controller_name=self.controller_name
+                    )
+            if data.query_number == QueryNumber.ALL_QUERYS:
+                self.handler_oef_all_querys(msg)
+            elif data.query_number == QueryNumber.QUERY_1 or data.query_number == QueryNumber.QUERY_3 or data.query_number == QueryNumber.QUERY_4:
+                self.handler_oef_query_1_3_4(msg)
+            elif data.query_number == QueryNumber.QUERY_2:
+                self.handler_oef_query_2(msg)
+            elif data.query_number == QueryNumber.QUERY_5:
+                self.handler_oef_query_5(msg)
+            
+            del self.clients_state[data.client_id]  # Eliminar el estado del cliente para este controlador
+            
+        self.save_state()
 
     def handler_oef_all_querys(self, msg):
 

@@ -23,40 +23,41 @@ class FilterByCountryInvesment(ResilientNode):
             consumer_queues_to_recv_from=[f"cleaned_movies_queue_country_invesment_{self.id_worker}"],
         )
         self.rabbitmq_connection_handler.set_message_consumer_callback(f"cleaned_movies_queue_country_invesment_{self.id_worker}", self.callback)
-        self.local_state = {}  # Dictionary to store local state of clients
         self.controller_name = f"filter_by_country_invesment_{id_worker}"
+        self.clients_state = {}  # Dictionary to store local state of clients
+        self.load_state()  # Load the state of clients from file
 
     def start(self):
         logging.info("action: start | result: success | code: filter_by_country")
         try:
             self.rabbitmq_connection_handler.start_consuming()
         except Exception as e:
-            logging.info("Consuming stopped")
+            logging.info("Consuming stopped with error: %s", e)
 
     def callback(self, ch, method, properties, body):
         data = MiddlewareMessage.decode_from_bytes(body)
-        if data.client_id not in self.local_state:
-            self.local_state[data.client_id] = {
+        if data.client_id not in self.clients_state:
+            self.clients_state[data.client_id] = {
                 "last_seq_number": 0,  # This is the last seq number we propagated
                 "eof_amount": 0 # This is the number of EOF messages received, when it reaches the number of workers, we can propagate the EOF message
             }
-        if data.controller_name not in self.local_state[data.client_id]:
-            self.local_state[data.client_id][data.controller_name] = data.seq_number  # This is the seq number we received
-        elif data.seq_number <= self.local_state[data.client_id][data.controller_name]:
+        if data.controller_name not in self.clients_state[data.client_id]:
+            self.clients_state[data.client_id][data.controller_name] = data.seq_number  # This is the seq number we received
+        elif data.seq_number <= self.clients_state[data.client_id][data.controller_name]:
             logging.warning(f"Duplicated Message {data.client_id} in {data.controller_name} with seq_number {data.seq_number}. Ignoring.")
             return
         
         if data.type != MiddlewareMessageType.EOF_MOVIES:        
             lines = data.get_batch_iter_from_payload()
-            seq_number = self.local_state[data.client_id]["last_seq_number"]
+            seq_number = self.clients_state[data.client_id]["last_seq_number"]
             self.handler_filter(lines, data.client_id, seq_number, data.query_number)
 
-            self.local_state[data.client_id]["last_seq_number"] += 1
+            self.clients_state[data.client_id]["last_seq_number"] += 1
         else:
-            seq_number = self.local_state[data.client_id]["last_seq_number"]
-            self.local_state[data.client_id]["eof_amount"] += 1
+            seq_number = self.clients_state[data.client_id]["last_seq_number"]
+            self.clients_state[data.client_id]["eof_amount"] += 1
             
-            if self.local_state[data.client_id]["eof_amount"] == self.number_workers:
+            if self.clients_state[data.client_id]["eof_amount"] == self.number_workers:
                 msg = MiddlewareMessage(
                         query_number=data.query_number,
                         client_id=data.client_id,
@@ -71,6 +72,8 @@ class FilterByCountryInvesment(ResilientNode):
                         routing_key=f"filter_by_country_invesment_queue_{id_worker}",
                         msg_body=msg.encode_to_str()
                     )
+                del self.clients_state[data.client_id]  # Clean up state for this client
+        self.save_state()  # Save state after processing each message
 
     def filter_by_country_invesment(self, movie):
         raw_value = movie[PROD_COUNTRIES].strip()

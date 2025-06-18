@@ -64,6 +64,8 @@ add_movies_preprocessor() {
       - N_WORKERS=$N_WORKERS
       - WORKER_ID=$i
       - NLP_WORKERS=$N_NLP
+    volumes:
+      - ./.data/movies_preprocessor_$i:/.data
     networks:
       - testing_net
     depends_on:
@@ -83,6 +85,8 @@ add_ratings_preprocessor() {
     environment:
       - N_WORKERS=$N_WORKERS
       - WORKER_ID=$i
+    volumes:
+      - ./.data/ratings_preprocessor_$i:/.data
     networks:
       - testing_net
     depends_on:
@@ -102,6 +106,8 @@ add_credits_preprocessor() {
     environment:
       - N_WORKERS=$N_WORKERS
       - WORKER_ID=$i
+    volumes:
+      - ./.data/credits_preprocessor_$i:/.data
     networks:
       - testing_net
     depends_on:
@@ -121,6 +127,8 @@ add_filter_by_country() {
     environment:
       - N_WORKERS=$N_WORKERS
       - WORKER_ID=$i
+    volumes:
+      - ./.data/filter_by_country_$i:/.data
     networks:
       - testing_net
     depends_on:
@@ -140,6 +148,8 @@ add_filter_by_country_invesment() {
     environment:
       - N_WORKERS=$N_WORKERS
       - WORKER_ID=$i
+    volumes:
+      - ./.data/filter_by_country_invesment_$i:/.data
     networks:
       - testing_net
     depends_on:
@@ -160,6 +170,8 @@ add_filter_by_year() {
       - N_WORKERS=$N_WORKERS
       - N_SINKERS=$N_SINKERS
       - WORKER_ID=$i
+    volumes:
+      - ./.data/filter_by_year_$i:/.data
     networks:
       - testing_net
     depends_on:
@@ -180,6 +192,8 @@ add_group_by_country() {
       - N_SINKERS=$N_SINKERS
       - N_WORKERS=$N_WORKERS
       - WORKER_ID=$i
+    volumes:
+      - ./.data/group_by_country_$i:/.data
     networks:
       - testing_net
     depends_on:
@@ -199,6 +213,8 @@ add_group_by_sentiment() {
     environment:
       - N_SINKERS=$N_SINKERS
       - WORKER_ID=$i
+    volumes:
+      - ./.data/group_by_sentiment_$i:/.data
     networks:
       - testing_net
     depends_on:
@@ -219,6 +235,8 @@ add_joiner_rating_by_id() {
       - N_SINKERS=$N_SINKERS
       - WORKER_ID=$i
       - N_WORKERS=$N_WORKERS
+    volumes:
+      - ./.data/joiner_ratings_by_id_$i:/.data
     networks:
       - testing_net
     depends_on:
@@ -239,6 +257,8 @@ add_joiner_credit_by_id() {
       - N_SINKERS=$N_SINKERS
       - WORKER_ID=$i
       - N_WORKERS=$N_WORKERS
+    volumes:
+      - ./.data/joiner_credits_by_id_$i:/.data
     networks:
       - testing_net
     depends_on:
@@ -259,6 +279,8 @@ add_aggregator_nlp() {
     environment:
       - N_WORKERS=$N_WORKERS
       - WORKER_ID=$i
+    volumes:
+      - ./.data/aggregator_nlp_$i:/.data
     networks:
       - testing_net
     depends_on:
@@ -278,6 +300,8 @@ add_aggregator_r_b() {
     environment:
       - N_WORKERS=$N_WORKERS
       - WORKER_ID=$i
+    volumes:
+      - ./.data/aggregator_r_b_$i:/.data
     networks:
       - testing_net
     depends_on:
@@ -298,6 +322,8 @@ add_sinker_q1() {
     environment:
       - SINKER_ID=$i
       - N_WORKERS=$N_WORKERS
+    volumes:
+      - ./.data/query_1_sinker_$i:/.data
     networks:
       - testing_net
     depends_on:
@@ -317,6 +343,8 @@ add_sinker_q2() {
     environment:
       - SINKER_ID=$i
       - N_WORKERS=$N_WORKERS
+    volumes:
+      - ./.data/query_2_sinker_$i:/.data
     networks:
       - testing_net
     depends_on:
@@ -336,6 +364,8 @@ add_sinker_q3() {
     environment:
       - N_WORKERS=$N_WORKERS
       - SINKER_ID=$i
+    volumes:
+      - ./.data/query_3_sinker_$i:/.data
     networks:
       - testing_net
     depends_on:
@@ -355,6 +385,8 @@ add_sinker_q4() {
     environment:
       - N_WORKERS=$N_WORKERS
       - SINKER_ID=$i
+    volumes:
+      - ./.data/query_4_sinker_$i:/.data
     networks:
       - testing_net
     depends_on:
@@ -374,6 +406,8 @@ add_sinker_q5() {
     environment:
       - SINKER_ID=$i
       - N_WORKERS=$N_WORKERS
+    volumes:
+      - ./.data/query_5_sinker_$i:/.data
     networks:
       - testing_net
     depends_on:

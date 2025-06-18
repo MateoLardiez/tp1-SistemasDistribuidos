@@ -29,7 +29,8 @@ class CreditsPreprocessor(ResilientNode):
         self.number_workers = number_workers
         self.id_worker = id_worker
         self.controller_name = f"credits_preprocessor_{id_worker}"
-        self.local_state = {}  # Diccionario para almacenar el estado local de los clientes
+        self.clients_state = {}  # Diccionario para almacenar el estado local de los clientes
+        self.load_state()  # Cargar el estado de los clientes desde el archivo
 
     def start(self):
         logging.info("action: start | result: success | code: credits_preprocessor")
@@ -41,12 +42,12 @@ class CreditsPreprocessor(ResilientNode):
     def callback(self, ch, method, properties, body):
         try:
             data = MiddlewareMessage.decode_from_bytes(body)
-            if data.client_id not in self.local_state:
-                self.local_state[data.client_id] = {
+            if data.client_id not in self.clients_state:
+                self.clients_state[data.client_id] = {
                     data.controller_name: data.seq_number,  # Este es el seq number que recibimos
                     "last_seq_number": 0  # Este es el último seq number que propagamos
                 }
-            elif data.seq_number <= self.local_state[data.client_id][data.controller_name]:
+            elif data.seq_number <= self.clients_state[data.client_id][data.controller_name]:
                 logging.warning(f"Duplicated Message {data.client_id} in {data.controller_name} with seq_number {data.seq_number}. Ignoring.")
                 return
         
@@ -81,6 +82,9 @@ class CreditsPreprocessor(ResilientNode):
                         routing_key=f"joiner_credits_by_id_queue_{i}",
                         msg_body=msg.encode_to_str()
                     )
+                del self.clients_state[data.client_id]
+            # Actualizar el estado local del cliente
+            self.save_state()  # Guardar el estado después de procesar el mensaje
         except Exception as e:
             logging.error(f"Error en el callback: {e}")
 

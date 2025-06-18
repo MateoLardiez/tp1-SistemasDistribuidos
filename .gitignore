@@ -9,3 +9,5 @@ ratings_cleaned.csv
 credits.csv
 ratings.csv
 movies_metadata.csv
+
+.data/**

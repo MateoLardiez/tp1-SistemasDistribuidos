@@ -7,6 +7,8 @@ import time
 import signal
 from typing import Optional, List
 from multiprocessing import Process, Value
+from common.file_manager import FileManager
+import json
 
 HEALTH_CHECK_PORT = 5000
 
@@ -19,7 +21,16 @@ class ResilientNode:
         check_health_process = Process(target=self.__start_health_connection)
         check_health_process.start()
         self.joinable_processes.append(check_health_process)
+        self.controller_name = ""
+        self.clients_state = {}  # Diccionario para almacenar el estado local de los clientes
         self.set_signals()
+
+    def load_state(self):
+        self.clients_state = FileManager.load_state(f".data/{self.controller_name}_state.json")
+
+    def save_state(self):
+        state = FileManager(f".data/{self.controller_name}_state.json")
+        state.save_state(json.dumps(self.clients_state, indent=2))
 
     def set_signals(self):
         signal.signal(signal.SIGTERM, self.__signal_handler)

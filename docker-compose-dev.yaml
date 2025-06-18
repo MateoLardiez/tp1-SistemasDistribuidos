@@ -41,6 +41,8 @@ services:
       - N_WORKERS=2
       - WORKER_ID=0
       - NLP_WORKERS=2
+    volumes:
+      - ./.data/movies_preprocessor_0:/.data
     networks:
       - testing_net
     depends_on:
@@ -56,6 +58,8 @@ services:
       - N_WORKERS=2
       - WORKER_ID=1
       - NLP_WORKERS=2
+    volumes:
+      - ./.data/movies_preprocessor_1:/.data
     networks:
       - testing_net
     depends_on:
@@ -69,6 +73,8 @@ services:
     environment:
       - N_WORKERS=2
       - WORKER_ID=0
+    volumes:
+      - ./.data/ratings_preprocessor_0:/.data
     networks:
       - testing_net
     depends_on:
@@ -82,6 +88,8 @@ services:
     environment:
       - N_WORKERS=2
       - WORKER_ID=1
+    volumes:
+      - ./.data/ratings_preprocessor_1:/.data
     networks:
       - testing_net
     depends_on:
@@ -95,6 +103,8 @@ services:
     environment:
       - N_WORKERS=2
       - WORKER_ID=0
+    volumes:
+      - ./.data/credits_preprocessor_0:/.data
     networks:
       - testing_net
     depends_on:
@@ -108,6 +118,8 @@ services:
     environment:
       - N_WORKERS=2
       - WORKER_ID=1
+    volumes:
+      - ./.data/credits_preprocessor_1:/.data
     networks:
       - testing_net
     depends_on:
@@ -121,6 +133,8 @@ services:
     environment:
       - N_WORKERS=2
       - WORKER_ID=0
+    volumes:
+      - ./.data/filter_by_country_0:/.data
     networks:
       - testing_net
     depends_on:
@@ -134,6 +148,8 @@ services:
     environment:
       - N_WORKERS=2
       - WORKER_ID=1
+    volumes:
+      - ./.data/filter_by_country_1:/.data
     networks:
       - testing_net
     depends_on:
@@ -147,6 +163,8 @@ services:
     environment:
       - N_WORKERS=2
       - WORKER_ID=0
+    volumes:
+      - ./.data/filter_by_country_invesment_0:/.data
     networks:
       - testing_net
     depends_on:
@@ -160,6 +178,8 @@ services:
     environment:
       - N_WORKERS=2
       - WORKER_ID=1
+    volumes:
+      - ./.data/filter_by_country_invesment_1:/.data
     networks:
       - testing_net
     depends_on:
@@ -174,6 +194,8 @@ services:
       - N_WORKERS=2
       - N_SINKERS=2
       - WORKER_ID=0
+    volumes:
+      - ./.data/filter_by_year_0:/.data
     networks:
       - testing_net
     depends_on:
@@ -188,6 +210,8 @@ services:
       - N_WORKERS=2
       - N_SINKERS=2
       - WORKER_ID=1
+    volumes:
+      - ./.data/filter_by_year_1:/.data
     networks:
       - testing_net
     depends_on:
@@ -202,6 +226,8 @@ services:
       - N_SINKERS=2
       - N_WORKERS=2
       - WORKER_ID=0
+    volumes:
+      - ./.data/group_by_country_0:/.data
     networks:
       - testing_net
     depends_on:
@@ -216,6 +242,8 @@ services:
       - N_SINKERS=2
       - N_WORKERS=2
       - WORKER_ID=1
+    volumes:
+      - ./.data/group_by_country_1:/.data
     networks:
       - testing_net
     depends_on:
@@ -229,6 +257,8 @@ services:
     environment:
       - N_SINKERS=2
       - WORKER_ID=0
+    volumes:
+      - ./.data/group_by_sentiment_0:/.data
     networks:
       - testing_net
     depends_on:
@@ -242,6 +272,8 @@ services:
     environment:
       - N_SINKERS=2
       - WORKER_ID=1
+    volumes:
+      - ./.data/group_by_sentiment_1:/.data
     networks:
       - testing_net
     depends_on:
@@ -256,6 +288,8 @@ services:
       - N_SINKERS=2
       - WORKER_ID=0
       - N_WORKERS=2
+    volumes:
+      - ./.data/joiner_ratings_by_id_0:/.data
     networks:
       - testing_net
     depends_on:
@@ -270,6 +304,8 @@ services:
       - N_SINKERS=2
       - WORKER_ID=1
       - N_WORKERS=2
+    volumes:
+      - ./.data/joiner_ratings_by_id_1:/.data
     networks:
       - testing_net
     depends_on:
@@ -284,6 +320,8 @@ services:
       - N_SINKERS=2
       - WORKER_ID=0
       - N_WORKERS=2
+    volumes:
+      - ./.data/joiner_credits_by_id_0:/.data
     networks:
       - testing_net
     depends_on:
@@ -298,6 +336,8 @@ services:
       - N_SINKERS=2
       - WORKER_ID=1
       - N_WORKERS=2
+    volumes:
+      - ./.data/joiner_credits_by_id_1:/.data
     networks:
       - testing_net
     depends_on:
@@ -311,6 +351,8 @@ services:
     environment:
       - N_WORKERS=2
       - WORKER_ID=0
+    volumes:
+      - ./.data/aggregator_nlp_0:/.data
     networks:
       - testing_net
     depends_on:
@@ -324,6 +366,8 @@ services:
     environment:
       - N_WORKERS=2
       - WORKER_ID=1
+    volumes:
+      - ./.data/aggregator_nlp_1:/.data
     networks:
       - testing_net
     depends_on:
@@ -337,6 +381,8 @@ services:
     environment:
       - N_WORKERS=2
       - WORKER_ID=0
+    volumes:
+      - ./.data/aggregator_r_b_0:/.data
     networks:
       - testing_net
     depends_on:
@@ -350,6 +396,8 @@ services:
     environment:
       - N_WORKERS=2
       - WORKER_ID=1
+    volumes:
+      - ./.data/aggregator_r_b_1:/.data
     networks:
       - testing_net
     depends_on:
@@ -363,6 +411,8 @@ services:
     environment:
       - SINKER_ID=0
       - N_WORKERS=2
+    volumes:
+      - ./.data/query_1_sinker_0:/.data
     networks:
       - testing_net
     depends_on:
@@ -376,6 +426,8 @@ services:
     environment:
       - SINKER_ID=1
       - N_WORKERS=2
+    volumes:
+      - ./.data/query_1_sinker_1:/.data
     networks:
       - testing_net
     depends_on:
@@ -389,6 +441,8 @@ services:
     environment:
       - SINKER_ID=0
       - N_WORKERS=2
+    volumes:
+      - ./.data/query_2_sinker_0:/.data
     networks:
       - testing_net
     depends_on:
@@ -402,6 +456,8 @@ services:
     environment:
       - SINKER_ID=1
       - N_WORKERS=2
+    volumes:
+      - ./.data/query_2_sinker_1:/.data
     networks:
       - testing_net
     depends_on:
@@ -415,6 +471,8 @@ services:
     environment:
       - N_WORKERS=2
       - SINKER_ID=0
+    volumes:
+      - ./.data/query_3_sinker_0:/.data
     networks:
       - testing_net
     depends_on:
@@ -428,6 +486,8 @@ services:
     environment:
       - N_WORKERS=2
       - SINKER_ID=1
+    volumes:
+      - ./.data/query_3_sinker_1:/.data
     networks:
       - testing_net
     depends_on:
@@ -441,6 +501,8 @@ services:
     environment:
       - N_WORKERS=2
       - SINKER_ID=0
+    volumes:
+      - ./.data/query_4_sinker_0:/.data
     networks:
       - testing_net
     depends_on:
@@ -454,6 +516,8 @@ services:
     environment:
       - N_WORKERS=2
       - SINKER_ID=1
+    volumes:
+      - ./.data/query_4_sinker_1:/.data
     networks:
       - testing_net
     depends_on:
@@ -467,6 +531,8 @@ services:
     environment:
       - SINKER_ID=0
       - N_WORKERS=2
+    volumes:
+      - ./.data/query_5_sinker_0:/.data
     networks:
       - testing_net
     depends_on:
@@ -480,6 +546,8 @@ services:
     environment:
       - SINKER_ID=1
       - N_WORKERS=2
+    volumes:
+      - ./.data/query_5_sinker_1:/.data
     networks:
       - testing_net
     depends_on:

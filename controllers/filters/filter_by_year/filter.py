@@ -17,8 +17,6 @@ class FilterByYear(ResilientNode):
         self.year_range_query_1 = (2000, 2009)
         self.year_range_query_3 = (2000, None)
         self.year_range_query_4 = (2000, None)
-        
-        # self.data = ""
         self.rabbitmq_connection_handler = RabbitMQConnectionHandler(
             producer_exchange_name="filter_by_year_exchange",
             producer_queues_to_bind={
@@ -32,48 +30,49 @@ class FilterByYear(ResilientNode):
         self.rabbitmq_connection_handler.set_message_consumer_callback(f"country_queue_{id_worker}", self.callback)
         self.number_workers = number_workers
         self.number_sinkers = number_sinkers
-        self.local_state = {}  # Dictionary to store local state of clients
         self.controller_name = f"filter_by_year_{id_worker}"
+        self.clients_state = {}  # Dictionary to store local state of clients
+        self.load_state()  # Cargar el estado de los clientes desde el archivo
 
     def start(self):
         logging.info("action: start | result: success | code: filter_by_year")
         try:
             self.rabbitmq_connection_handler.start_consuming()
         except Exception as e:
-            logging.info(f"Consuming stopped")
+            logging.info(f"Consuming stopped with error: {e}")
 
     def callback(self, ch, method, properties, body):
         data = MiddlewareMessage.decode_from_bytes(body)
-        if data.client_id not in self.local_state:
-            self.local_state[data.client_id] = {
+        if data.client_id not in self.clients_state:
+            self.clients_state[data.client_id] = {
                 "last_seq_number": 0,  # This is the last seq number we propagated
                 "eof_amount":{
-                    QueryNumber.QUERY_1: 0, 
-                    QueryNumber.QUERY_3: 0,
-                    QueryNumber.QUERY_4: 0
+                    QueryNumber.QUERY_1.value: 0, 
+                    QueryNumber.QUERY_3.value: 0,
+                    QueryNumber.QUERY_4.value: 0
                 },  # This is the number of EOF messages received for each query, when it reaches the number of workers, we can propagate the EOF message
                 # This is the number of EOF messages received, when it reaches the number of workers, we can propagate the EOF message   
             }
-        if data.controller_name not in self.local_state[data.client_id]:
-            self.local_state[data.client_id][data.controller_name] = data.seq_number
-        elif data.seq_number <= self.local_state[data.client_id][data.controller_name]:
+        if data.controller_name not in self.clients_state[data.client_id]:
+            self.clients_state[data.client_id][data.controller_name] = data.seq_number
+        elif data.seq_number <= self.clients_state[data.client_id][data.controller_name]:
             logging.warning(f"Duplicated Message {data.client_id} in {data.controller_name} with seq_number {data.seq_number}. Ignoring.")
             return
         
         if data.type != MiddlewareMessageType.EOF_MOVIES:    
             lines = data.get_batch_iter_from_payload()
-            seq_number = self.local_state[data.client_id]["last_seq_number"]
+            seq_number = self.clients_state[data.client_id]["last_seq_number"]
             if data.query_number == QueryNumber.QUERY_1:
                 self.handler_year_filter(lines, self.year_range_query_1, data.query_number, data.client_id, YEAR_Q1, seq_number)
             elif data.query_number == QueryNumber.QUERY_3:
                 self.handler_year_filter(lines, self.year_range_query_3, data.query_number, data.client_id, YEAR_Q3, seq_number)
             elif data.query_number == QueryNumber.QUERY_4:
                 self.handler_year_filter(lines, self.year_range_query_4, data.query_number, data.client_id, YEAR_Q4, seq_number)
-            self.local_state[data.client_id]["last_seq_number"] += 1
+            self.clients_state[data.client_id]["last_seq_number"] += 1
         else:
-            seq_number = self.local_state[data.client_id]["last_seq_number"]
-            self.local_state[data.client_id]["eof_amount"][data.query_number] += 1
-            if self.local_state[data.client_id]["eof_amount"][data.query_number] == self.number_workers:
+            seq_number = self.clients_state[data.client_id]["last_seq_number"]
+            self.clients_state[data.client_id]["eof_amount"][data.query_number.value] += 1
+            if self.clients_state[data.client_id]["eof_amount"][data.query_number.value] == self.number_workers:
                 msg = MiddlewareMessage(
                     query_number=data.query_number,
                     client_id=data.client_id,
@@ -117,6 +116,10 @@ class FilterByYear(ResilientNode):
                             routing_key=f"joiner_by_credits_movies_queue_{i}",
                             msg_body=msg.encode_to_str()
                         )
+                del self.clients_state[data.client_id]["eof_amount"][data.query_number.value]  # Clean up state for this query
+            if not self.clients_state[data.client_id]["eof_amount"]:
+                del self.clients_state[data.client_id]
+        self.save_state()  # Save the state of the clients after processing the message
     
     def filter_by_year(self, movie, year_filter, year_pos):
         if not movie[year_pos]:

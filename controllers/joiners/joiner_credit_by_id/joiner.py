@@ -1,11 +1,10 @@
 import logging
-import csv
-import os
 
 from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
 from common.defines import QueryNumber
 from common.middleware_connection_handler import RabbitMQConnectionHandler
 from common.resilient_node import ResilientNode
+from common.file_manager import FileManager
 
 YEAR = 3  # release_date position
 class JoinerByCreditId(ResilientNode):
@@ -32,6 +31,7 @@ class JoinerByCreditId(ResilientNode):
         # Configurar callbacks para ambas colas
         self.rabbitmq_connection_handler.set_message_consumer_callback(f"joiner_by_credits_movies_queue_{id_worker}", self.movies_callback)
         self.rabbitmq_connection_handler.set_message_consumer_callback(f"joiner_credits_by_id_queue_{id_worker}", self.credits_callback)
+        self.load_state()  # Cargar el estado de los clientes desde el archivo
 
     def start(self):
         logging.info("action: start | result: success | code: joiner_credit_by_id")
@@ -54,8 +54,7 @@ class JoinerByCreditId(ResilientNode):
         """Callback para procesar mensajes de la cola de movies"""
         data = MiddlewareMessage.decode_from_bytes(body)
         client_id = data.client_id
-        
-        
+              
         if client_id not in self.clients_state:
             self.create_clients_state(client_id)
         if data.controller_name not in self.clients_state[client_id]:
@@ -66,13 +65,15 @@ class JoinerByCreditId(ResilientNode):
         
         if data.type != MiddlewareMessageType.EOF_MOVIES:
             lines = list(data.get_batch_iter_from_payload())
-            self.save_data(client_id, lines, "movies")
+            filename = f".data/movies-client-{client_id}"
+            self.save_data(filename, lines)
         else:
             # Recibimos EOF de movies para este cliente
             self.clients_state[client_id]["movies_eof"] += 1
             if self.clients_state[client_id]["movies_eof"] == self.number_workers:
                 self.loading_data(client_id)
-
+        self.save_state()  # Guardar el estado de los clientes en el archivo
+        
     def credits_callback(self, ch, method, properties, body):
         """Callback para procesar mensajes de la cola de credits"""
         data = MiddlewareMessage.decode_from_bytes(body)
@@ -90,8 +91,9 @@ class JoinerByCreditId(ResilientNode):
         if data.type != MiddlewareMessageType.EOF_CREDITS:
 
             lines = list(data.get_batch_iter_from_payload())
-            if self.clients_state[client_id]["movies_eof"] < self.number_workers:    
-                self.save_data(client_id, lines, "credits")
+            if self.clients_state[client_id]["movies_eof"] < self.number_workers:
+                filename = f".data/credits-client-{client_id}"   
+                self.save_data(filename, lines)
             else:
                 self.process_credits(lines, client_id)
         else:
@@ -99,8 +101,8 @@ class JoinerByCreditId(ResilientNode):
             self.clients_state[client_id]["credits_eof"] += 1
             if self.clients_state[client_id]["credits_eof"] == self.number_workers:
                 # Depuración: Mostrar estado actual
-                self.send_results(client_id, data.query_number) 
-
+                self.send_results(client_id, data.query_number)
+        self.save_state()  # Guardar el estado de los clientes en el archivo
 
     def process_credits(self, lines, client_id):
         """Process the credit data for a client"""
@@ -162,10 +164,14 @@ class JoinerByCreditId(ResilientNode):
             msg_body=msg_eof.encode_to_str()
         )
 
-        # # Limpiar los archivos temporales
-        self.clean_temp_files(client_id)
+        # Limpiar los archivos temporales
+        files_to_remove = [
+            f".data/movies-client-{client_id}",
+            f".data/credits-client-{client_id}"
+        ]
+        FileManager.clean_temp_files(files_to_remove)
         
-        # # Eliminar el estado del cliente del diccionario
+        # Eliminar el estado del cliente del diccionario
         del self.clients_state[client_id]
 
     def loading_data(self, client_id):
@@ -176,9 +182,9 @@ class JoinerByCreditId(ResilientNode):
             return
         
         # # Procesar los datos de movies y credits para este cliente
-        movies_filename = f"movies-client-{client_id}"
-        credits_filename = f"credits-client-{client_id}"
-        
+        movies_filename = f".data/movies-client-{client_id}"
+        credits_filename = f".data/credits-client-{client_id}"
+
         joined_data = self.join_data(movies_filename, credits_filename)
         
         self.clients_state[client_id]["movies_per_actor"] = joined_data
@@ -203,39 +209,14 @@ class JoinerByCreditId(ResilientNode):
             if movie_id in credits:
                 actors = credits[movie_id]
                 actors_list = actors.strip("[]").replace("'", "").split(", ") # separo los actores por comas
-                # for actor in actors_list:
                 movies_with_actors[movie_id] += actors_list # actores y cantidad de apariciones
 
         return movies_with_actors
-            
-    def clean_temp_files(self, client_id):
-        """Elimina los archivos temporales creados para un cliente"""
-        files_to_remove = [
-            f"movies-client-{client_id}",
-            f"credits-client-{client_id}"
-        ]
-        
-        for file in files_to_remove:
-            try:
-                if os.path.exists(file):
-                    os.remove(file)
-                    logging.info(f"action: clean_temp_files | file: {file} | result: removed")
-            except Exception as e:
-                logging.error(f"action: clean_temp_files | file: {file} | error: {str(e)}")
-    
-    def save_data(self, client_id, lines, data_type) -> None:
-        filename = f"{data_type}-client-{client_id}"
-        with open(filename, 'a+') as file:
-            writer = csv.writer(file, quoting=csv.QUOTE_MINIMAL)
-            for line in lines:
-                writer.writerow(line)
 
-    def read_data(self, file_name):
-        try:
-            with open(file_name, 'r') as file:
-                reader = csv.reader(file, quoting=csv.QUOTE_MINIMAL)
-                for row in reader:
-                    yield row
-        except (FileNotFoundError, IOError):
-            return iter([])  # Retorna un iterador vacío si el archivo no existe o hay un error de I/O
+    def save_data(self, filename, lines) -> None:
+        writer = FileManager(filename)
+        writer.save_data(filename, lines)
 
+    def read_data(self, filename):
+        reader = FileManager(filename)
+        return reader.read()

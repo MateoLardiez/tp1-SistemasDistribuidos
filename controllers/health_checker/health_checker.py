@@ -33,6 +33,7 @@ class HealthChecker():
        
     def start(self):
         # Inicializar servidor de health check en un proceso separado
+        time.sleep(5)
         self.set_signals()
         health_server_process = Process(target=self.__start_health_check)
         health_server_process.start()
@@ -63,7 +64,6 @@ class HealthChecker():
                 hash_val = self.deterministic_hash(controller) % self.num_of_healthcheckers
                 selected_id = hash_val
                 if selected_id == self.health_checker_id:
-                    # logging.info(f"[HEALTH_CHECKER_{self.health_checker_id}] Controller {controller} is assigned to this health checker")
                     controllers_to_check.append(controller)
         logging.info(f"[HEALTH_CHECKER_{self.health_checker_id}] Controllers to check: {controllers_to_check} (total: {len(controllers_to_check)})")
         return controllers_to_check
