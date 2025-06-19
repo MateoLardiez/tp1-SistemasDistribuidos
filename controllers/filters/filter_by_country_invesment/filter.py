@@ -53,6 +53,7 @@ class FilterByCountryInvesment(ResilientNode):
             self.handler_filter(lines, data.client_id, seq_number, data.query_number)
 
             self.clients_state[data.client_id]["last_seq_number"] += 1
+            self.clients_state[data.client_id][data.controller_name] = data.seq_number  # Update the last seq number for this controller
         else:
             seq_number = self.clients_state[data.client_id]["last_seq_number"]
             self.clients_state[data.client_id]["eof_amount"] += 1

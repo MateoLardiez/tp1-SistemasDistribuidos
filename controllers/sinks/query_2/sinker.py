@@ -2,6 +2,7 @@ import logging
 from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
 from common.middleware_connection_handler import RabbitMQConnectionHandler
 from common.resilient_node import ResilientNode
+from common.file_manager import FileManager
 import csv
 import os
 
@@ -21,6 +22,7 @@ class Query2(ResilientNode):
         self.rabbitmq_connection_handler.set_message_consumer_callback(f"group_by_country_queue_{id_worker}", self.callback)
         self.clients_state ={}
         self.controller_name = f"sink_query_2_{id_worker}"
+        self.load_state()
 
     def start(self):
         logging.info("action: start | result: success | code: Sink_query_2 ")
@@ -45,7 +47,8 @@ class Query2(ResilientNode):
         
         if data.type != MiddlewareMessageType.EOF_MOVIES:  
             lines = data.get_batch_iter_from_payload()
-            self.save_data(data.client_id, lines)
+            filename = f".data/query_2-client-{data.client_id}"
+            self.save_data(filename, lines)
         else:
             self.clients_state[data.client_id]["eof_amount"] += 1
             if self.clients_state[data.client_id]["eof_amount"] == self.number_workers:  # Solo un worker para query 2
@@ -62,13 +65,18 @@ class Query2(ResilientNode):
                     routing_key="reports_queue",
                     msg_body=msg.encode_to_str()
                 )
-                self.clean_temp_files(data.client_id)
+                files_to_remove = [
+                    f".data/query_2-client-{data.client_id}",
+                ]
+                FileManager.clean_temp_files(files_to_remove)
                 del self.clients_state[data.client_id]
-
+        self.save_state()
+        
     def handler_query_2(self, client_id, query_number):
         report_lines = {}
         
-        for line in self.read_data(client_id):
+        filename = f".data/query_2-client-{client_id}"
+        for line in self.read_data(filename):
             country = line[0]
             if country not in report_lines:
                 report_lines[country] = 0
@@ -93,30 +101,11 @@ class Query2(ResilientNode):
             routing_key="reports_queue",
             msg_body=msg.encode_to_str()
         )
-
-    def clean_temp_files(self, client_id):
-        """Elimina los archivos temporales creados para un cliente"""
-        files_to_remove = [
-            f"query_2-client-{client_id}",
-        ]
-        
-        for file in files_to_remove:
-            try:
-                if os.path.exists(file):
-                    os.remove(file)
-                    logging.info(f"action: clean_temp_files | file: {file} | result: removed")
-            except Exception as e:
-                logging.error(f"action: clean_temp_files | file: {file} | error: {str(e)}")
                 
-    def save_data(self, client_id, lines) -> None:
-        # logging.info(f"LINEA PARA GUARDAR: {lines}")
-        with open(f"query_2-client-{client_id}", 'a+') as file:
-            writer = csv.writer(file, quoting=csv.QUOTE_MINIMAL)
-            for line in lines:
-                writer.writerow(line)
+    def save_data(self, filename, lines) -> None:
+        writer = FileManager(filename)
+        writer.save_data(filename, lines)
 
-    def read_data(self, client_id):
-        with open (f"query_2-client-{client_id}", 'r') as file:
-            reader = csv.reader(file, quoting=csv.QUOTE_MINIMAL)
-            for row in reader:
-                yield row
+    def read_data(self, filename):
+        reader = FileManager(filename)
+        return reader.read()

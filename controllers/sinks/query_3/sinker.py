@@ -3,7 +3,7 @@ import os
 from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
 from common.middleware_connection_handler import RabbitMQConnectionHandler
 from common.resilient_node import ResilientNode
-import csv
+from common.file_manager import FileManager
 
 class Query3(ResilientNode):
 
@@ -19,6 +19,7 @@ class Query3(ResilientNode):
         self.number_workers = number_workers
         self.clients_state = {}  # {client_id: {"eof_amount": int}}
         self.controller_name = f"sink_query_3_{id_sinker}"
+        self.load_state()  # Load the state of clients from file
 
     def start(self):
         logging.info("action: start | result: success | code: Sink_query_3 ")
@@ -44,7 +45,8 @@ class Query3(ResilientNode):
         
         if data.type != MiddlewareMessageType.EOF_JOINER:    
             lines = data.get_batch_iter_from_payload()
-            self.save_data(data.client_id, lines)
+            filename = f".data/query_3-client-{data.client_id}"
+            self.save_data(filename, lines)
         else:
             self.clients_state[data.client_id]["eof_amount"] += 1
             # Check if we have received all EOF messages
@@ -63,17 +65,19 @@ class Query3(ResilientNode):
                     routing_key="reports_queue",
                     msg_body=msg.encode_to_str()
                 )
-                self.clean_temp_files(data.client_id)
+                files_to_remove = [
+                    f"query_3-client-{data.client_id}",
+                ]
+                FileManager.clean_temp_files(files_to_remove)
                 del self.clients_state[data.client_id]
-        
-
+            self.save_state()  # Save the state of clients to file
 
     def handler_query_3(self, client_id, query_number):
         # Ya tengo toda la data en mi csv
         joined_results = []
-        for line in self.read_data(client_id):
+        filename = f".data/query_3-client-{client_id}"
+        for line in self.read_data(filename):
             joined_results.append(line)
-
 
         q3_answer = []
         if joined_results:
@@ -100,30 +104,10 @@ class Query3(ResilientNode):
             msg_body=msg.encode_to_str()
         )
     
+    def save_data(self, filename, lines) -> None:
+        writer = FileManager(filename)
+        writer.save_data(filename, lines)
 
-    def clean_temp_files(self, client_id):
-        """Elimina los archivos temporales creados para un cliente"""
-        files_to_remove = [
-            f"query_3-client-{client_id}",
-        ]
-        
-        for file in files_to_remove:
-            try:
-                if os.path.exists(file):
-                    os.remove(file)
-                    logging.info(f"action: clean_temp_files | file: {file} | result: removed")
-            except Exception as e:
-                logging.error(f"action: clean_temp_files | file: {file} | error: {str(e)}")
-    
-    def save_data(self, client_id, lines) -> None:
-        # logging.info(f"LINEA PARA GUARDAR: {lines}")
-        with open(f"query_3-client-{client_id}", 'a+') as file:
-            writer = csv.writer(file, quoting=csv.QUOTE_MINIMAL)
-            for line in lines:
-                writer.writerow(line)
-
-    def read_data(self, client_id):
-        with open (f"query_3-client-{client_id}", 'r') as file:
-            reader = csv.reader(file, quoting=csv.QUOTE_MINIMAL)
-            for row in reader:
-                yield row
+    def read_data(self, filename):
+        reader = FileManager(filename)
+        return reader.read()

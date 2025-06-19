@@ -69,9 +69,9 @@ class FileManager:
         """Cargar el estado de un archivo JSON"""
         try:
             with open(filename, 'r+') as f:
-                return json.load(f)
+                state = json.load(f)
+                return {int(k): v for k, v in state.items()}
         except (FileNotFoundError, json.JSONDecodeError) as e:
-            # logging.error(f"action: load_state | file: {filename} | error: {str(e)}")
             return {}
         
     def save_state(self, data):

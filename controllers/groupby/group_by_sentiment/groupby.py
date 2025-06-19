@@ -27,7 +27,8 @@ class GroupBySentiment(ResilientNode):
         )        
         # Configurar el callback para la cola específica
         self.rabbitmq_connection_handler.set_message_consumer_callback(f"aggregated_r_b_data_queue_{id_worker}", self.callback)
-        self.local_state = {}  # Diccionario para almacenar el estado local de los clientes
+        self.clients_state = {}  # Diccionario para almacenar el estado local de los clientes
+        self.load_state()  # Cargar el estado de los clientes desde el archivo
 
     def start(self):
         logging.info("action: start | result: success | code: filter_by_country")
@@ -38,32 +39,32 @@ class GroupBySentiment(ResilientNode):
     
     def callback(self, ch, method, properties, body):
         data = MiddlewareMessage.decode_from_bytes(body)
-        if data.client_id not in self.local_state:
-            self.local_state[data.client_id] = {
+        if data.client_id not in self.clients_state:
+            self.clients_state[data.client_id] = {
                 "last_seq_number": 0,  # Este es el último seq number que propagamos
                 "eof_amount": 0  # This is the number of EOF messages received, when it reaches the number of workers, we can propagate the EOF message
             }
-        if data.controller_name not in self.local_state[data.client_id]:
-            self.local_state[data.client_id][data.controller_name] = data.seq_number
-        elif data.seq_number <= self.local_state[data.client_id][data.controller_name]:
+        if data.controller_name not in self.clients_state[data.client_id]:
+            self.clients_state[data.client_id][data.controller_name] = data.seq_number
+        elif data.seq_number <= self.clients_state[data.client_id][data.controller_name]:
             logging.warning(f"Duplicated Message {data.client_id} in {data.controller_name} with seq_number {data.seq_number}. Ignoring.")
             return
             
-        if data.type != MiddlewareMessageType.EOF_MOVIES:
-            
+        if data.type != MiddlewareMessageType.EOF_MOVIES:        
             lines = data.get_batch_iter_from_payload()
-            seq_number = self.local_state[data.client_id]["last_seq_number"]
+            seq_number = self.clients_state[data.client_id]["last_seq_number"]
             self.handler_group_by_sentiment(lines, data.client_id, data.query_number, seq_number)
-            self.local_state[data.client_id]["last_seq_number"] += 1
+            self.clients_state[data.client_id]["last_seq_number"] += 1
+            self.clients_state[data.client_id][data.controller_name] = data.seq_number
         else:
-            seq_number = self.local_state[data.client_id]["last_seq_number"]
-            self.local_state[data.client_id]["eof_amount"] += 1
-            if self.local_state[data.client_id]["eof_amount"] == self.number_sinkers:
+            seq_number = self.clients_state[data.client_id]["last_seq_number"]
+            self.clients_state[data.client_id]["eof_amount"] += 1
+            if self.clients_state[data.client_id]["eof_amount"] == self.number_sinkers:
                 id_sinker = data.client_id % self.number_sinkers
                 msg = MiddlewareMessage(
                     query_number=data.query_number,
                     client_id=data.client_id,
-                    seq_number=data.seq_number,
+                    seq_number=seq_number,
                     type=MiddlewareMessageType.EOF_MOVIES,
                     payload="",
                     controller_name=self.controller_name
@@ -71,7 +72,9 @@ class GroupBySentiment(ResilientNode):
                 self.rabbitmq_connection_handler.send_message(
                     routing_key=f"group_by_sentiment_queue_{id_sinker}",
                     msg_body=msg.encode_to_str()
-                )       
+                )
+                del self.clients_state[data.client_id]
+        self.save_state()  
 
     def handler_group_by_sentiment(self, lines, id_client, query_number, seq_number):
         agrouped_lines = []

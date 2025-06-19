@@ -67,6 +67,7 @@ class JoinerByCreditId(ResilientNode):
             lines = list(data.get_batch_iter_from_payload())
             filename = f".data/movies-client-{client_id}"
             self.save_data(filename, lines)
+            self.clients_state[client_id][data.controller_name] = data.seq_number
         else:
             # Recibimos EOF de movies para este cliente
             self.clients_state[client_id]["movies_eof"] += 1
@@ -96,6 +97,7 @@ class JoinerByCreditId(ResilientNode):
                 self.save_data(filename, lines)
             else:
                 self.process_credits(lines, client_id)
+            self.clients_state[client_id][data.controller_name] = data.seq_number
         else:
             # Recibimos EOF de credits para este cliente
             self.clients_state[client_id]["credits_eof"] += 1

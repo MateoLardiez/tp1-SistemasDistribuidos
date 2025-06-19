@@ -47,9 +47,9 @@ class FilterByYear(ResilientNode):
             self.clients_state[data.client_id] = {
                 "last_seq_number": 0,  # This is the last seq number we propagated
                 "eof_amount":{
-                    QueryNumber.QUERY_1.value: 0, 
-                    QueryNumber.QUERY_3.value: 0,
-                    QueryNumber.QUERY_4.value: 0
+                    str(QueryNumber.QUERY_1.value): 0,
+                    str(QueryNumber.QUERY_3.value): 0,
+                    str(QueryNumber.QUERY_4.value): 0
                 },  # This is the number of EOF messages received for each query, when it reaches the number of workers, we can propagate the EOF message
                 # This is the number of EOF messages received, when it reaches the number of workers, we can propagate the EOF message   
             }
@@ -69,10 +69,11 @@ class FilterByYear(ResilientNode):
             elif data.query_number == QueryNumber.QUERY_4:
                 self.handler_year_filter(lines, self.year_range_query_4, data.query_number, data.client_id, YEAR_Q4, seq_number)
             self.clients_state[data.client_id]["last_seq_number"] += 1
+            self.clients_state[data.client_id][data.controller_name] = data.seq_number  # Update the last seq number for this controller
         else:
             seq_number = self.clients_state[data.client_id]["last_seq_number"]
-            self.clients_state[data.client_id]["eof_amount"][data.query_number.value] += 1
-            if self.clients_state[data.client_id]["eof_amount"][data.query_number.value] == self.number_workers:
+            self.clients_state[data.client_id]["eof_amount"][str(data.query_number.value)] += 1
+            if self.clients_state[data.client_id]["eof_amount"][str(data.query_number.value)] == self.number_workers:
                 msg = MiddlewareMessage(
                     query_number=data.query_number,
                     client_id=data.client_id,
@@ -116,7 +117,7 @@ class FilterByYear(ResilientNode):
                             routing_key=f"joiner_by_credits_movies_queue_{i}",
                             msg_body=msg.encode_to_str()
                         )
-                del self.clients_state[data.client_id]["eof_amount"][data.query_number.value]  # Clean up state for this query
+                del self.clients_state[data.client_id]["eof_amount"][str(data.query_number.value)]  # Clean up state for this query
             if not self.clients_state[data.client_id]["eof_amount"]:
                 del self.clients_state[data.client_id]
         self.save_state()  # Save the state of the clients after processing the message

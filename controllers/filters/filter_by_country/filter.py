@@ -69,6 +69,7 @@ class FilterByCountry(ResilientNode):
             elif data.query_number == QueryNumber.QUERY_4:
                 self.handler_country_filter(lines, self.countries_query_4, data.client_id, data.query_number, seq_number)
             self.clients_state[data.client_id]["last_seq_number"] += 1
+            self.clients_state[data.client_id][data.controller_name] = data.seq_number
         else:
             seq_number = self.clients_state[data.client_id]["last_seq_number"]
             self.clients_state[data.client_id]["eof_amount"] += 1

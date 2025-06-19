@@ -44,9 +44,10 @@ class CreditsPreprocessor(ResilientNode):
             data = MiddlewareMessage.decode_from_bytes(body)
             if data.client_id not in self.clients_state:
                 self.clients_state[data.client_id] = {
-                    data.controller_name: data.seq_number,  # Este es el seq number que recibimos
                     "last_seq_number": 0  # Este es el último seq number que propagamos
                 }
+            if data.controller_name not in self.clients_state[data.client_id]:
+                self.clients_state[data.client_id][data.controller_name] = data.seq_number
             elif data.seq_number <= self.clients_state[data.client_id][data.controller_name]:
                 logging.warning(f"Duplicated Message {data.client_id} in {data.controller_name} with seq_number {data.seq_number}. Ignoring.")
                 return
@@ -54,12 +55,13 @@ class CreditsPreprocessor(ResilientNode):
             if data.type != MiddlewareMessageType.EOF_CREDITS:
                 lines = data.get_batch_iter_from_payload()
                 clean_lines = self.clean_csv(lines)
+                seq_number = self.clients_state[data.client_id]["last_seq_number"]
                 for sharding_id, data_shard in clean_lines.items():
                     data_csv = MiddlewareMessage.write_csv_batch(data_shard)
                     msg = MiddlewareMessage(
                         query_number=data.query_number,
                         client_id=data.client_id,
-                        seq_number=data.seq_number,
+                        seq_number=seq_number,
                         type=MiddlewareMessageType.CREDITS_BATCH,
                         payload=data_csv,
                         controller_name=self.controller_name
@@ -68,6 +70,8 @@ class CreditsPreprocessor(ResilientNode):
                         routing_key=f"joiner_credits_by_id_queue_{sharding_id}",
                         msg_body=msg.encode_to_str()
                     )
+                self.clients_state[data.client_id]["last_seq_number"] += 1
+                self.clients_state[data.client_id][data.controller_name] = data.seq_number
             else:
                 for i in range(self.number_workers):
                     msg = MiddlewareMessage(

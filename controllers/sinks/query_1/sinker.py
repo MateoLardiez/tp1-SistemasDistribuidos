@@ -20,6 +20,7 @@ class Query1(ResilientNode):
         self.rabbitmq_connection_handler.set_message_consumer_callback(f"sink_query_1_queue_{id_sinker}", self.callback)
         self.clients_state = {}
         self.controller_name = f"sink_query_1_{id_sinker}"
+        self.load_state()  # Load the state of clients from file
 
     def start(self):
         logging.info("action: start | result: success | code: Sink_query_1 ")
@@ -47,6 +48,7 @@ class Query1(ResilientNode):
             seq_number = self.clients_state[data.client_id]["last_seq_number"]
             self.handler_query_1(lines, data.client_id, data.query_number, seq_number)
             self.clients_state[data.client_id]["last_seq_number"] += 1
+            self.clients_state[data.client_id][data.controller_name] = data.seq_number  # Update the last seq number for this controller
         else:
             self.clients_state[data.client_id]["eof_amount"] += 1
             if self.clients_state[data.client_id]["eof_amount"] == self.number_workers:
@@ -62,6 +64,7 @@ class Query1(ResilientNode):
                     routing_key="reports_queue",
                     msg_body=msg.encode_to_str()
                 )
+        self.save_state()  # Save the state of clients to file
 
     def handler_query_1(self, lines, client_id, query_number, seq_number):
         filtered_lines = []

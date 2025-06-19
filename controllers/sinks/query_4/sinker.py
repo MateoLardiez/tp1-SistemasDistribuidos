@@ -2,7 +2,7 @@ import logging
 from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
 from common.middleware_connection_handler import RabbitMQConnectionHandler
 from common.resilient_node import ResilientNode
-import csv
+from common.file_manager import FileManager
 import os
 
 class Query4(ResilientNode):
@@ -19,6 +19,7 @@ class Query4(ResilientNode):
         self.number_workers = number_workers
         self.clients_state = {}
         self.controller_name = f"sink_query_4_{id_sinker}"
+        self.load_state()  # Load the state of clients from file
 
     def start(self):
         logging.info("action: start | result: success | code: Sink_query_4 ")
@@ -44,7 +45,8 @@ class Query4(ResilientNode):
         
         if data.type != MiddlewareMessageType.EOF_JOINER: 
             lines = data.get_batch_iter_from_payload()
-            self.save_data(data.client_id, lines)
+            filename = f".data/query_4-client-{data.client_id}"
+            self.save_data(filename, lines)
         else:
             self.clients_state[data.client_id]["eof_amount"] += 1
             if self.clients_state[data.client_id]["eof_amount"] == self.number_workers:
@@ -64,11 +66,13 @@ class Query4(ResilientNode):
                 )
                 self.clean_temp_files(data.client_id)
                 del self.clients_state[data.client_id]
-
+        self.save_state()
+        
     def handler_query_4(self, client_id, query_number):
         # Ya tengo toda la data en mi csv
         actors = {}
-        for line in self.read_data(client_id):
+        filename = f".data/query_4-client-{client_id}"
+        for line in self.read_data(filename):
             actor = line[0]
             if actor not in actors:
                 actors[actor] = 0
@@ -110,15 +114,10 @@ class Query4(ResilientNode):
             except Exception as e:
                 logging.error(f"action: clean_temp_files | file: {file} | error: {str(e)}")
 
-    def save_data(self, client_id, lines) -> None:
-        # logging.info(f"LINEA PARA GUARDAR: {lines}")
-        with open(f"query_4-client-{client_id}", 'a+') as file:
-            writer = csv.writer(file, quoting=csv.QUOTE_MINIMAL)
-            for line in lines:
-                writer.writerow(line)
+    def save_data(self, filename, lines) -> None:
+        writer = FileManager(filename)
+        writer.save_data(filename, lines)
 
-    def read_data(self, client_id):
-        with open (f"query_4-client-{client_id}", 'r') as file:
-            reader = csv.reader(file, quoting=csv.QUOTE_MINIMAL)
-            for row in reader:
-                yield row
+    def read_data(self, filename):
+        reader = FileManager(filename)
+        return reader.read()
