@@ -60,7 +60,7 @@ func PrintConfig(v *viper.Viper) {
 		v.GetString("id"),
 		v.GetString("server.address"),
 		v.GetString("tester.address"),
-		v.GetInt("loop.amount"),
+		v.GetString("loop.amount"),
 		v.GetDuration("loop.period"),
 		v.GetString("log.level"),
 		v.GetInt("batch.maxAmount"),

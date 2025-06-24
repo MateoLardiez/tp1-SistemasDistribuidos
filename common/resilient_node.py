@@ -25,8 +25,26 @@ class ResilientNode:
         self.clients_state = {}  # Diccionario para almacenar el estado local de los clientes
         self.set_signals()
 
-    def load_state(self):
+    def load_state(self, check_files_state = None):
         self.clients_state = FileManager.load_state(f".data/{self.controller_name}_state.json")
+        if check_files_state and self.clients_state != {}:
+            check_files_state()  # Función para verificar el estado de los archivos temporales
+        # iterar sobre el id del cliente para verificar los archivos temporales
+
+    def check_file(self, client_id, file_type):
+        """Check if the file exists for the given client and type"""
+        prev_hash = self.clients_state[client_id]["hash_file"][file_type]
+        filename = f".data/{file_type}-client-{client_id}"
+        new_hash = FileManager.get_file_hash(filename)
+        return prev_hash != new_hash
+
+    def update_duplicate_state(self, client_id, file_type, controller_name, seq_number):
+        self.clients_state[client_id]["duplicated_batch"][file_type] = False
+        self.clients_state[client_id][controller_name] = seq_number
+        self.clients_state[client_id]["last_seq_number"] += 1
+        filename = f".data/{file_type}-client-{client_id}"
+        self.clients_state[client_id]["hash_file"][file_type] = FileManager.get_file_hash(filename)
+        self.save_state()
 
     def save_state(self):
         state = FileManager(f".data/{self.controller_name}_state.json")

@@ -1,5 +1,4 @@
 import logging
-import os
 from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMessageType
 from common.middleware_connection_handler import RabbitMQConnectionHandler
 from common.resilient_node import ResilientNode
@@ -19,7 +18,7 @@ class Query3(ResilientNode):
         self.number_workers = number_workers
         self.clients_state = {}  # {client_id: {"eof_amount": int}}
         self.controller_name = f"sink_query_3_{id_sinker}"
-        self.load_state()  # Load the state of clients from file
+        self.load_state(self.check_files_state)  # Load the state of clients from file
 
     def start(self):
         logging.info("action: start | result: success | code: Sink_query_3 ")
@@ -28,6 +27,11 @@ class Query3(ResilientNode):
         except Exception as e:
             logging.info(f"Consuming stopped")
 
+    def check_files_state(self):
+        for client_id in self.clients_state:
+            if self.check_file(client_id, "query_3"):
+                self.clients_state[client_id]["duplicated_batch"]["query_3"] = True
+
     def callback(self, ch, method, properties, body):
         # id,title,genres,release_date,overview,production_countries,spoken_languages,budget,revenue
         data = MiddlewareMessage.decode_from_bytes(body)
@@ -35,10 +39,22 @@ class Query3(ResilientNode):
         if data.client_id not in self.clients_state:
             self.clients_state[data.client_id] = {
                 "eof_amount": 0, 
-                "last_seq_number": 0, 
+                "last_seq_number": 0,
+                "hash_file": {
+                    "query_3": None,
+                },
+                "duplicated_batch": {
+                    "query_3": False,
+                },
             }
         if data.controller_name not in self.clients_state[data.client_id]:
             self.clients_state[data.client_id][data.controller_name] = data.seq_number
+        elif self.clients_state[data.client_id]["duplicated_batch"]["query_3"]:
+            logging.warning(f"Duplicated batch for client {data.client_id} in {data.controller_name}. Ignoring.")
+            self.update_duplicate_state(
+                data.client_id, "query_3", data.controller_name, data.seq_number
+            )
+            return
         elif data.seq_number <= self.clients_state[data.client_id][data.controller_name]:
             logging.warning(f"Duplicated Message {data.client_id} in {data.controller_name} with seq_number {data.seq_number}. Ignoring.")
             return
@@ -46,9 +62,11 @@ class Query3(ResilientNode):
         if data.type != MiddlewareMessageType.EOF_JOINER:    
             lines = data.get_batch_iter_from_payload()
             filename = f".data/query_3-client-{data.client_id}"
-            self.save_data(filename, lines)
+            self.clients_state[data.client_id]["hash_file"]["query_3"] = self.save_data(filename, lines)
+            self.clients_state[data.client_id][data.controller_name] = data.seq_number
         else:
             self.clients_state[data.client_id]["eof_amount"] += 1
+            self.clients_state[data.client_id][data.controller_name] = data.seq_number  # Update the last seq number for this controller
             # Check if we have received all EOF messages
             if self.clients_state[data.client_id]["eof_amount"] == self.number_workers:
                 self.handler_query_3(data.client_id, data.query_number)
@@ -106,7 +124,7 @@ class Query3(ResilientNode):
     
     def save_data(self, filename, lines) -> None:
         writer = FileManager(filename)
-        writer.save_data(filename, lines)
+        return writer.save_data(filename, lines)
 
     def read_data(self, filename):
         reader = FileManager(filename)

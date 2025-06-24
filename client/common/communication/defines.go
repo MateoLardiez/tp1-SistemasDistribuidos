@@ -55,4 +55,8 @@ const (
 	// Results testing
 	CLIENT_RESULTS     = 21
 	RESULTS_VALIDATION = 22
+
+	// Init communication
+	TYPE_INIT = 23
+	CODE_INIT = 24
 )

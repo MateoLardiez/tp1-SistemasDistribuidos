@@ -8,6 +8,7 @@ class QueryNumber(Enum):
     QUERY_3 = 3
     QUERY_4 = 4
     QUERY_5 = 5
+    QUERY_ABORT = 6
 
 
 class ClientCommunication(Enum):
@@ -50,6 +51,9 @@ class ClientCommunication(Enum):
     # Results testing
     CLIENT_RESULTS = 21
     RESULTS_VALIDATION = 22
+
+    TYPE_INIT = 23
+    CODE_INIT = 24
 
 class HealthCheckMessage(Enum):
     HEALTH_CHECK = 0

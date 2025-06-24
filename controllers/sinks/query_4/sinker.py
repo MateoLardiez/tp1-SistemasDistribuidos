@@ -3,7 +3,6 @@ from common.middleware_message_protocol import MiddlewareMessage, MiddlewareMess
 from common.middleware_connection_handler import RabbitMQConnectionHandler
 from common.resilient_node import ResilientNode
 from common.file_manager import FileManager
-import os
 
 class Query4(ResilientNode):
 
@@ -19,7 +18,7 @@ class Query4(ResilientNode):
         self.number_workers = number_workers
         self.clients_state = {}
         self.controller_name = f"sink_query_4_{id_sinker}"
-        self.load_state()  # Load the state of clients from file
+        self.load_state(self.check_files_state)  # Load the state of clients from file
 
     def start(self):
         logging.info("action: start | result: success | code: Sink_query_4 ")
@@ -28,6 +27,11 @@ class Query4(ResilientNode):
         except Exception as e:
             logging.info(f"Consuming stopped")
 
+    def check_files_state(self):
+        for client_id in self.clients_state:
+            if self.check_file(client_id, "query_4"):
+                self.clients_state[client_id]["duplicated_batch"]["query_4"] = True
+
     def callback(self, ch, method, properties, body):
         # id,title,genres,release_date,overview,production_countries,spoken_languages,budget,revenue
         data = MiddlewareMessage.decode_from_bytes(body)
@@ -35,10 +39,22 @@ class Query4(ResilientNode):
         if data.client_id not in self.clients_state:
             self.clients_state[data.client_id] = {
                 "eof_amount": 0, 
-                "last_seq_number": 0, 
+                "last_seq_number": 0,
+                "hash_file": {
+                    "query_4": None,
+                },
+                "duplicated_batch": {
+                    "query_4": False,
+                },
             }
         if data.controller_name not in self.clients_state[data.client_id]:
             self.clients_state[data.client_id][data.controller_name] = data.seq_number
+        elif self.clients_state[data.client_id]["duplicated_batch"]["query_4"]:
+            logging.warning(f"Duplicated batch for client {data.client_id} in {data.controller_name}. Ignoring.")
+            self.update_duplicate_state(
+                data.client_id, "query_4", data.controller_name, data.seq_number
+            )
+            return
         elif data.seq_number <= self.clients_state[data.client_id][data.controller_name]:
             logging.warning(f"Duplicated Message {data.client_id} in {data.controller_name} with seq_number {data.seq_number}. Ignoring.")
             return
@@ -46,9 +62,11 @@ class Query4(ResilientNode):
         if data.type != MiddlewareMessageType.EOF_JOINER: 
             lines = data.get_batch_iter_from_payload()
             filename = f".data/query_4-client-{data.client_id}"
-            self.save_data(filename, lines)
+            self.clients_state[data.client_id]["hash_file"]["query_4"] = self.save_data(filename, lines)
+            self.clients_state[data.client_id][data.controller_name] = data.seq_number  # Update
         else:
             self.clients_state[data.client_id]["eof_amount"] += 1
+            self.clients_state[data.client_id][data.controller_name] = data.seq_number  # Update the last seq number for this controller
             if self.clients_state[data.client_id]["eof_amount"] == self.number_workers:
                 self.handler_query_4(data.client_id, data.query_number)
                 # Handle EOF message
@@ -64,7 +82,11 @@ class Query4(ResilientNode):
                     routing_key="reports_queue",
                     msg_body=msg.encode_to_str()
                 )
-                self.clean_temp_files(data.client_id)
+
+                files_to_remove = [
+                    f"query_4-client-{data.client_id}",
+                ]
+                FileManager.clean_temp_files(files_to_remove)
                 del self.clients_state[data.client_id]
         self.save_state()
         
@@ -99,24 +121,10 @@ class Query4(ResilientNode):
             routing_key="reports_queue",
             msg_body=msg.encode_to_str()
         )
-    
-    def clean_temp_files(self, client_id):
-        """Elimina los archivos temporales creados para un cliente"""
-        files_to_remove = [
-            f"query_4-client-{client_id}",
-        ]
-        
-        for file in files_to_remove:
-            try:
-                if os.path.exists(file):
-                    os.remove(file)
-                    logging.info(f"action: clean_temp_files | file: {file} | result: removed")
-            except Exception as e:
-                logging.error(f"action: clean_temp_files | file: {file} | error: {str(e)}")
 
     def save_data(self, filename, lines) -> None:
         writer = FileManager(filename)
-        writer.save_data(filename, lines)
+        return writer.save_data(filename, lines)
 
     def read_data(self, filename):
         reader = FileManager(filename)

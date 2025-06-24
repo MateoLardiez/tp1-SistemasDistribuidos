@@ -43,6 +43,10 @@ class AggregatorNlp(ResilientNode):
 
     def callback(self, ch, method, properties, body):
         data = MiddlewareMessage.decode_from_bytes(body)
+        # if data.type == MiddlewareMessageType.ABORT:
+        #     logging.info(f"Received ABORT message from client {data.client_id}. Stopping processing.")
+        #     return
+
         if data.client_id not in self.clients_state:
             self.clients_state[data.client_id] = {
                 "last_seq_number": 0,  # This is the last seq number we propagated
@@ -55,7 +59,6 @@ class AggregatorNlp(ResilientNode):
             return
             
         if data.type != MiddlewareMessageType.EOF_MOVIES:
-
             lines = data.get_batch_iter_from_payload()
             seq_number = self.clients_state[data.client_id]["last_seq_number"]
             self.handler_aggregator_query_5(lines, data.client_id, data.query_number, seq_number)

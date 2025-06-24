@@ -19,7 +19,7 @@ var log = config.Log
 
 // ClientConfig Configuration used by the client
 type ClientConfig struct {
-	ID             int
+	ID             string
 	ServerAddress  string
 	TesterAddress  string // Address of the tester server
 	LoopAmount     int
@@ -61,7 +61,7 @@ func NewClient(config ClientConfig) *Client {
 }
 
 func (c *Client) StartClientLoop() {
-	defer c.closeClient()
+	// defer c.closeClient()
 
 	for {
 		select {
@@ -72,6 +72,7 @@ func (c *Client) StartClientLoop() {
 			finishedProcessing := c.handlePhase()
 			if finishedProcessing {
 				log.Infof("action: client_loop | result: complete")
+				c.closeClient()
 				return
 			}
 		}
@@ -80,6 +81,8 @@ func (c *Client) StartClientLoop() {
 
 func (c *Client) handlePhase() bool {
 	switch c.config.Phase {
+	case communication.CODE_INIT:
+		return c.handleInit()
 	case communication.CODE_QUERY:
 		return c.handleQuery()
 	case communication.CODE_RESPONSE:
@@ -93,7 +96,49 @@ func (c *Client) handlePhase() bool {
 		)
 		return true
 	}
-	// return false
+}
+
+func (c *Client) handleInit() bool {
+	log.Infof("action: handle_init | result: success | client_id: %v", c.config.ID)
+
+	// Send the client ID to the server
+	message := communication.NewMessageProtocol(
+		communication.TYPE_INIT,
+		[]byte{},
+	)
+	err := c.protocol.SendMessage(message)
+	if err != nil {
+		log.Errorf("action: send_message_code_init | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
+		return true
+	}
+
+	recv_id, err := c.protocol.ReceiveMessage()
+	if err != nil {
+		log.Errorf("action: receive_message_code_init | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
+		return true
+	}
+
+	if recv_id.TypeMessage != communication.CODE_INIT {
+		log.Errorf("action: receive_message_code_init | result: fail | client_id: %v | error: invalid message type | type: %v",
+			c.config.ID,
+			recv_id.TypeMessage,
+		)
+		return true
+	}
+
+	c.config.ID = string(recv_id.Payload)
+	log.Infof("action: receive_message_code_init | result: success | new_id: %v",
+		c.config.ID,
+	)
+
+	c.config.Phase = communication.CODE_QUERY
+	return false
 }
 
 func (c *Client) handleQuery() bool {
@@ -121,23 +166,21 @@ func (c *Client) handleQuery() bool {
 
 func (c *Client) handleAllQueries() {
 	message := communication.NewMessageProtocol(
-		// c.config.ID,
 		communication.TYPE_QUERY,
 		[]byte(strconv.Itoa(communication.ALL_QUERYS)),
 	)
 	err := c.protocol.SendMessage(message)
 	if err != nil {
-		// log.Errorf("action: send_message_code_query | result: fail | client_id: %v | error: %v",
-		// 	c.config.ID,
-		// 	err,
-		// )
+		log.Errorf("action: send_message_code_query | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
 		return
 	}
 	c.SendFile("movies.csv", communication.BATCH_MOVIES, communication.EOF_MOVIES, "movies")
 	c.SendFile("credits.csv", communication.BATCH_CREDITS, communication.EOF_CREDITS, "credits")
 	c.SendFile("ratings.csv", communication.BATCH_RATINGS, communication.EOF_RATINGS, "ratings")
 	messageFinish := communication.NewMessageProtocol(
-		// c.config.ID,
 		communication.FINISH_SEND_FILES,
 		nil,
 	)
@@ -337,8 +380,6 @@ func (c *Client) createBatch(reader *FileReader) ([]byte, bool) {
 		lineCount++
 	}
 
-	//log.Infof("action: create_batch | result: success | client_id: %v | total_lines: %d", c.config.ID, lineCount)
-
 	return batch, eof
 }
 
@@ -353,7 +394,6 @@ func (c *Client) handleBatch(reader *FileReader, code int) bool {
 	}
 
 	messageBatch := communication.NewMessageProtocol(
-		// c.config.ID,
 		code,
 		batch,
 	)
@@ -366,46 +406,8 @@ func (c *Client) handleBatch(reader *FileReader, code int) bool {
 		)
 		return true
 	}
-
-	// Wait for the ACK message
-	// errResponse := c.recvResponse()
-	// if errResponse != nil {
-	// 	log.Errorf("action: receive_status_batch | result: fail | client_id: %v | error: %v",
-	// 		c.config.ID,
-	// 		errResponse,
-	// 	)
-	// 	return true
-	// }
-
 	return eof
 }
-
-// func (c *Client) recvResponse() error {
-// 	response, err := c.protocol.ReceiveMessage()
-// 	if err != nil {
-// 		log.Errorf("action: receive_response_batch | result: fail | client_id: %v | error: %v",
-// 			c.config.ID,
-// 			err,
-// 		)
-// 		return err
-// 	}
-// 	// if response.TypeMessage == communication.TYPE_ACK {
-// 	// 	log.Infof("action: %v | result: success | client_id: %v",
-// 	// 		string(response.Payload),
-// 	// 		c.config.ID,
-// 	// 	)
-// 	// 	return nil
-// 	// }
-// 	if response.TypeMessage == communication.TYPE_ERROR {
-// 		log.Errorf("action: receive_status_batch | result: fail | client_id: %v | error: %s",
-// 			c.config.ID,
-// 			string(response.Payload),
-// 		)
-// 		return nil
-// 	}
-
-// 	return nil
-// }
 
 func (c *Client) handleCloseConnection() {
 	message := communication.NewMessageProtocol(
@@ -421,7 +423,7 @@ func (c *Client) handleCloseConnection() {
 }
 
 func (c *Client) closeClient() {
-	time.Sleep(5 * time.Second)
+	// time.Sleep(5 * time.Second)
 	if err := c.protocol.Close(); err != nil {
 		log.Errorf("action: close_protocol | result: fail | error: %v", err)
 		return

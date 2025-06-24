@@ -32,7 +32,7 @@ class Killer:
         """
         try:
             logging.info(f"Attempting to kill container: {container_name}")
-            self.docker_client.kill(container=container_name, signal='SIGTERM')
+            self.docker_client.kill(container=container_name, signal='SIGKILL')
             logging.info(f"Successfully killed container: {container_name}")
             return True
         except Exception as e:

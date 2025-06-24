@@ -51,6 +51,7 @@ class Query1(ResilientNode):
             self.clients_state[data.client_id][data.controller_name] = data.seq_number  # Update the last seq number for this controller
         else:
             self.clients_state[data.client_id]["eof_amount"] += 1
+            self.clients_state[data.client_id][data.controller_name] = data.seq_number
             if self.clients_state[data.client_id]["eof_amount"] == self.number_workers:
                 msg = MiddlewareMessage(
                     query_number=data.query_number,

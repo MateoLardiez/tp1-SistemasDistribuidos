@@ -22,7 +22,7 @@ class Query5(ResilientNode):
         self.number_workers = number_workers
         self.clients_state = {}
         self.controller_name = f"sinker_query_5_{id_sinker}"
-        self.load_state()  # Load the state of clients from file
+        self.load_state(self.check_files_state)  # Load the state of clients from file
 
     def start(self):
         logging.info("action: start | result: success | code: Sink_query_5 ")
@@ -30,6 +30,11 @@ class Query5(ResilientNode):
             self.rabbitmq_connection_handler.start_consuming()
         except Exception as e:
             logging.info("Consuming stopped")
+
+    def check_files_state(self):
+        for client_id in self.clients_state:
+            if self.check_file(client_id, "query_5"):
+                self.clients_state[client_id]["duplicated_batch"]["query_5"] = True
 
     def callback(self, ch, method, properties, body):
         # id,title,genres,release_date,overview,production_countries,spoken_languages,budget,revenue
@@ -39,9 +44,21 @@ class Query5(ResilientNode):
             self.clients_state[data.client_id] = {
                 "eof_amount": 0, 
                 "last_seq_number": 0, 
+                "hash_file": {
+                    "query_5": None,
+                },
+                "duplicated_batch": {
+                    "query_5": False,
+                },
             }
         if data.controller_name not in self.clients_state[data.client_id]:
             self.clients_state[data.client_id][data.controller_name] = data.seq_number
+        elif self.clients_state[data.client_id]["duplicated_batch"]["query_5"]:
+            logging.warning(f"Duplicated batch for client {data.client_id} in {data.controller_name}. Ignoring.")
+            self.update_duplicate_state(
+                data.client_id, "query_5", data.controller_name, data.seq_number
+            )
+            return
         elif data.seq_number <= self.clients_state[data.client_id][data.controller_name]:
             logging.warning(f"Duplicated Message {data.client_id} in {data.controller_name} with seq_number {data.seq_number}. Ignoring.")
             return
@@ -49,9 +66,11 @@ class Query5(ResilientNode):
         if data.type != MiddlewareMessageType.EOF_MOVIES:
             lines = data.get_batch_iter_from_payload()
             filename = f".data/query_5-client-{data.client_id}"
-            self.save_data(filename, lines)
+            self.clients_state[data.client_id]["hash_file"]["query_5"] = self.save_data(filename, lines)
+            self.clients_state[data.client_id][data.controller_name] = data.seq_number  # Update the last seq number for this controller
         else:
             self.clients_state[data.client_id]["eof_amount"] += 1
+            self.clients_state[data.client_id][data.controller_name] = data.seq_number  # Update the last seq number for this controller
             if self.clients_state[data.client_id]["eof_amount"] == self.number_workers:  # Solo un worker para query 5
                 self.handler_query_5(data.client_id, data.query_number)
                 msg = MiddlewareMessage(
@@ -128,7 +147,7 @@ class Query5(ResilientNode):
 
     def save_data(self, filename, lines) -> None:
         writer = FileManager(filename)
-        writer.save_data(filename, lines)
+        return writer.save_data(filename, lines)
 
     def read_data(self, filename):
         reader = FileManager(filename)

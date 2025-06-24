@@ -23,6 +23,7 @@ class MiddlewareMessageType(Enum):
     EOF_RESULT_Q3 = 15
     EOF_RESULT_Q4 = 16
     EOF_RESULT_Q5 = 17
+    ABORT = 18
 
 class MiddlewareMessage:
     def __init__(self, query_number: int, client_id: int, seq_number: int, type: MiddlewareMessageType, payload: str = "", controller_name: str = ""):

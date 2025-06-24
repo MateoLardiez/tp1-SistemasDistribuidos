@@ -3,6 +3,8 @@ import os
 from typing import List, Iterator, Any
 import logging
 import json
+# from .utils import md5sum
+import subprocess
 
 class FileManager:
     def __init__(self, path):
@@ -17,7 +19,13 @@ class FileManager:
             filename: Target file to append to
             new_data: List of rows to append
         """
-        # Create temp file
+        ## checkpoints and 
+        # Cambiar a modo append y revisar lineas con errores
+        """ 
+        TODO: Hacer append en vez de crear un nuevo archivo y remplazarlo. En caso de falla,
+            chequear el ultimo batch a ver si es el mismo que tengo para ver si es duplicado.
+            
+        """
         with open(self.tmp_path, 'w+') as tmp_file:
             # Copy original file if it exists
             try:
@@ -37,6 +45,20 @@ class FileManager:
         
         # Atomic replacement
         os.rename(self.tmp_path, filename)
+        return self.md5sum_system(filename)
+
+    @classmethod
+    def md5sum_system(cls, filename):
+        result = subprocess.run(['md5sum', filename], capture_output=True, text=True)
+        return result.stdout.split()[0]
+    
+    @classmethod
+    def get_file_hash(self, filename):
+        try:
+            return self.md5sum_system(filename)
+        except Exception as e:
+            logging.error(f"Error getting file hash for {filename}: {str(e)}")
+            return None
 
     def read(self) -> Iterator[List[Any]]:
         """

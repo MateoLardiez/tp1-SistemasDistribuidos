@@ -33,7 +33,7 @@ class JoinerByRatingId(ResilientNode):
         # Configurar callbacks para ambas colas
         self.rabbitmq_connection_handler.set_message_consumer_callback(f"joiner_by_ratings_movies_queue_{id_worker}", self.movies_callback)
         self.rabbitmq_connection_handler.set_message_consumer_callback(f"joiner_ratings_by_id_queue_{id_worker}", self.ratings_callback)
-        self.load_state()  # Cargar el estado desde el archivo JSON
+        self.load_state(self.check_files_state)  # Cargar el estado desde el archivo JSON
 
     def start(self):
         logging.info("action: start | result: success | code: joiner_rating_by_id")
@@ -41,7 +41,14 @@ class JoinerByRatingId(ResilientNode):
             self.rabbitmq_connection_handler.start_consuming()
         except Exception as e:
             logging.info("Consuming stopped")
-        
+
+    def check_files_state(self):
+        for client_id in self.clients_state:
+            if self.check_file(client_id, "movies"):
+                self.clients_state[client_id]["duplicated_batch"]["movies"] = True
+            if self.check_file(client_id, "ratings"):
+                self.clients_state[client_id]["duplicated_batch"]["ratings"] = True
+
     def create_clients_state(self, client_id):
         """Obtiene o crea el estado del cliente en el diccionario"""
         if client_id not in self.clients_state:
@@ -50,7 +57,23 @@ class JoinerByRatingId(ResilientNode):
                 "ratings_eof": 0,
                 "movies_with_ratings": {},
                 "last_seq_number": 0,  # Este es el último seq number que propagamos
+                "hash_file": {
+                    "movies": None,  # Hash del archivo de movies
+                    "ratings": None
+                },  # TODO: Último Hash deterministo del archivo actualizado
+                "duplicated_batch": {
+                    "movies": False,  # Indica si viene un batch de movies duplicado
+                    "ratings": False  # Indica si viene un batch de ratings duplicado
+                },
             }
+
+    # def update_duplicate_state(self, client_id, file_type, controller_name, seq_number):
+    #     self.clients_state[client_id]["duplicated_batch"][file_type] = False
+    #     self.clients_state[client_id][controller_name] = seq_number
+    #     self.clients_state[client_id]["last_seq_number"] += 1
+    #     filename = f".data/{file_type}-client-{client_id}"
+    #     self.clients_state[client_id]["hash_file"][file_type] = FileManager.get_file_hash(filename)
+    #     self.save_state()
 
     def movies_callback(self, ch, method, properties, body):
         """Callback para procesar mensajes de la cola de movies"""
@@ -61,6 +84,10 @@ class JoinerByRatingId(ResilientNode):
             self.create_clients_state(client_id)
         if data.controller_name not in self.clients_state[client_id]:
             self.clients_state[client_id][data.controller_name] = data.seq_number
+        elif self.clients_state[client_id]["duplicated_batch"]["movies"]:
+            logging.warning(f"Duplicated batch of movies for client {client_id}. Ignoring.")
+            self.update_duplicate_state(client_id, "movies", data.controller_name, data.seq_number)
+            return
         elif data.seq_number <= self.clients_state[client_id][data.controller_name]:
             logging.warning(f"Duplicated Message {client_id} in {data.controller_name} with seq_number {data.seq_number}. Ignoring.")
             return
@@ -69,7 +96,7 @@ class JoinerByRatingId(ResilientNode):
             # Procesamos el mensaje de movies
             lines = list(data.get_batch_iter_from_payload())
             filename = f".data/movies-client-{client_id}"
-            self.save_data(filename, lines)
+            self.clients_state[client_id]["hash_file"]["movies"] = self.save_data(filename, lines)
             self.clients_state[client_id][data.controller_name] = data.seq_number
         else:
             # Recibimos EOF de movies para este cliente
@@ -88,6 +115,10 @@ class JoinerByRatingId(ResilientNode):
             self.create_clients_state(client_id)
         if data.controller_name not in self.clients_state[client_id]:
             self.clients_state[client_id][data.controller_name] = data.seq_number
+        elif self.clients_state[client_id]["duplicated_batch"]["ratings"]:
+            logging.warning(f"Duplicated batch of ratings for client {client_id}. Ignoring.")
+            self.update_duplicate_state(client_id, "ratings", data.controller_name, data.seq_number)
+            return
         elif data.seq_number <= self.clients_state[client_id][data.controller_name]:
             logging.warning(f"Duplicated Message {client_id} in {data.controller_name} with seq_number {data.seq_number}. Ignoring.")
             return
@@ -96,7 +127,7 @@ class JoinerByRatingId(ResilientNode):
             lines = list(data.get_batch_iter_from_payload())
             if self.clients_state[client_id]["movies_eof"] < self.number_workers:
                 filename = f".data/ratings-client-{client_id}"
-                self.save_data(filename, lines)
+                self.clients_state[client_id]["hash_file"]["ratings"] = self.save_data(filename, lines)
             else:
                 self.process_ratings(client_id, lines)
             self.clients_state[client_id][data.controller_name] = data.seq_number
@@ -222,7 +253,7 @@ class JoinerByRatingId(ResilientNode):
               
     def save_data(self, filename, lines) -> None:
         writer = FileManager(filename)
-        writer.save_data(filename, lines)
+        return writer.save_data(filename, lines)
 
     def read_data(self, filename):
         reader = FileManager(filename)

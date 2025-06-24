@@ -33,7 +33,7 @@ class HealthChecker():
        
     def start(self):
         # Inicializar servidor de health check en un proceso separado
-        time.sleep(5)
+        time.sleep(4)
         self.set_signals()
         health_server_process = Process(target=self.__start_health_check)
         health_server_process.start()
@@ -117,8 +117,8 @@ class HealthChecker():
             logging.error("Failed to create health check server")
             return
         
-        while self.serverIsAlive.value:
-            try:
+        try:
+            while self.serverIsAlive.value:
                 client_handler, _ = server_handler.accept_connection()
                 if client_handler:
                     client_sock = client_handler.get_socket()
@@ -130,6 +130,10 @@ class HealthChecker():
                         client_sock.send(response_bytes)
                     
                     client_handler.close()
-            except Exception as e:
-                logging.error(f"Error in health server: {e}")
-                time.sleep(1)
+        except Exception as e:
+            logging.error(f"Error in health server: {e}")
+        finally:
+            server_handler.close_socket()
+            self.serverIsAlive.value = False
+            logging.info(f"[HEALTH_CHECKER_{self.health_checker_id}] Health check server stopped")
+            

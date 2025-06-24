@@ -8,6 +8,7 @@ from common.message_protocol import MessageProtocol
 from common.defines import ClientCommunication
 from common.middleware_connection_handler import RabbitMQConnectionHandler
 from common.socket_handler import SocketHandler
+from common.defines import QueryNumber
 
 CODE_ALL_QUERYS = 0
 CODE_BATCH = 6
@@ -96,17 +97,17 @@ class Gateway:
             addr = client_sock.getpeername()
             logging.info(f"action: handle_client_connection | result: start | addr: {addr}")
             
+            client_id = uuid.uuid4().int
+            with self.clients_lock:
+                if client_id not in self.clients:
+                    logging.info(f"action: add_client | result: success | client_id: {client_id}")
+                    self.clients[client_id] = client_sock
+            
             while True:
                 dto_message = self.receive_message(client_sock)
                 if not dto_message:
                     logging.warning(f"action: handle_client_connection | result: fail | error: invalid message received")
-                    break
-                    
-                client_id = uuid.uuid4().int
-                with self.clients_lock:
-                    if client_id not in self.clients:
-                        logging.info(f"action: add_client | result: success | client_id: {client_id}")
-                        self.clients[client_id] = client_sock
+                    raise ConnectionResetError()
 
                 if dto_message.type_message == ClientCommunication.TYPE_FINISH_COMMUNICATION:
                     logging.info(f"action: client_finish | result: success | client_id: {client_id}")
@@ -114,8 +115,9 @@ class Gateway:
                     
                 self.handle_client_connection(client_sock, dto_message, client_id)
                 
-        except OSError as e:
+        except Exception as e:
             logging.error(f"action: handle_client_connection | result: fail | error: {e}")
+            self.__handle_abort(client_id)
         finally:
             # Ensure client is removed from dictionary when connection closes
             if client_id is not None:
@@ -126,6 +128,33 @@ class Gateway:
             
             client_sock.close()
             logging.info(f"action: handle_client_connection | result: socket_closed | addr: {addr if 'addr' in locals() else 'unknown'}")
+
+    def __handle_abort(self, client_id):
+        """
+        Handle abort from client
+
+        Function blocks until an abort is received. Then the
+        function is executed and the result is sent to the client
+        """
+        logging.info(f"action: handle_abort | result: success | client_id: {client_id}")
+        self.__handle_abort_message(client_id, ClientCommunication.BATCH_MOVIES, self.producer_queue_of_movies)
+        # self.__handle_abort_message(client_id, ClientCommunication.BATCH_RATINGS, self.producer_queue_of_ratings)
+        # self.__handle_abort_message(client_id, ClientCommunication.BATCH_CREDITS, self.producer_queue_of_credits)
+
+    def __handle_abort_message(self, client_id, type_batch, producer_queue):
+        abort_message = MiddlewareMessage(
+            query_number=QueryNumber.QUERY_ABORT.value,
+            client_id=client_id,
+            seq_number=self.clients_batch_received[client_id][type_batch] + 1,
+            type=MiddlewareMessageType.ABORT,
+            payload="",
+            controller_name="gateway"
+        )
+        for i in range(self.n_workers):
+            self.publisher_connection.send_message(
+                routing_key=producer_queue + f"_{i}",
+                msg_body=abort_message.encode_to_str()
+            )
 
     def __handler_reports(self):
         self.rabbit_mq_report_connection = RabbitMQConnectionHandler(
@@ -196,7 +225,24 @@ class Gateway:
         logging.info(f"action: receive_message | result: success | code: {msg_type.type_message}")
         if msg_type.type_message == ClientCommunication.TYPE_QUERY:
             self.__handle_query(client_sock, msg_type.payload, client_id)
+        if msg_type.type_message == ClientCommunication.TYPE_INIT:
+            self.__handle_init(client_sock, client_id)
         # Agregar las demas querys aqui
+
+    def __handle_init(self, client_sock, client_id):
+        """
+        Handle init from client
+
+        Function blocks until an init is received. Then the
+        function is executed and the result is sent to the client
+        """
+        logging.info(f"action: handle_init | result: success | client_id: {client_id}")
+        dto_message = MessageProtocol(
+            typeMessage=ClientCommunication.CODE_INIT,
+            payload=str(client_id)
+        )
+        self.send_message(client_sock, dto_message)
+
 
     def __handle_query(self, client_sock, query, client_id):
         """

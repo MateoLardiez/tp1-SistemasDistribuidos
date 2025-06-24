@@ -5,6 +5,7 @@ from common.defines import QueryNumber
 from common.middleware_connection_handler import RabbitMQConnectionHandler
 from common.resilient_node import ResilientNode
 from common.file_manager import FileManager
+import time
 
 YEAR = 3  # release_date position
 class JoinerByCreditId(ResilientNode):
@@ -31,7 +32,7 @@ class JoinerByCreditId(ResilientNode):
         # Configurar callbacks para ambas colas
         self.rabbitmq_connection_handler.set_message_consumer_callback(f"joiner_by_credits_movies_queue_{id_worker}", self.movies_callback)
         self.rabbitmq_connection_handler.set_message_consumer_callback(f"joiner_credits_by_id_queue_{id_worker}", self.credits_callback)
-        self.load_state()  # Cargar el estado de los clientes desde el archivo
+        self.load_state(self.check_files_state)  # Cargar el estado de los clientes desde el archivo
 
     def start(self):
         logging.info("action: start | result: success | code: joiner_credit_by_id")
@@ -39,6 +40,13 @@ class JoinerByCreditId(ResilientNode):
             self.rabbitmq_connection_handler.start_consuming()
         except Exception as e:
             logging.error(f"Consuming stopped")
+
+    def check_files_state(self):
+        for client_id in self.clients_state:
+            if self.check_file(client_id, "movies"):
+                self.clients_state[client_id]["duplicated_batch"]["movies"] = True
+            if self.check_file(client_id, "credits"):
+                self.clients_state[client_id]["duplicated_batch"]["credits"] = True
 
     def create_clients_state(self, client_id):
         """Obtiene o crea el estado del cliente en el diccionario"""
@@ -48,8 +56,17 @@ class JoinerByCreditId(ResilientNode):
                 "credits_eof": 0,
                 "last_seq_number": 0,  # Último seq_number procesado
                 "movies_per_actor": {},
+                "hash_file": {
+                    "movies": None,  # Hash del archivo de movies
+                    "credits": None
+                },  # TODO: ÚHash deterministo del archivo actualizado
+                "duplicated_batch": {
+                    "movies": False,  # Indica si viene un batch de movies duplicado
+                    "credits": False  # Indica si viene un batch de credits duplicado
+                },  # Indica si se debe deduplicar el archivo
             }
-         
+        # Chequear archivos al iniciar la carga del estado
+
     def movies_callback(self, ch, method, properties, body):
         """Callback para procesar mensajes de la cola de movies"""
         data = MiddlewareMessage.decode_from_bytes(body)
@@ -57,16 +74,21 @@ class JoinerByCreditId(ResilientNode):
               
         if client_id not in self.clients_state:
             self.create_clients_state(client_id)
+            
         if data.controller_name not in self.clients_state[client_id]:
             self.clients_state[client_id][data.controller_name] = data.seq_number
+        elif self.clients_state[client_id]["duplicated_batch"]["movies"]:
+            logging.warning(f"Duplicated batch of movies for client {client_id}. Ignoring.")
+            self.update_duplicate_state(client_id, "movies", data.controller_name, data.seq_number)
+            return
         elif data.seq_number <= self.clients_state[client_id][data.controller_name]:
-            logging.warning(f"Duplicated Message {client_id} in {data.controller_name} with seq_number {data.seq_number}. Ignoring.")
+            logging.warning(f"Duplicated Message {client_id} in {data.controller_name} with seq_number {data.seq_number}. Ignoring.")    
             return
         
         if data.type != MiddlewareMessageType.EOF_MOVIES:
             lines = list(data.get_batch_iter_from_payload())
             filename = f".data/movies-client-{client_id}"
-            self.save_data(filename, lines)
+            self.clients_state[client_id]["hash_file"]["movies"] = self.save_data(filename, lines) # csv y .tmp
             self.clients_state[client_id][data.controller_name] = data.seq_number
         else:
             # Recibimos EOF de movies para este cliente
@@ -85,16 +107,19 @@ class JoinerByCreditId(ResilientNode):
 
         if data.controller_name not in self.clients_state[client_id]:
             self.clients_state[client_id][data.controller_name] = data.seq_number
+        elif self.clients_state[client_id]["duplicated_batch"]["credits"]:
+            logging.warning(f"Duplicated batch of credits for client {client_id}. Ignoring.")
+            self.update_duplicate_state(client_id, "credits", data.controller_name, data.seq_number)
+            return
         elif data.seq_number <= self.clients_state[client_id][data.controller_name]:
             logging.warning(f"Duplicated Message {client_id} in {data.controller_name} with seq_number {data.seq_number}. Ignoring.")
             return
          
         if data.type != MiddlewareMessageType.EOF_CREDITS:
-
             lines = list(data.get_batch_iter_from_payload())
             if self.clients_state[client_id]["movies_eof"] < self.number_workers:
                 filename = f".data/credits-client-{client_id}"   
-                self.save_data(filename, lines)
+                self.clients_state[client_id]["hash_file"]["credits"] = self.save_data(filename, lines)
             else:
                 self.process_credits(lines, client_id)
             self.clients_state[client_id][data.controller_name] = data.seq_number
@@ -217,7 +242,7 @@ class JoinerByCreditId(ResilientNode):
 
     def save_data(self, filename, lines) -> None:
         writer = FileManager(filename)
-        writer.save_data(filename, lines)
+        return writer.save_data(filename, lines)
 
     def read_data(self, filename):
         reader = FileManager(filename)
