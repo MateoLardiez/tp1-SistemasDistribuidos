@@ -33,7 +33,6 @@ class HealthChecker():
        
     def start(self):
         # Inicializar servidor de health check en un proceso separado
-        time.sleep(4)
         self.set_signals()
         health_server_process = Process(target=self.__start_health_check)
         health_server_process.start()

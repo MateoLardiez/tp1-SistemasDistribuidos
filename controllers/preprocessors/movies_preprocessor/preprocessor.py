@@ -56,20 +56,21 @@ class MoviesPreprocessor(ResilientNode):
         if data.type == MiddlewareMessageType.ABORT:
             logging.warning(f"action: abort | result: success | code: movies_preprocessor | client_id: {data.client_id} | seq_number: {data.seq_number}")
             # Enviar un mensaje de abortar a todos los workers
-            # msg = MiddlewareMessage(
-            #     query_number=data.query_number,
-            #     client_id=data.client_id,
-            #     type=MiddlewareMessageType.ABORT,
-            #     seq_number=self.clients_state[data.client_id]["last_seq_number"],
-            #     payload="",
-            #     controller_name=self.controller_name
-            # )
-            # # for id_worker in range(self.number_workers):
-            # #     self.rabbitmq_connection_handler.send_message(routing_key=f"cleaned_movies_queue_country_{id_worker}", msg_body=msg.encode_to_str())
-            # #     self.rabbitmq_connection_handler.send_message(routing_key=f"cleaned_movies_queue_country_invesment_{id_worker}", msg_body=msg.encode_to_str())
-            # for nlp_id in range(self.nlp_workers):
-            #     self.rabbitmq_connection_handler.send_message(routing_key=f"cleaned_movies_queue_nlp_{nlp_id}", msg_body=msg.encode_to_str())
-            del self.clients_state[data.client_id]  # Eliminar el estado del cliente para este controlador
+            msg = MiddlewareMessage(
+                query_number=data.query_number,
+                client_id=data.client_id,
+                type=MiddlewareMessageType.ABORT,
+                seq_number=self.clients_state[data.client_id]["last_seq_number"],
+                payload="",
+                controller_name=self.controller_name
+            )
+            for id_worker in range(self.number_workers):
+                self.rabbitmq_connection_handler.send_message(routing_key=f"cleaned_movies_queue_country_{id_worker}", msg_body=msg.encode_to_str())
+                self.rabbitmq_connection_handler.send_message(routing_key=f"cleaned_movies_queue_country_invesment_{id_worker}", msg_body=msg.encode_to_str())
+            for nlp_id in range(self.nlp_workers):
+                self.rabbitmq_connection_handler.send_message(routing_key=f"cleaned_movies_queue_nlp_{nlp_id}", msg_body=msg.encode_to_str())
+            if data.client_id in self.clients_state:
+                del self.clients_state[data.client_id]  # Eliminar el estado del cliente para este controlador
             self.save_state()
             return  
 
@@ -115,22 +116,22 @@ class MoviesPreprocessor(ResilientNode):
             # Actualizar el estado local del cliente
             self.clients_state[data.client_id]["last_seq_number"] += 1
             self.clients_state[data.client_id][data.controller_name] = data.seq_number
-        elif data.type == MiddlewareMessageType.ABORT:
-            logging.warning(f"action: abort | result: success | code: movies_preprocessor | client_id: {data.client_id} | seq_number: {data.seq_number}")
-            # Enviar un mensaje de abortar a todos los workers
-            msg = MiddlewareMessage(
-                query_number=data.query_number,
-                client_id=data.client_id,
-                type=MiddlewareMessageType.ABORT,
-                seq_number=self.clients_state[data.client_id]["last_seq_number"],
-                payload="",
-                controller_name=self.controller_name
-            )
-            # for id_worker in range(self.number_workers):
-            #     self.rabbitmq_connection_handler.send_message(routing_key=f"cleaned_movies_queue_country_{id_worker}", msg_body=msg.encode_to_str())
-            #     self.rabbitmq_connection_handler.send_message(routing_key=f"cleaned_movies_queue_country_invesment_{id_worker}", msg_body=msg.encode_to_str())
-            for nlp_id in range(self.nlp_workers):
-                self.rabbitmq_connection_handler.send_message(routing_key=f"cleaned_movies_queue_nlp_{nlp_id}", msg_body=msg.encode_to_str())
+        # elif data.type == MiddlewareMessageType.ABORT:
+        #     logging.warning(f"action: abort | result: success | code: movies_preprocessor | client_id: {data.client_id} | seq_number: {data.seq_number}")
+        #     # Enviar un mensaje de abortar a todos los workers
+        #     msg = MiddlewareMessage(
+        #         query_number=data.query_number,
+        #         client_id=data.client_id,
+        #         type=MiddlewareMessageType.ABORT,
+        #         seq_number=self.clients_state[data.client_id]["last_seq_number"],
+        #         payload="",
+        #         controller_name=self.controller_name
+        #     )
+        #     # for id_worker in range(self.number_workers):
+        #     #     self.rabbitmq_connection_handler.send_message(routing_key=f"cleaned_movies_queue_country_{id_worker}", msg_body=msg.encode_to_str())
+        #     #     self.rabbitmq_connection_handler.send_message(routing_key=f"cleaned_movies_queue_country_invesment_{id_worker}", msg_body=msg.encode_to_str())
+        #     for nlp_id in range(self.nlp_workers):
+        #         self.rabbitmq_connection_handler.send_message(routing_key=f"cleaned_movies_queue_nlp_{nlp_id}", msg_body=msg.encode_to_str())
         else:
             seq_number = self.clients_state[data.client_id]["last_seq_number"]
             msg = MiddlewareMessage(
@@ -150,12 +151,11 @@ class MoviesPreprocessor(ResilientNode):
             elif data.query_number == QueryNumber.QUERY_5:
                 self.handler_oef_query_5(msg)
             
-            # del self.clients_state[data.client_id]  # Eliminar el estado del cliente para este controlador
+            del self.clients_state[data.client_id]  # Eliminar el estado del cliente para este controlador
             
         self.save_state()
 
     def handler_oef_all_querys(self, msg):
-
         for nlp_id in range(self.nlp_workers):
             self.rabbitmq_connection_handler.send_message(routing_key=f"cleaned_movies_queue_nlp_{nlp_id}", msg_body=msg.encode_to_str())
 

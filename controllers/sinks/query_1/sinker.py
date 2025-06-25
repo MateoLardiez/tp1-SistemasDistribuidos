@@ -65,6 +65,7 @@ class Query1(ResilientNode):
                     routing_key="reports_queue",
                     msg_body=msg.encode_to_str()
                 )
+                del self.clients_state[data.client_id]
         self.save_state()  # Save the state of clients to file
 
     def handler_query_1(self, lines, client_id, query_number, seq_number):

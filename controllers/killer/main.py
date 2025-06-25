@@ -42,9 +42,15 @@ def initialize_log(logging_level):
     
 def main():
     initialize_log("INFO")
-    
-    killer = Killer()
-    
+    kill_percentage = int(os.getenv("KILL_PERCENTAGE"))
+    interval = int(os.getenv("INTERVAL"))
+    n_health_checkers = int(os.getenv("N_HEALTHCHECKERS"))
+    killer = Killer(
+        interval=interval, 
+        kill_percentage=kill_percentage,
+        n_health_checkers=n_health_checkers
+    )
+
     # Verificar si se pasa un argumento para modo interactivo
     if len(sys.argv) > 1 and sys.argv[1] == "--interactive":
         killer.start_interactive_mode()

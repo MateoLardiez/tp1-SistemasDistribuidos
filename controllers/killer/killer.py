@@ -4,13 +4,15 @@ import random
 import time
 import logging
 
+CONTROLLERS_NAMES_PATH = 'monitorable_process.txt'
 
 class Killer:
-    def __init__(self):
-        # self.interval = interval
-        # self.kill_percentage = kill_percentage
-        # self.max_health_checkers_to_kill = num_of_healthcheckers - 1
-        self.safe_nodes = ["health_checker_1", "rabbit", "gateway", "client", "resutester", ""]
+    def __init__(self, interval, kill_percentage, n_health_checkers):
+        self.interval = interval  # Intervalo en segundos entre intentos de matar contenedores
+        self.kill_percentage = kill_percentage
+        self.max_health_checkers_to_kill = n_health_checkers - 1
+        self.safe_nodes = ["health_checker_1", "rabbit", "gateway", "client", "results_tester", ""]
+        self.running = True
         try:
             self.docker_client = docker.APIClient()
             # Verificar que Docker está disponible
@@ -21,10 +23,11 @@ class Killer:
             logging.error("Make sure Docker socket is mounted: -v /var/run/docker.sock:/var/run/docker.sock")
             raise
         signal.signal(signal.SIGTERM, self.__handle_shutdown)
+        signal.signal(signal.SIGINT, self.__handle_shutdown)
         
     def __handle_shutdown(self, signum, frame):
         logging.info("Shutting down killer")
-        
+        self.running = False
 
     def kill_container_by_name(self, container_name):
         """
@@ -115,27 +118,44 @@ class Killer:
 
     def start(self):
         controllers = []
-        
-        while True:
-            health_checkers_to_kill = 0
-            controllers_to_kill = []
-            for controller in controllers:
-                if random.randint(0, 100) < self.kill_percentage:
-                    # do not kill all healthcheckers
-                    if controller.startswith("health_checker"):
-                        if not controller.startswith("health_checker_1"):
-                            if health_checkers_to_kill < self.max_health_checkers_to_kill:
-                                health_checkers_to_kill += 1
-                                controllers_to_kill.append(controller)
-                    else:
-                        controllers_to_kill.append(controller)
-            time.sleep(self.interval)
-     
-            logging.info(f"\n \n \t \t <<< KILLING NODES >>>:\n  {controllers_to_kill}\n")
-            for controller in controllers_to_kill:
-                try: 
-                    self.docker_client.kill(container=controller)
-                except Exception as e:
-                    logging.error(f"Failed to kill controller {controller}: {str(e)}")  
+        last_killed_time = {}
+        cooldown_period = max(self.interval * 4, 10)  # Mínimo 10 segundos o el doble del intervalo
+        excluded_prefixes = ['rabbit', 'gateway', 'client', 'results_tester', 'killer']
 
+        with open(CONTROLLERS_NAMES_PATH, 'r') as file:
+            controllers = file.read().splitlines()
+        
+        while self.running:
+            # Actualizar la lista de contenedores en ejecución
+            running_containers = [c[0] for c in self.list_running_containers()]
+
+            health_checkers_live = [c for c in running_containers if c.startswith("health_checker")]
+            
+            controller_to_kill = None
+            current_time = time.time()
+            random_id_to_kill = random.randint(0, len(controllers) - 1) 
+            controller = controllers[random_id_to_kill]
+            logging.info(f"Selected controller to check: {controller}")
+
+            if controller in running_containers:             
+                # Verificar si el contenedor está en período de enfriamiento
+                if controller in last_killed_time and current_time - last_killed_time[controller] < cooldown_period:
+                    continue
+                
+                # Verificar si el contenedor es un nodo seguro (no debe ser matado)
+                if any(controller.startswith(prefix) for prefix in excluded_prefixes):
+                    continue
+                
+                if controller.startswith("health_checker"):
+                    if health_checkers_live.count(controller) <= self.max_health_checkers_to_kill:
+                        controller_to_kill = controller
+                else:
+                    controller_to_kill = controller
+
+            if self.kill_container_by_name(controller_to_kill):
+                # Registrar el tiempo en que se mató exitosamente
+                last_killed_time[controller_to_kill] = current_time
+
+            time.sleep(self.interval * 4)
+     
         

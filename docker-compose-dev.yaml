@@ -567,9 +567,14 @@ services:
     container_name: killer
     image: killer:latest
     volumes:
+      - ./.data/monitorable_process.txt:/monitorable_process.txt:ro
       - /var/run/docker.sock:/var/run/docker.sock
     stdin_open: true
     tty: true
+    environment:
+      - N_HEALTHCHECKERS=3
+      - INTERVAL=1
+      - KILL_PERCENTAGE=1
     networks:
       - testing_net
     entrypoint: ["/bin/sh"]
@@ -586,8 +591,8 @@ services:
       - PYTHONUNBUFFERED=1
       - HEALTH_CHECKER_ID=0
       - N_HEALTHCHECKERS=3
-      - HEALTH_CHECK_INTERVAL=5
-      - HEALTH_CHECK_TIMEOUT=2
+      - HEALTH_CHECK_INTERVAL=1
+      - HEALTH_CHECK_TIMEOUT=1
     networks:
       - testing_net
     volumes:
@@ -606,8 +611,8 @@ services:
       - PYTHONUNBUFFERED=1
       - HEALTH_CHECKER_ID=1
       - N_HEALTHCHECKERS=3
-      - HEALTH_CHECK_INTERVAL=5
-      - HEALTH_CHECK_TIMEOUT=2
+      - HEALTH_CHECK_INTERVAL=1
+      - HEALTH_CHECK_TIMEOUT=1
     networks:
       - testing_net
     volumes:
@@ -626,8 +631,8 @@ services:
       - PYTHONUNBUFFERED=1
       - HEALTH_CHECKER_ID=2
       - N_HEALTHCHECKERS=3
-      - HEALTH_CHECK_INTERVAL=5
-      - HEALTH_CHECK_TIMEOUT=2
+      - HEALTH_CHECK_INTERVAL=1
+      - HEALTH_CHECK_TIMEOUT=1
     networks:
       - testing_net
     volumes:

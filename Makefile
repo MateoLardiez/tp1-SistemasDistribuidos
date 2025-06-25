@@ -50,6 +50,7 @@ docker-compose-up: docker-image
 docker-compose-down:
 	docker compose -f docker-compose-dev.yaml stop -t 1
 	docker compose -f docker-compose-dev.yaml down
+	@./client_spawner.sh --kill-all
 .PHONY: docker-compose-down
 
 docker-compose-logs:
@@ -57,6 +58,10 @@ docker-compose-logs:
 .PHONY: docker-compose-logs
 
 # === Killer Management Targets ===
+killer-random:
+	@./manage_containers.sh --random
+.PHONY: killer-random
+
 killer-interactive:
 	@./manage_containers.sh --interactive
 .PHONY: killer-interactive
@@ -77,4 +82,36 @@ killer-kill:
 killer-help:
 	@./manage_containers.sh --help
 .PHONY: killer-help
+
+# === Client Management Targets ===
+# client-setup:
+# 	@chmod +x ./client_spawner.sh
+# .PHONY: client-setup
+
+client-spawn: #client-setup
+	@read -p "Ingresa el número de clientes a iniciar: " num_clients && \
+	./client_spawner.sh --spawn $$num_clients
+.PHONY: client-spawn
+
+client-view: #client-setup
+	@read -p "Ingresa el número del cliente a visualizar: " client_num && \
+	./client_spawner.sh --view $$client_num
+.PHONY: client-view
+
+client-list: #client-setup
+	@./client_spawner.sh --list
+.PHONY: client-list
+
+client-spawn-n: #client-setup
+	@./client_spawner.sh --spawn $(N)
+.PHONY: client-spawn-n
+
+client-kill: #client-setup
+	@read -p "Ingresa el número del cliente a detener: " client_num && \
+	./client_spawner.sh --kill $$client_num
+.PHONY: client-kill
+
+client-kill-all: #client-setup
+	@./client_spawner.sh --kill-all
+.PHONY: client-kill-all
 

@@ -388,14 +388,17 @@ class Gateway:
         if type_batch == ClientCommunication.EOF_MOVIES:
             typeEof = MiddlewareMessageType.EOF_MOVIES
             eof_number = self.clients_batch_received[client_id][ClientCommunication.BATCH_MOVIES] + 1 
+            self.clients_batch_received[client_id][ClientCommunication.BATCH_MOVIES] += 1
             producer_queue = self.producer_queue_of_movies
         elif type_batch == ClientCommunication.EOF_RATINGS:
             typeEof = MiddlewareMessageType.EOF_RATINGS
             eof_number = self.clients_batch_received[client_id][ClientCommunication.BATCH_RATINGS] + 1
+            self.clients_batch_received[client_id][ClientCommunication.BATCH_RATINGS] += 1
             producer_queue = self.producer_queue_of_ratings
         elif type_batch == ClientCommunication.EOF_CREDITS:
             typeEof = MiddlewareMessageType.EOF_CREDITS
             eof_number = self.clients_batch_received[client_id][ClientCommunication.BATCH_CREDITS] + 1
+            self.clients_batch_received[client_id][ClientCommunication.BATCH_CREDITS] += 1
             producer_queue = self.producer_queue_of_credits
 
         for i in range(self.n_workers):

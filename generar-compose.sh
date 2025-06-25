@@ -434,9 +434,14 @@ add_killer() {
     container_name: killer
     image: killer:latest
     volumes:
+      - ./.data/monitorable_process.txt:/monitorable_process.txt:ro
       - /var/run/docker.sock:/var/run/docker.sock
     stdin_open: true
     tty: true
+    environment:
+      - N_HEALTHCHECKERS=$N_HEALTHCHECKERS
+      - INTERVAL=1
+      - KILL_PERCENTAGE=1
     networks:
       - testing_net
     entrypoint: [\"/bin/sh\"]
@@ -458,8 +463,8 @@ add_health_checkers(){
       - PYTHONUNBUFFERED=1
       - HEALTH_CHECKER_ID=$i
       - N_HEALTHCHECKERS=$N_HEALTHCHECKERS
-      - HEALTH_CHECK_INTERVAL=5
-      - HEALTH_CHECK_TIMEOUT=2
+      - HEALTH_CHECK_INTERVAL=1
+      - HEALTH_CHECK_TIMEOUT=1
     networks:
       - testing_net
     volumes:

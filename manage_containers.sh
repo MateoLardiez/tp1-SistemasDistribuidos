@@ -83,8 +83,19 @@ show_system_containers() {
     docker ps --format "{{.Names}}" | grep -E "(rabbitmq|gateway|results_tester|killer)" | sort
 }
 
+kill_random() {
+    echo "=== Modo Interactivo del Killer ==="
+    echo "Conectando al contenedor killer..."
+    docker exec -it "$KILLER_CONTAINER" python main.py
+}
+
 # Procesar argumentos
 case "$1" in
+    -r|--random)
+        check_killer_container
+        kill_random
+        ;;
+
     -i|--interactive)
         check_killer_container
         run_interactive_mode
