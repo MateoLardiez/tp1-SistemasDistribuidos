@@ -67,19 +67,16 @@ class JoinerByRatingId(ResilientNode):
                 },
             }
 
-    # def update_duplicate_state(self, client_id, file_type, controller_name, seq_number):
-    #     self.clients_state[client_id]["duplicated_batch"][file_type] = False
-    #     self.clients_state[client_id][controller_name] = seq_number
-    #     self.clients_state[client_id]["last_seq_number"] += 1
-    #     filename = f".data/{file_type}-client-{client_id}"
-    #     self.clients_state[client_id]["hash_file"][file_type] = FileManager.get_file_hash(filename)
-    #     self.save_state()
-
     def movies_callback(self, ch, method, properties, body):
         """Callback para procesar mensajes de la cola de movies"""
         data = MiddlewareMessage.decode_from_bytes(body)
+
+        if data.type == MiddlewareMessageType.ABORT:
+            logging.info(f"Received ABORT message from client {data.client_id}. Stopping processing.")
+            if self.handle_abort_message(data):
+                return
+
         client_id = data.client_id
-        
         if client_id not in self.clients_state:
             self.create_clients_state(client_id)
         if data.controller_name not in self.clients_state[client_id]:
@@ -109,8 +106,13 @@ class JoinerByRatingId(ResilientNode):
     def ratings_callback(self, ch, method, properties, body):
         """Callback para procesar mensajes de la cola de ratings"""
         data = MiddlewareMessage.decode_from_bytes(body)
+
+        if data.type == MiddlewareMessageType.ABORT:
+            logging.info(f"Received ABORT message from client {data.client_id}. Stopping processing.")
+            if self.handle_abort_message(data):
+                return
+
         client_id = data.client_id
-        
         if client_id not in self.clients_state:
             self.create_clients_state(client_id)
         if data.controller_name not in self.clients_state[client_id]:
@@ -151,7 +153,33 @@ class JoinerByRatingId(ResilientNode):
 
         self.clients_state[client_id]["movies_with_ratings"] = joined_data
 
-
+    def handle_abort_message(self, data):
+        """Maneja el mensaje de aborto recibido"""
+        logging.info(f"Received ABORT message from client {data.client_id}. Stopping processing.")
+        if data.client_id in self.clients_state:
+            msg = MiddlewareMessage(
+                query_number=data.query_number,
+                client_id=data.client_id,
+                type=MiddlewareMessageType.ABORT,
+                seq_number=data.seq_number,
+                payload="",
+                controller_name=self.controller_name
+            )
+            id_sinker = data.client_id % self.number_sinkers
+            # Enviar el mensaje de ABORT a todos los sinkers
+            self.rabbitmq_connection_handler.send_message(
+                routing_key=f"average_rating_aggregated_{id_sinker}",
+                msg_body=msg.encode_to_str()
+            )
+            files_to_remove = [
+                f".data/movies-client-{data.client_id}",
+                f".data/ratings-client-{data.client_id}",
+            ]
+            FileManager.clean_temp_files(files_to_remove)
+            del self.clients_state[data.client_id]
+            self.save_state()
+        return True
+                
     def send_results(self, client_id, query_number):
         """Verifica si se han recibido ambos EOFs para un cliente y procesa los datos"""
         # Verificar que el cliente exista en el estado

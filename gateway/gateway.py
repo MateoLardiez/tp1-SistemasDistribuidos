@@ -138,8 +138,8 @@ class Gateway:
         """
         logging.info(f"action: handle_abort | result: success | client_id: {client_id}")
         self.__handle_abort_message(client_id, ClientCommunication.BATCH_MOVIES, self.producer_queue_of_movies)
-        # self.__handle_abort_message(client_id, ClientCommunication.BATCH_RATINGS, self.producer_queue_of_ratings)
-        # self.__handle_abort_message(client_id, ClientCommunication.BATCH_CREDITS, self.producer_queue_of_credits)
+        self.__handle_abort_message(client_id, ClientCommunication.BATCH_RATINGS, self.producer_queue_of_ratings)
+        self.__handle_abort_message(client_id, ClientCommunication.BATCH_CREDITS, self.producer_queue_of_credits)
 
     def __handle_abort_message(self, client_id, type_batch, producer_queue):
         abort_message = MiddlewareMessage(

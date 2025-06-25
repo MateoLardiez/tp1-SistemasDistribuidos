@@ -43,6 +43,40 @@ class FilterByYear(ResilientNode):
 
     def callback(self, ch, method, properties, body):
         data = MiddlewareMessage.decode_from_bytes(body)
+
+        if data.type == MiddlewareMessageType.ABORT:
+            logging.info(f"Received ABORT message from client {data.client_id}. Stopping processing.")
+            if data.client_id in self.clients_state:
+                for id_worker in range(self.number_workers):
+                    self.send_message_queue(
+                        routing_key=f"filter_by_year_queue_{id_worker}",
+                        data="",
+                        query_number=data.query_number,
+                        client_id=data.client_id,
+                        seq_number=data.seq_number,
+                        typeMsg=MiddlewareMessageType.ABORT,
+                    )
+                    self.send_message_queue(
+                        routing_key=f"sink_query_1_queue_{id_worker}",
+                        data="",
+                        query_number=data.query_number,
+                        client_id=data.client_id,
+                        seq_number=data.seq_number,
+                        typeMsg=MiddlewareMessageType.ABORT,
+                    )
+                    self.send_message_queue(
+                        routing_key=f"joiner_by_ratings_movies_queue_{id_worker}",
+                        data="",
+                        query_number=data.query_number,
+                        client_id=data.client_id,
+                        seq_number=data.seq_number,
+                        typeMsg=MiddlewareMessageType.ABORT,
+                    )
+                # Clean up state for this client
+                del self.clients_state[data.client_id]
+                self.save_state()
+            return
+
         if data.client_id not in self.clients_state:
             self.clients_state[data.client_id] = {
                 "last_seq_number": 0,  # This is the last seq number we propagated
@@ -74,48 +108,35 @@ class FilterByYear(ResilientNode):
             seq_number = self.clients_state[data.client_id]["last_seq_number"]
             self.clients_state[data.client_id]["eof_amount"][str(data.query_number.value)] += 1
             if self.clients_state[data.client_id]["eof_amount"][str(data.query_number.value)] == self.number_workers:
-                msg = MiddlewareMessage(
-                    query_number=data.query_number,
-                    client_id=data.client_id,
-                    seq_number=seq_number,
-                    type=MiddlewareMessageType.EOF_MOVIES,
-                    payload="",
-                    controller_name=self.controller_name
-                )
                 if data.query_number == QueryNumber.QUERY_1:
                     sinker_id = data.client_id % self.number_sinkers
-                    self.rabbitmq_connection_handler.send_message(
-                            routing_key=f"sink_query_1_queue_{sinker_id}",
-                            msg_body=msg.encode_to_str()
-                    )
-                    
+                    self.send_message_queue(
+                        routing_key=f"sink_query_1_queue_{sinker_id}",
+                        data="",
+                        query_number=data.query_number,
+                        client_id=data.client_id,
+                        seq_number=seq_number,
+                        typeMsg=MiddlewareMessageType.EOF_MOVIES,
+                    )    
                 elif data.query_number == QueryNumber.QUERY_3:
                     for i in range(self.number_workers):
-                        msg = MiddlewareMessage(
+                        self.send_message_queue(
+                            routing_key=f"joiner_by_ratings_movies_queue_{i}",
+                            data="",
                             query_number=data.query_number,
                             client_id=data.client_id,
                             seq_number=seq_number,
-                            type=MiddlewareMessageType.EOF_MOVIES,
-                            payload="",
-                            controller_name=self.controller_name
-                        )
-                        self.rabbitmq_connection_handler.send_message(
-                            routing_key=f"joiner_by_ratings_movies_queue_{i}",
-                            msg_body=msg.encode_to_str()
+                            typeMsg=MiddlewareMessageType.EOF_MOVIES,
                         )
                 elif data.query_number == QueryNumber.QUERY_4:
                     for i in range(self.number_workers):
-                        msg = MiddlewareMessage(
+                        self.send_message_queue(
+                            routing_key=f"joiner_by_credits_movies_queue_{i}",
+                            data="",
                             query_number=data.query_number,
                             client_id=data.client_id,
                             seq_number=seq_number,
-                            type=MiddlewareMessageType.EOF_MOVIES,
-                            payload="",
-                            controller_name=self.controller_name
-                        )
-                        self.rabbitmq_connection_handler.send_message(
-                            routing_key=f"joiner_by_credits_movies_queue_{i}",
-                            msg_body=msg.encode_to_str()
+                            typeMsg=MiddlewareMessageType.EOF_MOVIES,
                         )
                 del self.clients_state[data.client_id]["eof_amount"][str(data.query_number.value)]  # Clean up state for this query
             if not self.clients_state[data.client_id]["eof_amount"]:
@@ -209,13 +230,12 @@ class FilterByYear(ResilientNode):
                     client_id=client_id
                 )
 
-
-    def send_message_queue(self, routing_key, data, query_number, client_id, seq_number):
+    def send_message_queue(self, routing_key, data, query_number, client_id, seq_number, typeMsg=MiddlewareMessageType.MOVIES_BATCH):
         msg = MiddlewareMessage(
             query_number=query_number,
             client_id=client_id,
             seq_number=seq_number,
-            type=MiddlewareMessageType.MOVIES_BATCH,
+            type=typeMsg,
             payload=data,
             controller_name=self.controller_name
         )

@@ -32,6 +32,14 @@ class Query1(ResilientNode):
     def callback(self, ch, method, properties, body):
         # id,title,genres,release_date,overview,production_countries,spoken_languages,budget,revenue
         data = MiddlewareMessage.decode_from_bytes(body)
+
+        if data.type == MiddlewareMessageType.ABORT:
+            logging.info(f"Received ABORT message from client {data.client_id}. Stopping processing.")
+            if data.client_id in self.clients_state:
+                del self.clients_state[data.client_id]
+                self.save_state()
+            return
+
         if data.client_id not in self.clients_state:
             self.clients_state[data.client_id] = {
                 "eof_amount": 0, 

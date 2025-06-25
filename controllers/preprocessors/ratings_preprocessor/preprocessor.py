@@ -38,6 +38,29 @@ class RatingsPreprocessor(ResilientNode):
 
     def callback(self, ch, method, properties, body):
         data = MiddlewareMessage.decode_from_bytes(body)
+
+        if data.type == MiddlewareMessageType.ABORT:
+            logging.info(f"Received ABORT message from client {data.client_id}. Stopping processing.")
+            if data.client_id in self.clients_state:
+                msg = MiddlewareMessage(
+                    query_number=data.query_number,
+                    client_id=data.client_id,
+                    type=MiddlewareMessageType.ABORT,
+                    seq_number=data.seq_number,
+                    payload="",
+                    controller_name=self.controller_name
+                )
+                for id_worker in range(self.number_workers):
+                    # Send the ABORT message to all workers
+                    self.rabbitmq_connection_handler.send_message(
+                        routing_key=f"joiner_ratings_by_id_queue_{id_worker}",
+                        msg_body=msg.encode_to_str()
+                    )
+                
+                del self.clients_state[data.client_id]
+                self.save_state()
+            return
+
         if data.client_id not in self.clients_state:
             self.clients_state[data.client_id] = {
                 "last_seq_number": 0  # Este es el último seq number que propagamos

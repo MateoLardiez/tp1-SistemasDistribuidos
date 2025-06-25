@@ -70,8 +70,13 @@ class JoinerByCreditId(ResilientNode):
     def movies_callback(self, ch, method, properties, body):
         """Callback para procesar mensajes de la cola de movies"""
         data = MiddlewareMessage.decode_from_bytes(body)
-        client_id = data.client_id
-              
+
+        if data.type == MiddlewareMessageType.ABORT:
+            logging.info(f"Received ABORT message from client {data.client_id}. Stopping processing.")
+            self.handle_abort_message(data)
+            return
+
+        client_id = data.client_id      
         if client_id not in self.clients_state:
             self.create_clients_state(client_id)
             
@@ -100,8 +105,13 @@ class JoinerByCreditId(ResilientNode):
     def credits_callback(self, ch, method, properties, body):
         """Callback para procesar mensajes de la cola de credits"""
         data = MiddlewareMessage.decode_from_bytes(body)
+
+        if data.type == MiddlewareMessageType.ABORT:
+            logging.info(f"Received ABORT message from client {data.client_id}. Stopping processing.")
+            self.handle_abort_message(data)
+            return
+
         client_id = data.client_id
-        
         if client_id not in self.clients_state:
             self.create_clients_state(client_id)
 
@@ -130,6 +140,32 @@ class JoinerByCreditId(ResilientNode):
                 # Depuración: Mostrar estado actual
                 self.send_results(client_id, data.query_number)
         self.save_state()  # Guardar el estado de los clientes en el archivo
+
+    def handle_abort_message(self, data):
+        """Maneja el mensaje de aborto recibido"""
+        logging.info(f"Received ABORT message from client {data.client_id}. Stopping processing.")
+        if data.client_id in self.clients_state:
+            msg = MiddlewareMessage(
+                query_number=data.query_number,
+                client_id=data.client_id,
+                type=MiddlewareMessageType.ABORT,
+                seq_number=data.seq_number,
+                payload="",
+                controller_name=self.controller_name
+            )
+            id_sinker = data.client_id % self.number_sinkers
+            # Enviar el mensaje de ABORT a todos los sinkers
+            self.rabbitmq_connection_handler.send_message(
+                routing_key=f"average_rating_aggregated_{id_sinker}",
+                msg_body=msg.encode_to_str()
+            )
+            files_to_remove = [
+                f".data/movies-client-{data.client_id}",
+                f".data/credits-client-{data.client_id}",
+            ]
+            FileManager.clean_temp_files(files_to_remove)
+            del self.clients_state[data.client_id]
+            self.save_state()
 
     def process_credits(self, lines, client_id):
         """Process the credit data for a client"""

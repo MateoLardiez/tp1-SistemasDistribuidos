@@ -48,9 +48,9 @@ docker-compose-up: docker-image
 .PHONY: docker-compose-up
 
 docker-compose-down:
+	@./client_spawner.sh --kill-all
 	docker compose -f docker-compose-dev.yaml stop -t 1
 	docker compose -f docker-compose-dev.yaml down
-	@./client_spawner.sh --kill-all
 .PHONY: docker-compose-down
 
 docker-compose-logs:

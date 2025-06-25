@@ -40,6 +40,17 @@ class Query5(ResilientNode):
         # id,title,genres,release_date,overview,production_countries,spoken_languages,budget,revenue
         data = MiddlewareMessage.decode_from_bytes(body)
 
+        if data.type == MiddlewareMessageType.ABORT:
+            logging.info(f"Received ABORT message from client {data.client_id}. Stopping processing.")
+            if data.client_id in self.clients_state:
+                files_to_remove = [
+                    f".data/query_5-client-{data.client_id}",
+                ]
+                FileManager.clean_temp_files(files_to_remove)
+                del self.clients_state[data.client_id]
+                self.save_state()
+            return
+
         if data.client_id not in self.clients_state:
             self.clients_state[data.client_id] = {
                 "eof_amount": 0, 
