@@ -83,35 +83,30 @@ killer-help:
 	@./manage_containers.sh --help
 .PHONY: killer-help
 
-# === Client Management Targets ===
-# client-setup:
-# 	@chmod +x ./client_spawner.sh
-# .PHONY: client-setup
-
-client-spawn: #client-setup
+client-spawn:
 	@read -p "Ingresa el número de clientes a iniciar: " num_clients && \
 	./client_spawner.sh --spawn $$num_clients
 .PHONY: client-spawn
 
-client-view: #client-setup
+client-view:
 	@read -p "Ingresa el número del cliente a visualizar: " client_num && \
 	./client_spawner.sh --view $$client_num
 .PHONY: client-view
 
-client-list: #client-setup
+client-list:
 	@./client_spawner.sh --list
 .PHONY: client-list
 
-client-spawn-n: #client-setup
+client-spawn-n:
 	@./client_spawner.sh --spawn $(N)
 .PHONY: client-spawn-n
 
-client-kill: #client-setup
+client-kill:
 	@read -p "Ingresa el número del cliente a detener: " client_num && \
 	./client_spawner.sh --kill $$client_num
 .PHONY: client-kill
 
-client-kill-all: #client-setup
+client-kill-all:
 	@./client_spawner.sh --kill-all
 .PHONY: client-kill-all
 

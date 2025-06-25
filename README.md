@@ -26,13 +26,13 @@ Valores como resultados patron: https://www.kaggle.com/code/gabrielrobles/fiuba-
 
 # Diseno
 
-# Sistema Killer
+## Sistema Killer
 
-## Inicio en 3 pasos:
+### Inicio en 3 pasos:
 
 ```bash
 # 1. Generar docker-compose con killer
-./generar-compose.sh 2 3 2 1
+./generar-compose.sh 2 2 2 2 3
 
 # 2. Levantar sistema completo
 make docker-compose-up
@@ -44,10 +44,10 @@ Indicacion de valores que recibe el compose:
 1) cantidad de clientes
 2) cantidad de workers
 3) cantidad de sinkers
-4) cantidad de aggregators
+4) cantidad de aggregators nlp
 5) cantidad de healthcheckers
 
-## Comandos más usados:
+### Comandos más usados:
 
 | Comando | Descripción |
 |---------|-------------|
@@ -56,75 +56,40 @@ Indicacion de valores que recibe el compose:
 | `make killer-list` | Listar todos los contenedores |
 | `make killer-kill` | Matar un contenedor (pide nombre) |
 
-## Ejemplos prácticos:
-
-### Simular falla en preprocessors:
-```bash
-./manage_containers.sh --kill movies_preprocessor_0
-./manage_containers.sh --kill ratings_preprocessor_1
-```
-
-### Simular falla en filtros:
-```bash
-./manage_containers.sh --kill filter_by_year_0
-./manage_containers.sh --kill filter_by_country_1
-```
-
-### Simular falla en sinkers:
-```bash
-./manage_containers.sh --kill query_1_sinker_0
-./manage_containers.sh --kill query_2_sinker_1
-```
-
-### Ver impacto en el sistema:
-```bash
-# Antes de matar contenedores
-make killer-show-system
-
-# Matar algunos contenedores
-./manage_containers.sh --kill movies_preprocessor_0
-
-# Ver estado después
-make killer-show-system
-```
-
-## Modo interactivo - Comandos internos:
+### Modo interactivo - Comandos internos:
 
 Una vez en modo interactivo (`make killer-interactive`):
 
 - `list` - Ver contenedores disponibles
-- `<nombre_contenedor>` - Matar contenedor específico
+- `kill <nombre_contenedor>` - Matar contenedor específico
 - `exit` - Salir del modo interactivo
 
-## Reiniciar servicios eliminados:
+## Sistema Client Spawner
 
+###  Inicio en 3 pasos
 ```bash
-# Reiniciar un servicio específico
-docker-compose up -d movies_preprocessor_0
+# 1. Generar docker-compose con killer
+./generar-compose.sh 2 2 2 2 3 
 
-# Reiniciar todos los servicios
-make docker-compose-up
-```
-
-## Troubleshooting:
-
-```bash
-# Verificar que killer esté ejecutándose
-docker ps | grep killer
-
-# Si killer no está disponible
-make docker-compose-down
+# 2. Levantar sistema completo
 make docker-compose-up
 
-# Verificar conectividad con Docker
-docker exec killer python -c "import docker; print(docker.APIClient().ping())"
+# 3. Usar killer en modo interactivo
+make client-spawn-n 1
 ```
 
-## Casos de uso para testing:
+Indicacion de valores que recibe el compose:
+1) cantidad de clientes
+2) cantidad de workers
+3) cantidad de sinkers
+4) cantidad de aggregators nlp
+5) cantidad de healthcheckers
 
-1. **Test de tolerancia a fallos**: Mata workers de diferentes tipos
-2. **Test de balanceo de carga**: Mata algunos workers de un tipo específico
-3. **Test de recuperación**: Mata servicios críticos y observa comportamiento
-4. **Test de cascada**: Mata múltiples servicios en secuencia
+### Comandos más usados:
 
-...
+| Comando | Descripción |
+|---------|-------------|
+| `make client-spawn` | Pide el ingreso de la cantidad de clientes a ser spawneados (recomendado) |
+| `make client-spawn-n` | Pasar por linea de comando la cantidad de clientes |
+| `make client-list` | Listar todos los contenedores clientes spawneados |
+| `make client-kill` | Matar un contenedor (pide id del cliente) |
