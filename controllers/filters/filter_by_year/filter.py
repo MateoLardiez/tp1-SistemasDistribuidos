@@ -39,7 +39,7 @@ class FilterByYear(ResilientNode):
         try:
             self.rabbitmq_connection_handler.start_consuming()
         except Exception as e:
-            logging.info(f"Consuming stopped with error: {e}")
+            logging.info(f"Consuming stopped")
 
     def callback(self, ch, method, properties, body):
         data = MiddlewareMessage.decode_from_bytes(body)

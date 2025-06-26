@@ -95,7 +95,7 @@ class Killer:
                 logging.warning("Unknown command. Use 'kill <container_name>', 'list', or 'exit'.")
 
 
-                excluded_nodes = ['health_checker', 'rabbit', 'gateway', 'client', 'results_tester', 'killer']
+                excluded_nodes = ['health_checker', 'rabbit', 'gateway', 'client', 'results_tester', 'killer', 'spawned_client']
                 if command.lower() == 'fatality':
                     containers = self.list_running_containers()
                     if not containers:
