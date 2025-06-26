@@ -94,7 +94,7 @@ class Query3(ResilientNode):
                     msg_body=msg.encode_to_str()
                 )
                 files_to_remove = [
-                    f"query_3-client-{data.client_id}",
+                    f".data/query_3-client-{data.client_id}",
                 ]
                 FileManager.clean_temp_files(files_to_remove)
                 del self.clients_state[data.client_id]

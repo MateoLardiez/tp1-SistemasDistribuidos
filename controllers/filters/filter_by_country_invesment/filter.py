@@ -32,7 +32,7 @@ class FilterByCountryInvesment(ResilientNode):
         try:
             self.rabbitmq_connection_handler.start_consuming()
         except Exception as e:
-            logging.info("Consuming stopped with error: %s", e)
+            logging.info("Consuming stopped")
 
     def callback(self, ch, method, properties, body):
         data = MiddlewareMessage.decode_from_bytes(body)

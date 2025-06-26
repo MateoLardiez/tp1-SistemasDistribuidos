@@ -49,7 +49,7 @@ docker-compose-up: docker-image
 
 docker-compose-down:
 	@./client_spawner.sh --kill-all
-	docker compose -f docker-compose-dev.yaml stop -t 1
+	docker compose -f docker-compose-dev.yaml stop -t 15
 	docker compose -f docker-compose-dev.yaml down
 .PHONY: docker-compose-down
 
@@ -87,6 +87,10 @@ client-spawn:
 	@read -p "Ingresa el número de clientes a iniciar: " num_clients && \
 	./client_spawner.sh --spawn $$num_clients
 .PHONY: client-spawn
+
+client-spawn-with-id:
+	@read -p "Ingresa el número de id del cliente a iniciar: " client_id && \
+	./client_spawner.sh --spawn-with-id $$client_id
 
 client-view:
 	@read -p "Ingresa el número del cliente a visualizar: " client_num && \

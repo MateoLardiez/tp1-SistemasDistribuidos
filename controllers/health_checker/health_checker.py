@@ -21,6 +21,7 @@ class HealthChecker():
         self.health_checker_id = controller_id
         self.joinable_processes = []
         self.serverIsAlive = Value('b', True)
+        self.server_socket = SocketHandler(server_mode=True)
 
     def set_signals(self):
         signal.signal(signal.SIGTERM, self.__signal_handler)
@@ -30,13 +31,27 @@ class HealthChecker():
         signame = signal.Signals(signum).name
         logging.info(f"action: exit | result: success | signal: {signame}")
         self.serverIsAlive.value = False
-       
+        
+        # Force socket interruption by closing any open sockets
+        # This requires keeping a reference to the server_handler
+        if hasattr(self, 'server_socket'):
+            try:
+                self.server_socket.close()
+            except Exception as e:
+                logging.error(f"Error closing socket: {e}")
+                
+        # Terminate child processes
+        for process in self.joinable_processes:
+            process.terminate()
+            process.join()
+            
     def start(self):
         # Inicializar servidor de health check en un proceso separado
         self.set_signals()
         health_server_process = Process(target=self.__start_health_check)
         health_server_process.start()
-        self.__start_health_server()        
+        self.joinable_processes.append(health_server_process)
+        self.__start_health_server()
         health_server_process.join()  # Esperar a que el proceso de health check termine
 
     def __start_health_check(self):
@@ -98,6 +113,7 @@ class HealthChecker():
                 
         except Exception as e:
             self.__revive_controller(controller)
+            socket_handler.close()
     
     def __revive_controller(self, controller: str):
         try:
@@ -111,14 +127,13 @@ class HealthChecker():
         """
         Inicia el servidor de health check que responde a las consultas de otros health checkers
         """
-        server_handler = SocketHandler(server_mode=True)
-        if not server_handler.create_socket(port=HEALTH_CHECK_PORT):
-            logging.error("Failed to create health check server")
+        if not self.server_socket.create_socket(port=HEALTH_CHECK_PORT):
+            # logging.error("Failed to create health check server")
             return
         
         try:
             while self.serverIsAlive.value:
-                client_handler, _ = server_handler.accept_connection()
+                client_handler, _ = self.server_socket.accept_connection()
                 if client_handler:
                     client_sock = client_handler.get_socket()
                     msg_bytes = MessageHealthCheck.decode_message_bytes(client_sock.recv(1))
@@ -131,8 +146,9 @@ class HealthChecker():
                     client_handler.close()
         except Exception as e:
             logging.error(f"Error in health server: {e}")
+            return
         finally:
-            server_handler.close_socket()
+            self.server_socket.close()
             self.serverIsAlive.value = False
             logging.info(f"[HEALTH_CHECKER_{self.health_checker_id}] Health check server stopped")
             

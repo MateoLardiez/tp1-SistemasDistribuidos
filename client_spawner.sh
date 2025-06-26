@@ -9,6 +9,7 @@ show_help() {
     echo ""
     echo "Opciones:"
     echo "  -c, --spawn N        Inicia N instancias de clientes"
+    echo "  -i, --spawn-with-id N  Inicia un cliente con el ID específico N"
     echo "  -v, --view N         Muestra la consola del cliente número N"
     echo "  -l, --list           Lista todos los clientes en ejecución"
     echo "  -k, --kill N         Detiene el cliente número N"
@@ -162,10 +163,57 @@ kill_all_clients() {
     echo "✓ Todos los clientes han sido detenidos y eliminados."
 }
 
+spawn_client_with_id() {
+    local client_id="$1"
+    if [ -z "$client_id" ]; then
+        echo "Error: Debes especificar el ID del cliente a iniciar."
+        echo "Uso: $0 --spawn-with-id <id_de_cliente>"
+        exit 1
+    fi
+    
+    if ! [[ "$client_id" =~ ^[0-9]+$ ]]; then
+        echo "Error: El ID del cliente debe ser un valor numérico."
+        exit 1
+    fi
+    
+    local client_name="spawned_client_$client_id"
+    echo "=== Iniciando cliente con ID $client_id ==="
+    
+    # Comprobar si el cliente ya existe
+    if docker ps -a --format "{{.Names}}" | grep -q "^${client_name}$"; then
+        echo "El cliente $client_name ya existe. Eliminándolo..."
+        docker rm -f "$client_name" > /dev/null 2>&1
+    fi
+    
+    # Crear el cliente con la misma configuración pero con el ID específico
+    docker run -d --name "$client_name" \
+        --network tp1_testing_net \
+        -e CLIENT_ID="$client_id" \
+        -v "$(pwd)/client/config.yaml:/config.yaml:ro" \
+        -v "$(pwd)/.data/movies_metadata.csv:/movies.csv:ro" \
+        -v "$(pwd)/.data/ratings.csv:/ratings.csv:ro" \
+        -v "$(pwd)/.data/credits.csv:/credits.csv:ro" \
+        client:latest -c "/client"
+    
+    if [ $? -eq 0 ]; then
+        echo "✓ Cliente $client_name iniciado correctamente con ID $client_id"
+    else
+        echo "✗ Error al iniciar el cliente $client_name"
+        exit 1
+    fi
+    
+    echo ""
+    echo "Puedes ver la consola del cliente con:"
+    echo "  $0 --view $client_id"
+}
+
 # Procesar argumentos
 case "$1" in
     -c|--spawn)
         spawn_clients "$2"
+        ;;
+    -i|--spawn-with-id)
+        spawn_client_with_id "$2"
         ;;
     -v|--view)
         view_client_console "$2"

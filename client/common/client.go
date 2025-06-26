@@ -56,12 +56,12 @@ func NewClient(config ClientConfig) *Client {
 		hasBufferedLine: false,
 		resultQueries:   make(map[int]*result.ResultQuery),
 	}
-	signal.Notify(client.quit, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(client.quit, syscall.SIGTERM, syscall.SIGINT)
 	return client
 }
 
 func (c *Client) StartClientLoop() {
-	// defer c.closeClient()
+	defer c.closeClient()
 
 	for {
 		select {
@@ -145,16 +145,6 @@ func (c *Client) handleQuery() bool {
 	switch c.config.Query {
 	case communication.ALL_QUERYS:
 		c.handleAllQueries()
-	// case QUERY_1:
-	// 	c.handleQuery1()
-	// case QUERY_2:
-	// 	c.handleQuery2()
-	// case QUERY_3:
-	// 	c.handleQuery3()
-	// case QUERY_4:
-	// 	c.handleQuery4()
-	// case QUERY_5:
-	// 	c.handleQuery5()
 	default:
 		log.Criticalf("action: handle_query | result: fail | client_id: %v | error: invalid query",
 			c.config.ID,
@@ -327,7 +317,6 @@ func (c *Client) SendFile(filename string, code int, codeEOF int, fileType strin
 		}
 	}
 	messageEOF := communication.NewMessageProtocol(
-		// c.config.ID,
 		codeEOF,
 		nil,
 	)
@@ -423,7 +412,7 @@ func (c *Client) handleCloseConnection() {
 }
 
 func (c *Client) closeClient() {
-	// time.Sleep(5 * time.Second)
+	// time.Sleep(3 * time.Second)
 	if err := c.protocol.Close(); err != nil {
 		log.Errorf("action: close_protocol | result: fail | error: %v", err)
 		return
