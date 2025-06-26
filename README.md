@@ -26,4 +26,70 @@ Valores como resultados patron: https://www.kaggle.com/code/gabrielrobles/fiuba-
 
 # Diseno
 
-...
+## Sistema Killer
+
+### Inicio en 3 pasos:
+
+```bash
+# 1. Generar docker-compose con killer
+./generar-compose.sh 2 2 2 2 3
+
+# 2. Levantar sistema completo
+make docker-compose-up
+
+# 3. Usar killer en modo interactivo
+make killer-interactive
+```
+Indicacion de valores que recibe el compose:
+1) cantidad de clientes
+2) cantidad de workers
+3) cantidad de sinkers
+4) cantidad de aggregators nlp
+5) cantidad de healthcheckers
+
+### Comandos más usados:
+
+| Comando | Descripción |
+|---------|-------------|
+| `make killer-interactive` | Modo interactivo (recomendado) |
+| `make killer-show-system` | Ver contenedores organizados por tipo |
+| `make killer-list` | Listar todos los contenedores |
+| `make killer-kill` | Matar un contenedor (pide nombre) |
+
+### Modo interactivo - Comandos internos:
+
+Una vez en modo interactivo (`make killer-interactive`):
+
+- `list` - Ver contenedores disponibles
+- `kill <nombre_contenedor>` - Matar contenedor específico
+- `exit` - Salir del modo interactivo
+
+## Sistema Client Spawner
+
+###  Inicio en 3 pasos
+```bash
+# 1. Generar docker-compose con killer
+./generar-compose.sh 2 2 2 2 3 
+
+# 2. Levantar sistema completo
+make docker-compose-up
+
+# 3. Usar killer en modo interactivo
+make client-spawn-n 1
+```
+
+Indicacion de valores que recibe el compose:
+1) cantidad de clientes
+2) cantidad de workers
+3) cantidad de sinkers
+4) cantidad de aggregators nlp
+5) cantidad de healthcheckers
+
+### Comandos más usados:
+
+| Comando | Descripción |
+|---------|-------------|
+| `make client-spawn` | Pide el ingreso de la cantidad de clientes a ser spawneados (recomendado) |
+| `make client-spawn-n` | Pasar por linea de comando la cantidad de clientes |
+| `make client-list` | Listar todos los contenedores clientes spawneados |
+| `make client-kill` | Matar un contenedor (pide id del cliente) |

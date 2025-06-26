@@ -1,0 +1,668 @@
+name: tp1
+services:
+  rabbitmq:
+    container_name: rabbitmq
+    build:
+      context: ./rabbitmq
+      dockerfile: Dockerfile
+    networks:
+      - testing_net
+    ports:
+      - "15672:15672"
+      - "5672:5672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  gateway:
+    container_name: gateway
+    image: gateway:latest
+    entrypoint: python3 /main.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - N_WORKERS=2
+    volumes:
+      - ./gateway/config.ini:/config.ini:ro
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  movies_preprocessor_0:
+    container_name: movies_preprocessor_0
+    image: movies_preprocessor:latest
+    entrypoint: python3 /main.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - N_WORKERS=2
+      - WORKER_ID=0
+      - NLP_WORKERS=2
+    volumes:
+      - ./.data/movies_preprocessor_0:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  movies_preprocessor_1:
+    container_name: movies_preprocessor_1
+    image: movies_preprocessor:latest
+    entrypoint: python3 /main.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - N_WORKERS=2
+      - WORKER_ID=1
+      - NLP_WORKERS=2
+    volumes:
+      - ./.data/movies_preprocessor_1:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  ratings_preprocessor_0:
+    container_name: ratings_preprocessor_0
+    image: ratings_preprocessor:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=2
+      - WORKER_ID=0
+    volumes:
+      - ./.data/ratings_preprocessor_0:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  ratings_preprocessor_1:
+    container_name: ratings_preprocessor_1
+    image: ratings_preprocessor:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=2
+      - WORKER_ID=1
+    volumes:
+      - ./.data/ratings_preprocessor_1:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  credits_preprocessor_0:
+    container_name: credits_preprocessor_0
+    image: credits_preprocessor:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=2
+      - WORKER_ID=0
+    volumes:
+      - ./.data/credits_preprocessor_0:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  credits_preprocessor_1:
+    container_name: credits_preprocessor_1
+    image: credits_preprocessor:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=2
+      - WORKER_ID=1
+    volumes:
+      - ./.data/credits_preprocessor_1:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  filter_by_country_0:
+    container_name: filter_by_country_0
+    image: filter_by_country:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=2
+      - WORKER_ID=0
+    volumes:
+      - ./.data/filter_by_country_0:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  filter_by_country_1:
+    container_name: filter_by_country_1
+    image: filter_by_country:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=2
+      - WORKER_ID=1
+    volumes:
+      - ./.data/filter_by_country_1:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  filter_by_country_invesment_0:
+    container_name: filter_by_country_invesment_0
+    image: filter_by_country_invesment:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=2
+      - WORKER_ID=0
+    volumes:
+      - ./.data/filter_by_country_invesment_0:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  filter_by_country_invesment_1:
+    container_name: filter_by_country_invesment_1
+    image: filter_by_country_invesment:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=2
+      - WORKER_ID=1
+    volumes:
+      - ./.data/filter_by_country_invesment_1:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  filter_by_year_0:
+    container_name: filter_by_year_0
+    image: filter_by_year:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=2
+      - N_SINKERS=2
+      - WORKER_ID=0
+    volumes:
+      - ./.data/filter_by_year_0:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  filter_by_year_1:
+    container_name: filter_by_year_1
+    image: filter_by_year:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=2
+      - N_SINKERS=2
+      - WORKER_ID=1
+    volumes:
+      - ./.data/filter_by_year_1:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  group_by_country_0:
+    container_name: group_by_country_0
+    image: group_by_country:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_SINKERS=2
+      - N_WORKERS=2
+      - WORKER_ID=0
+    volumes:
+      - ./.data/group_by_country_0:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  group_by_country_1:
+    container_name: group_by_country_1
+    image: group_by_country:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_SINKERS=2
+      - N_WORKERS=2
+      - WORKER_ID=1
+    volumes:
+      - ./.data/group_by_country_1:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  group_by_sentiment_0:
+    container_name: group_by_sentiment_0
+    image: group_by_sentiment:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_SINKERS=2
+      - WORKER_ID=0
+    volumes:
+      - ./.data/group_by_sentiment_0:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  group_by_sentiment_1:
+    container_name: group_by_sentiment_1
+    image: group_by_sentiment:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_SINKERS=2
+      - WORKER_ID=1
+    volumes:
+      - ./.data/group_by_sentiment_1:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  joiner_rating_by_id_0:
+    container_name: joiner_rating_by_id_0
+    image: joiner_rating_by_id:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_SINKERS=2
+      - WORKER_ID=0
+      - N_WORKERS=2
+    volumes:
+      - ./.data/joiner_ratings_by_id_0:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  joiner_rating_by_id_1:
+    container_name: joiner_rating_by_id_1
+    image: joiner_rating_by_id:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_SINKERS=2
+      - WORKER_ID=1
+      - N_WORKERS=2
+    volumes:
+      - ./.data/joiner_ratings_by_id_1:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  joiner_credit_by_id_0:
+    container_name: joiner_credit_by_id_0
+    image: joiner_credit_by_id:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_SINKERS=2
+      - WORKER_ID=0
+      - N_WORKERS=2
+    volumes:
+      - ./.data/joiner_credits_by_id_0:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  joiner_credit_by_id_1:
+    container_name: joiner_credit_by_id_1
+    image: joiner_credit_by_id:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_SINKERS=2
+      - WORKER_ID=1
+      - N_WORKERS=2
+    volumes:
+      - ./.data/joiner_credits_by_id_1:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  aggregator_nlp_0:
+    container_name: aggregator_nlp_0
+    image: aggregator_nlp:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=2
+      - WORKER_ID=0
+    volumes:
+      - ./.data/aggregator_nlp_0:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  aggregator_nlp_1:
+    container_name: aggregator_nlp_1
+    image: aggregator_nlp:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=2
+      - WORKER_ID=1
+    volumes:
+      - ./.data/aggregator_nlp_1:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  aggregator_r_b_0:
+    container_name: aggregator_r_b_0
+    image: aggregator_r_b:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=2
+      - WORKER_ID=0
+    volumes:
+      - ./.data/aggregator_r_b_0:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  aggregator_r_b_1:
+    container_name: aggregator_r_b_1
+    image: aggregator_r_b:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=2
+      - WORKER_ID=1
+    volumes:
+      - ./.data/aggregator_r_b_1:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  query_1_sinker_0:
+    container_name: query_1_sinker_0
+    image: query_1:latest
+    entrypoint: python3 /main.py
+    environment:
+      - SINKER_ID=0
+      - N_WORKERS=2
+    volumes:
+      - ./.data/query_1_sinker_0:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  
+  query_1_sinker_1:
+    container_name: query_1_sinker_1
+    image: query_1:latest
+    entrypoint: python3 /main.py
+    environment:
+      - SINKER_ID=1
+      - N_WORKERS=2
+    volumes:
+      - ./.data/query_1_sinker_1:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  
+  query_2_sinker_0:
+    container_name: query_2_sinker_0
+    image: query_2:latest
+    entrypoint: python3 /main.py
+    environment:
+      - SINKER_ID=0
+      - N_WORKERS=2
+    volumes:
+      - ./.data/query_2_sinker_0:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  
+  query_2_sinker_1:
+    container_name: query_2_sinker_1
+    image: query_2:latest
+    entrypoint: python3 /main.py
+    environment:
+      - SINKER_ID=1
+      - N_WORKERS=2
+    volumes:
+      - ./.data/query_2_sinker_1:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  
+  query_3_sinker_0:
+    container_name: query_3_sinker_0
+    image: query_3:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=2
+      - SINKER_ID=0
+    volumes:
+      - ./.data/query_3_sinker_0:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  
+  query_3_sinker_1:
+    container_name: query_3_sinker_1
+    image: query_3:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=2
+      - SINKER_ID=1
+    volumes:
+      - ./.data/query_3_sinker_1:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  
+  query_4_sinker_0:
+    container_name: query_4_sinker_0
+    image: query_4:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=2
+      - SINKER_ID=0
+    volumes:
+      - ./.data/query_4_sinker_0:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  
+  query_4_sinker_1:
+    container_name: query_4_sinker_1
+    image: query_4:latest
+    entrypoint: python3 /main.py
+    environment:
+      - N_WORKERS=2
+      - SINKER_ID=1
+    volumes:
+      - ./.data/query_4_sinker_1:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  
+  query_5_sinker_0:
+    container_name: query_5_sinker_0
+    image: query_5:latest
+    entrypoint: python3 /main.py
+    environment:
+      - SINKER_ID=0
+      - N_WORKERS=2
+    volumes:
+      - ./.data/query_5_sinker_0:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  
+  query_5_sinker_1:
+    container_name: query_5_sinker_1
+    image: query_5:latest
+    entrypoint: python3 /main.py
+    environment:
+      - SINKER_ID=1
+      - N_WORKERS=2
+    volumes:
+      - ./.data/query_5_sinker_1:/.data
+    networks:
+      - testing_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  
+  results_tester:
+    container_name: results_tester
+    image: results_tester:latest
+    entrypoint: python3 /main.py
+    volumes:
+      - ./.data/results_total.json:/results.json:ro
+    networks:
+      - testing_net
+
+  killer:
+    container_name: killer
+    image: killer:latest
+    volumes:
+      - ./.data/monitorable_process.txt:/monitorable_process.txt:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    stdin_open: true
+    tty: true
+    environment:
+      - N_HEALTHCHECKERS=3
+      - INTERVAL=1
+      - KILL_PERCENTAGE=1
+    networks:
+      - testing_net
+    entrypoint: ["/bin/sh"]
+    # Para usar en modo interactivo:
+    # docker exec -it killer python main.py --interactive
+    # Para matar un contenedor específico:
+    # docker exec killer python main.py --kill <container_name>
+
+  health_checker_0:
+    container_name: health_checker_0
+    image: health_checker:latest
+    entrypoint: python3 /main.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - HEALTH_CHECKER_ID=0
+      - N_HEALTHCHECKERS=3
+      - HEALTH_CHECK_INTERVAL=1
+      - HEALTH_CHECK_TIMEOUT=1
+    networks:
+      - testing_net
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./.data/monitorable_process.txt:/monitorable_process.txt
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+  health_checker_1:
+    container_name: health_checker_1
+    image: health_checker:latest
+    entrypoint: python3 /main.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - HEALTH_CHECKER_ID=1
+      - N_HEALTHCHECKERS=3
+      - HEALTH_CHECK_INTERVAL=1
+      - HEALTH_CHECK_TIMEOUT=1
+    networks:
+      - testing_net
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./.data/monitorable_process.txt:/monitorable_process.txt
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+  health_checker_2:
+    container_name: health_checker_2
+    image: health_checker:latest
+    entrypoint: python3 /main.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - HEALTH_CHECKER_ID=2
+      - N_HEALTHCHECKERS=3
+      - HEALTH_CHECK_INTERVAL=1
+      - HEALTH_CHECK_TIMEOUT=1
+    networks:
+      - testing_net
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./.data/monitorable_process.txt:/monitorable_process.txt
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+  client0:
+    container_name: client0
+    image: client:latest
+    entrypoint: /client
+    environment:
+      - CLI_ID=1
+    volumes:
+      - ./client/config.yaml:/config.yaml:ro
+      - ./.data/movies_metadata.csv:/movies.csv:ro
+      - ./.data/ratings.csv:/ratings.csv:ro
+      - ./.data/credits.csv:/credits.csv:ro
+    networks:
+      - testing_net
+    depends_on:
+      gateway:
+        condition: service_started
+  
+networks:
+  testing_net:
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.25.125.0/24
