@@ -121,3 +121,8 @@ make client-spawn-n 1
 | `make client-spawn-n` | Pasar por linea de comando la cantidad de clientes                       |
 | `make client-list`    | Listar todos los contenedores clientes spawneados                        |
 | `make client-kill`    | Matar un contenedor (pide id del cliente)                                |
+
+
+### Informe
+
+El informe se puede visualizar en el archivo "Informe TP Tolerancia a Fallos - Movies Analysis.pdf"
